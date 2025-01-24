@@ -1,0 +1,83 @@
+version: 2
+
+project_name: kubernetes-operator
+
+builds:
+  - id: manager
+    dir: cmd
+    binary: manager
+    env: [CGO_ENABLED=0]
+    goos:
+      - linux
+    goarch:
+      - arm
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+dockers:
+  - image_templates:
+      - netbirdio/kubernetes-operator:{{ .Version }}-amd64
+    ids:
+      - manager
+    goarch: amd64
+    dockerfile: Dockerfile.release
+    use: buildx
+    skip_push: false
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=maintainer=dev@netbird.io"
+  - image_templates:
+      - netbirdio/kubernetes-operator:{{ .Version }}-arm64v8
+    ids:
+      - manager
+    goarch: arm64
+    dockerfile: Dockerfile.release
+    use: buildx
+    skip_push: false
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=maintainer=dev@netbird.io"
+  - image_templates:
+      - netbirdio/kubernetes-operator:{{ .Version }}-arm
+    ids:
+      - manager
+    goarch: arm
+    goarm: 6
+    dockerfile: Dockerfile.release
+    use: buildx
+    skip_push: false
+    build_flag_templates:
+      - "--platform=linux/arm"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=maintainer=dev@netbird.io"
+
+docker_manifests:
+  - name_template: netbirdio/kubernetes-operator:{{ .Version }}
+    skip_push: false
+    image_templates:
+      - netbirdio/kubernetes-operator:{{ .Version }}-arm64v8
+      - netbirdio/kubernetes-operator:{{ .Version }}-arm
+      - netbirdio/kubernetes-operator:{{ .Version }}-amd64
+
+  - name_template: netbirdio/kubernetes-operator:latest
+    image_templates:
+      - netbirdio/kubernetes-operator:{{ .Version }}-arm64v8
+      - netbirdio/kubernetes-operator:{{ .Version }}-arm
+      - netbirdio/kubernetes-operator:{{ .Version }}-amd64

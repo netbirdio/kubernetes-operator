@@ -1,0 +1,33 @@
+{{- if .Values.operator.metrics.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "netbird-operator.fullname" . }}-metrics
+  labels:
+    {{- include "netbird-operator.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.operator.metrics.type }}
+  ports:
+  - name: http
+    port: {{ .Values.operator.metrics.port }}
+    protocol: TCP
+    targetPort: {{ .Values.operator.metrics.port }}
+  selector:
+    {{- include "netbird-operator.selectorLabels" . | nindent 4 }}
+{{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "netbird-operator.webhookService" . }}
+  labels:
+    {{- include "netbird-operator.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.webhook.service.type }}
+  ports:
+  - name: https
+    port: {{ .Values.webhook.service.port }}
+    protocol: TCP
+    targetPort: {{ .Values.webhook.service.targetPort }}
+  selector:
+    {{- include "netbird-operator.selectorLabels" . | nindent 4 }}

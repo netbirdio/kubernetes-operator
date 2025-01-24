@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "netbird-operator.fullname" . }}
+  labels:
+    app.kubernetes.io/component: operator
+    {{- include "netbird-operator.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.operator.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "netbird-operator.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.operator.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        app.kubernetes.io/component: operator
+        {{- include "netbird-operator.labels" . | nindent 8 }}
+        {{- with .Values.operator.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.operator.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "netbird-operator.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.operator.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.operator.securityContext | nindent 12 }}
+          image: "{{ .Values.operator.image.registry }}/{{ .Values.operator.image.repository }}:{{ .Values.operator.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.operator.image.pullPolicy }}
+          command:
+          - /manager
+          args:
+          {{- if .Values.operator.metrics.enabled }}
+          - --metrics-bind-address=:{{ .Values.operator.metrics.port}}
+          {{- end }}
+          - --leader-elect
+          - --health-probe-bind-address=:{{ .Values.operator.livenessProbe.port }}
+          - --webhook-cert-path=/tmp/k8s-webhook-server/serving-certs
+          {{- if .Values.managementURL }}
+          - --netbird-management-url={{.Values.managementURL}}
+          {{- end }}
+          ports:
+            - name: webhook-server
+              containerPort: {{ .Values.webhook.service.port }}
+              protocol: TCP
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: {{ .Values.operator.livenessProbe.port }}
+              scheme: HTTP
+            initialDelaySeconds: {{ .Values.operator.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.operator.livenessProbe.periodSeconds }}
+            successThreshold: {{ .Values.operator.livenessProbe.successThreshold }}
+            timeoutSeconds: {{ .Values.operator.livenessProbe.timeoutSeconds }}
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /readyz
+              port: {{ .Values.operator.readinessProbe.port }}
+              scheme: HTTP
+            initialDelaySeconds: {{ .Values.operator.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.operator.readinessProbe.periodSeconds }}
+            successThreshold: {{ .Values.operator.readinessProbe.successThreshold }}
+            timeoutSeconds: {{ .Values.operator.readinessProbe.timeoutSeconds }}
+          resources:
+            {{- toYaml .Values.operator.resources | nindent 12 }}
+          volumeMounts:
+          - mountPath: /tmp/k8s-webhook-server/serving-certs
+            name: webhook-certs
+            readOnly: true
+          {{- with .Values.operator.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+      - name: webhook-certs
+        secret:
+          defaultMode: 420
+          secretName: {{ template "netbird-operator.webhookCertSecret" . }}
+      {{- with .Values.operator.volumes }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.operator.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.operator.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.operator.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

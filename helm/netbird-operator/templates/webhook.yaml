@@ -1,0 +1,134 @@
+{{ $tls := fromYaml ( include "netbird-operator.webhookCerts" . ) }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+{{- if $.Values.webhook.enableCertManager }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ template "netbird-operator.fullname" . }}-serving-cert
+{{- end }}
+  name: {{ include "netbird-operator.fullname" . }}-mpod-webhook
+  labels:
+    {{- include "netbird-operator.labels" . | nindent 4 }}
+webhooks:
+- clientConfig:
+    {{- if not $.Values.webhook.enableCertManager -}}
+    caBundle: {{ $tls.caCert }}
+    {{ end }}
+    service:
+      name: {{ template "netbird-operator.webhookService" . }}
+      namespace: {{ $.Release.Namespace }}
+      path: /mutate--v1-pod
+  failurePolicy: Fail
+  name: mpod-v1.netbird.io
+  admissionReviewVersions:
+  - v1
+  {{- if .Values.webhook.namespaceSelectors }}
+  namespaceSelector:
+    matchExpressions:
+    {{ toYaml .Values.webhook.namespaceSelectors | nindent 4 }}
+  {{ end }}
+  objectSelector:
+    matchExpressions:
+    - key: app.kubernetes.io/name
+      operator: NotIn
+      values:
+      - {{ include "netbird-operator.name" . }}
+    {{- if .Values.webhook.objectSelector.matchExpressions }}
+    {{- toYaml .Values.webhook.objectSelector.matchExpressions | nindent 4 }}
+    {{- end }}
+    {{- if .Values.webhook.objectSelector.matchLabels }}
+    matchLabels:
+    {{- toYaml .Values.webhook.objectSelector.matchLabels | nindent 6 }}
+    {{- end }}
+  rules:
+  - apiGroups:
+    - ""
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    resources:
+    - pods
+  sideEffects: None
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+{{- if $.Values.webhook.enableCertManager }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ template "netbird-operator.fullname" . }}-serving-cert
+{{- end }}
+  name: {{ include "netbird-operator.fullname" . }}-vnbsetupkey-webhook
+  labels:
+    {{- include "netbird-operator.labels" . | nindent 4 }}
+webhooks:
+- clientConfig:
+    {{- if not $.Values.webhook.enableCertManager -}}
+    caBundle: {{ $tls.caCert }}
+    {{ end }}
+    service:
+      name: {{ template "netbird-operator.webhookService" . }}
+      namespace: {{ $.Release.Namespace }}
+      path: /validate-netbird-io-v1-nbsetupkey
+  failurePolicy: Fail
+  name: vnbsetupkey-v1.netbird.io
+  admissionReviewVersions:
+  - v1
+  {{- if .Values.webhook.namespaceSelectors }}
+  namespaceSelector:
+    matchExpressions:
+    {{ toYaml .Values.webhook.namespaceSelectors | nindent 4 }}
+  {{ end }}
+  rules:
+  - apiGroups:
+    - netbird.io
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - "*/*"
+  sideEffects: None
+---
+{{- if not $.Values.webhook.enableCertManager }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ template "netbird-operator.webhookCertSecret" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{ include "netbird-operator.labels" . | indent 4 }}
+type: kubernetes.io/tls
+data:
+  ca.crt: {{ $tls.caCert }}
+  tls.crt: {{ $tls.clientCert }}
+  tls.key: {{ $tls.clientKey }}
+{{- else }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ template "netbird-operator.fullname" . }}-serving-cert
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{ include "netbird-operator.labels" . | indent 4 }}
+spec:
+  dnsNames:
+  - {{ template "netbird-operator.webhookService" . }}.{{ .Release.Namespace }}.svc
+  - {{ template "netbird-operator.webhookService" . }}.{{ .Release.Namespace }}.svc.{{ .Values.webhook.cluster.dnsDomain }}
+  issuerRef:
+    kind: Issuer
+    name: {{ template "netbird-operator.fullname" . }}-selfsigned-issuer
+  secretName: {{ template "netbird-operator.webhookCertSecret" . }}
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ template "netbird-operator.fullname" . }}-selfsigned-issuer
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{ include "netbird-operator.labels" . | indent 4 }}
+spec:
+  selfSigned: {}
+{{- end }}

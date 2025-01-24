@@ -1,0 +1,466 @@
+---
+# Source: netbird-operator/crds/netbird.io_nbsetupkeys.yaml
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.17.1
+  name: nbsetupkeys.netbird.io
+spec:
+  group: netbird.io
+  names:
+    kind: NBSetupKey
+    listKind: NBSetupKeyList
+    plural: nbsetupkeys
+    singular: nbsetupkey
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: NBSetupKey is the Schema for the nbsetupkeys API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: NBSetupKeySpec defines the desired state of NBSetupKey.
+            properties:
+              managementURL:
+                description: ManagementURL optional, override operator management
+                  URL
+                type: string
+              secretKeyRef:
+                description: SecretKeyRef is a reference to the secret containing
+                  the setup key
+                properties:
+                  key:
+                    description: The key of the secret to select from.  Must be a
+                      valid secret key.
+                    type: string
+                  name:
+                    default: ""
+                    description: |-
+                      Name of the referent.
+                      This field is effectively required, but due to backwards compatibility is
+                      allowed to be empty. Instances of this type with an empty value here are
+                      almost certainly wrong.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    type: string
+                  optional:
+                    description: Specify whether the Secret or its key must be defined
+                    type: boolean
+                required:
+                - key
+                type: object
+                x-kubernetes-map-type: atomic
+            required:
+            - secretKeyRef
+            type: object
+          status:
+            description: NBSetupKeyStatus defines the observed state of NBSetupKey.
+            properties:
+              ready:
+                type: boolean
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+
+---
+# Source: netbird-operator/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: netbird-operator
+  labels:
+    helm.sh/chart: netbird-operator-0.1.0
+    app.kubernetes.io/name: netbird-operator
+    app.kubernetes.io/instance: netbird-operator
+    app.kubernetes.io/version: "v0.1.0"
+    app.kubernetes.io/managed-by: Helm
+automountServiceAccountToken: true
+---
+# Source: netbird-operator/templates/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: netbird-operator
+  labels:
+    helm.sh/chart: netbird-operator-0.1.0
+    app.kubernetes.io/name: netbird-operator
+    app.kubernetes.io/instance: netbird-operator
+    app.kubernetes.io/version: "v0.1.0"
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - netbird.io
+  resources:
+  - nbsetupkeys
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - netbird.io
+  resources:
+  - nbsetupkeys/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - netbird.io
+  resources:
+  - nbsetupkeys/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+---
+# Source: netbird-operator/templates/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: netbird-operator
+  labels:
+    helm.sh/chart: netbird-operator-0.1.0
+    app.kubernetes.io/name: netbird-operator
+    app.kubernetes.io/instance: netbird-operator
+    app.kubernetes.io/version: "v0.1.0"
+    app.kubernetes.io/managed-by: Helm
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: netbird-operator
+subjects:
+- kind: ServiceAccount
+  name: netbird-operator
+  namespace: default
+---
+# Source: netbird-operator/templates/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: netbird-operator
+  labels:
+    helm.sh/chart: netbird-operator-0.1.0
+    app.kubernetes.io/name: netbird-operator
+    app.kubernetes.io/instance: netbird-operator
+    app.kubernetes.io/version: "v0.1.0"
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+---
+# Source: netbird-operator/templates/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: netbird-operator
+  labels:
+    helm.sh/chart: netbird-operator-0.1.0
+    app.kubernetes.io/name: netbird-operator
+    app.kubernetes.io/instance: netbird-operator
+    app.kubernetes.io/version: "v0.1.0"
+    app.kubernetes.io/managed-by: Helm
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: netbird-operator
+subjects:
+- kind: ServiceAccount
+  name: netbird-operator
+  namespace: default
+---
+# Source: netbird-operator/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: netbird-operator-metrics
+  labels:
+    helm.sh/chart: netbird-operator-0.1.0
+    app.kubernetes.io/name: netbird-operator
+    app.kubernetes.io/instance: netbird-operator
+    app.kubernetes.io/version: "v0.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app.kubernetes.io/name: netbird-operator
+    app.kubernetes.io/instance: netbird-operator
+---
+# Source: netbird-operator/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: netbird-operator-webhook-service
+  labels:
+    helm.sh/chart: netbird-operator-0.1.0
+    app.kubernetes.io/name: netbird-operator
+    app.kubernetes.io/instance: netbird-operator
+    app.kubernetes.io/version: "v0.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+  - name: https
+    port: 443
+    protocol: TCP
+    targetPort: 9443
+  selector:
+    app.kubernetes.io/name: netbird-operator
+    app.kubernetes.io/instance: netbird-operator
+---
+# Source: netbird-operator/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: netbird-operator
+  labels:
+    app.kubernetes.io/component: operator
+    helm.sh/chart: netbird-operator-0.1.0
+    app.kubernetes.io/name: netbird-operator
+    app.kubernetes.io/instance: netbird-operator
+    app.kubernetes.io/version: "v0.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: netbird-operator
+      app.kubernetes.io/instance: netbird-operator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: operator
+        helm.sh/chart: netbird-operator-0.1.0
+        app.kubernetes.io/name: netbird-operator
+        app.kubernetes.io/instance: netbird-operator
+        app.kubernetes.io/version: "v0.1.0"
+        app.kubernetes.io/managed-by: Helm
+    spec:
+      serviceAccountName: netbird-operator
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: netbird-operator
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+          image: "docker.io/netbirdio/kubernetes-operator:v0.1.0"
+          imagePullPolicy: IfNotPresent
+          command:
+          - /manager
+          args:
+          - --metrics-bind-address=:8080
+          - --leader-elect
+          - --health-probe-bind-address=:8081
+          - --webhook-cert-path=/tmp/k8s-webhook-server/serving-certs
+          ports:
+            - name: webhook-server
+              containerPort: 443
+              protocol: TCP
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 8081
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            successThreshold: 1
+            timeoutSeconds: 1
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /readyz
+              port: 8081
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            {}
+          volumeMounts:
+          - mountPath: /tmp/k8s-webhook-server/serving-certs
+            name: webhook-certs
+            readOnly: true
+      volumes:
+      - name: webhook-certs
+        secret:
+          defaultMode: 420
+          secretName: netbird-operator-tls
+---
+# Source: netbird-operator/templates/webhook.yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: netbird-operator-serving-cert
+  namespace: default
+  labels:
+    helm.sh/chart: netbird-operator-0.1.0
+    app.kubernetes.io/name: netbird-operator
+    app.kubernetes.io/instance: netbird-operator
+    app.kubernetes.io/version: "v0.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  dnsNames:
+  - netbird-operator-webhook-service.default.svc
+  - netbird-operator-webhook-service.default.svc.cluster.local
+  issuerRef:
+    kind: Issuer
+    name: netbird-operator-selfsigned-issuer
+  secretName: netbird-operator-tls
+---
+# Source: netbird-operator/templates/webhook.yaml
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: netbird-operator-selfsigned-issuer
+  namespace: default
+  labels:
+    helm.sh/chart: netbird-operator-0.1.0
+    app.kubernetes.io/name: netbird-operator
+    app.kubernetes.io/instance: netbird-operator
+    app.kubernetes.io/version: "v0.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  selfSigned: {}
+---
+# Source: netbird-operator/templates/webhook.yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: default/netbird-operator-serving-cert
+  name: netbird-operator-mpod-webhook
+  labels:
+    helm.sh/chart: netbird-operator-0.1.0
+    app.kubernetes.io/name: netbird-operator
+    app.kubernetes.io/instance: netbird-operator
+    app.kubernetes.io/version: "v0.1.0"
+    app.kubernetes.io/managed-by: Helm
+webhooks:
+- clientConfig:
+    service:
+      name: netbird-operator-webhook-service
+      namespace: default
+      path: /mutate--v1-pod
+  failurePolicy: Fail
+  name: mpod-v1.netbird.io
+  admissionReviewVersions:
+  - v1
+  objectSelector:
+    matchExpressions:
+    - key: app.kubernetes.io/name
+      operator: NotIn
+      values:
+      - netbird-operator
+  rules:
+  - apiGroups:
+    - ""
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    resources:
+    - pods
+  sideEffects: None
+---
+# Source: netbird-operator/templates/webhook.yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: default/netbird-operator-serving-cert
+  name: netbird-operator-vnbsetupkey-webhook
+  labels:
+    helm.sh/chart: netbird-operator-0.1.0
+    app.kubernetes.io/name: netbird-operator
+    app.kubernetes.io/instance: netbird-operator
+    app.kubernetes.io/version: "v0.1.0"
+    app.kubernetes.io/managed-by: Helm
+webhooks:
+- clientConfig:
+    service:
+      name: netbird-operator-webhook-service
+      namespace: default
+      path: /validate-netbird-io-v1-nbsetupkey
+  failurePolicy: Fail
+  name: vnbsetupkey-v1.netbird.io
+  admissionReviewVersions:
+  - v1
+  rules:
+  - apiGroups:
+    - netbird.io
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - "*/*"
+  sideEffects: None

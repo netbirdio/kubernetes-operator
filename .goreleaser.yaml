@@ -2,6 +2,9 @@ version: 2
 
 project_name: kubernetes-operator
 
+release:
+  disable: true
+
 builds:
   - id: manager
     dir: cmd

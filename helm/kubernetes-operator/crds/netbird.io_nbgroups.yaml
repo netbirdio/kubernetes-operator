@@ -4,20 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.17.1
-  name: nbsetupkeys.netbird.io
+  name: nbgroups.netbird.io
 spec:
   group: netbird.io
   names:
-    kind: NBSetupKey
-    listKind: NBSetupKeyList
-    plural: nbsetupkeys
-    singular: nbsetupkey
+    kind: NBGroup
+    listKind: NBGroupList
+    plural: nbgroups
+    singular: nbgroup
   scope: Namespaced
   versions:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: NBSetupKey is the Schema for the nbsetupkeys API.
+        description: NBGroup is the Schema for the nbgroups API.
         properties:
           apiVersion:
             description: |-
@@ -37,41 +37,19 @@ spec:
           metadata:
             type: object
           spec:
-            description: NBSetupKeySpec defines the desired state of NBSetupKey.
+            description: NBGroupSpec defines the desired state of NBGroup.
             properties:
-              managementURL:
-                description: ManagementURL optional, override operator management
-                  URL
+              name:
+                minLength: 1
                 type: string
-              secretKeyRef:
-                description: SecretKeyRef is a reference to the secret containing
-                  the setup key
-                properties:
-                  key:
-                    description: The key of the secret to select from.  Must be a
-                      valid secret key.
-                    type: string
-                  name:
-                    default: ""
-                    description: |-
-                      Name of the referent.
-                      This field is effectively required, but due to backwards compatibility is
-                      allowed to be empty. Instances of this type with an empty value here are
-                      almost certainly wrong.
-                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                    type: string
-                  optional:
-                    description: Specify whether the Secret or its key must be defined
-                    type: boolean
-                required:
-                - key
-                type: object
-                x-kubernetes-map-type: atomic
+                x-kubernetes-validations:
+                - message: Value is immutable
+                  rule: self == oldSelf
             required:
-            - secretKeyRef
+            - name
             type: object
           status:
-            description: NBSetupKeyStatus defines the observed state of NBSetupKey.
+            description: NBGroupStatus defines the observed state of NBGroup.
             properties:
               conditions:
                 items:
@@ -107,6 +85,8 @@ spec:
                   - type
                   type: object
                 type: array
+              groupID:
+                type: string
             type: object
         type: object
     served: true

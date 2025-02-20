@@ -48,6 +48,18 @@ spec:
           {{- if .Values.managementURL }}
           - --netbird-management-url={{.Values.managementURL}}
           {{- end }}
+          {{- if .Values.cluster.name }}
+          - --cluster-name={{.Values.cluster.name}}
+          {{- end }}
+          {{- if .Values.ingress.namespacedNetworks }}
+          - --namespaced-networks={{.Values.ingress.namespacedNetworks}}
+          {{- end }}
+          {{- if .Values.cluster.dns }}
+          - --cluster-dns={{.Values.cluster.dns}}
+          {{- end }}
+          {{- if or .Values.netbirdAPI.key .Values.netbirdAPI.keyFromSecret }}
+          - --netbird-api-key=$(NB_API_KEY)
+          {{- end }}
           ports:
             - name: webhook-server
               containerPort: {{ .Values.webhook.service.port }}
@@ -62,6 +74,15 @@ spec:
             periodSeconds: {{ .Values.operator.livenessProbe.periodSeconds }}
             successThreshold: {{ .Values.operator.livenessProbe.successThreshold }}
             timeoutSeconds: {{ .Values.operator.livenessProbe.timeoutSeconds }}
+          {{- if or .Values.netbirdAPI.key .Values.netbirdAPI.keyFromSecret }}
+          envFrom:
+            - secretRef:
+                {{- if .Values.netbirdAPI.keyFromSecret }}
+                name: {{.Values.netbirdAPI.keyFromSecret}}
+                {{- else }}
+                name: {{ include "kubernetes-operator.fullname" . }}
+                {{- end }}
+          {{- end }}
           readinessProbe:
             failureThreshold: 3
             httpGet:

@@ -89,7 +89,7 @@ webhooks:
     - CREATE
     - UPDATE
     resources:
-    - "*/*"
+    - "nbsetupkeys"
   sideEffects: None
 ---
 {{- if not $.Values.webhook.enableCertManager }}

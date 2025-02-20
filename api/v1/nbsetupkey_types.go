@@ -26,8 +26,8 @@ type NBSetupKeyConditionType string
 
 // These are built-in conditions of pod. An application may use a custom condition not listed here.
 const (
-	// Ready indicates whether NBSetupKey is valid and ready to use.
-	Ready NBSetupKeyConditionType = "Ready"
+	// NBSetupKeyReady indicates whether NBSetupKey is valid and ready to use.
+	NBSetupKeyReady NBSetupKeyConditionType = "Ready"
 )
 
 // NBSetupKeySpec defines the desired state of NBSetupKey.

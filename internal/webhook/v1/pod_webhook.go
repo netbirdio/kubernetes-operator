@@ -80,7 +80,7 @@ func (d *PodNetbirdInjector) Default(ctx context.Context, obj runtime.Object) er
 
 	ready := false
 	for _, c := range nbSetupKey.Status.Conditions {
-		if c.Type == netbirdiov1.Ready {
+		if c.Type == netbirdiov1.NBSetupKeyReady {
 			ready = c.Status == corev1.ConditionTrue
 		}
 	}

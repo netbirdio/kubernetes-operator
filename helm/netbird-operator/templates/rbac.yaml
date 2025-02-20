@@ -27,6 +27,76 @@ rules:
   - get
   - patch
   - update
+{{- if .Values.ingress.enabled }}
+- apiGroups:
+  - netbird.io
+  resources:
+  - nbgroups
+  - nbresources
+  - nbroutingpeers
+  verbs:
+  - get
+  - patch
+  - update
+  - list
+  - watch
+  - create
+  - delete
+- apiGroups:
+  - netbird.io
+  resources:
+  - nbgroups/status
+  - nbresources/status
+  - nbroutingpeers/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - netbird.io
+  resources:
+  - nbgroups/finalizers
+  - nbresources/finalizers
+  - nbroutingpeers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - services/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - patch
+  - update
+  - list
+  - watch
+  - create
+  - delete
+{{- end }}
 - apiGroups:
   - ""
   resources:
@@ -35,7 +105,7 @@ rules:
   - get
   - list
   - watch
-{{- if .Values.clusterSecretsPermissions.allowAllSecrets }}
+{{- if or .Values.ingress.enabled .Values.clusterSecretsPermissions.allowAllSecrets }}
 - apiGroups:
   - ""
   resources:
@@ -44,6 +114,12 @@ rules:
   - get
   - list
   - watch
+{{- if .Values.ingress.enabled }}
+  - patch
+  - update
+  - create
+  - delete
+{{- end }}
 {{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1

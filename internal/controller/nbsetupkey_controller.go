@@ -59,7 +59,7 @@ func (r *NBSetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, r.setStatus(ctx, &nbSetupKey, netbirdiov1.NBSetupKeyStatus{
 			Conditions: []netbirdiov1.NBSetupKeyCondition{
 				{
-					Type:          netbirdiov1.Ready,
+					Type:          netbirdiov1.NBSetupKeyReady,
 					Status:        corev1.ConditionFalse,
 					LastProbeTime: v1.Now(),
 					Reason:        "InvalidConfig",
@@ -87,7 +87,7 @@ func (r *NBSetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 		ctrl.Log.Error(fmt.Errorf("invalid NBSetupKey"), "secret referenced not found", "err", err, "namespace", req.Namespace, "name", req.Name)
 		return ctrl.Result{}, r.setStatus(ctx, &nbSetupKey, netbirdiov1.NBSetupKeyStatus{Conditions: []netbirdiov1.NBSetupKeyCondition{{
-			Type:          netbirdiov1.Ready,
+			Type:          netbirdiov1.NBSetupKeyReady,
 			Status:        corev1.ConditionFalse,
 			LastProbeTime: v1.Now(),
 			Reason:        "SecretNotExists",
@@ -99,7 +99,7 @@ func (r *NBSetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	if !ok {
 		ctrl.Log.Error(fmt.Errorf("invalid NBSetupKey"), "secret key referenced not found", "namespace", req.Namespace, "name", req.Name)
 		return ctrl.Result{}, r.setStatus(ctx, &nbSetupKey, netbirdiov1.NBSetupKeyStatus{Conditions: []netbirdiov1.NBSetupKeyCondition{{
-			Type:          netbirdiov1.Ready,
+			Type:          netbirdiov1.NBSetupKeyReady,
 			Status:        corev1.ConditionFalse,
 			LastProbeTime: v1.Now(),
 			Reason:        "SecretKeyNotExists",
@@ -111,7 +111,7 @@ func (r *NBSetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	if err != nil {
 		ctrl.Log.Error(fmt.Errorf("invalid NBSetupKey"), "setupKey is not a valid UUID", "err", err, "namespace", req.Namespace, "name", req.Name)
 		return ctrl.Result{}, r.setStatus(ctx, &nbSetupKey, netbirdiov1.NBSetupKeyStatus{Conditions: []netbirdiov1.NBSetupKeyCondition{{
-			Type:          netbirdiov1.Ready,
+			Type:          netbirdiov1.NBSetupKeyReady,
 			Status:        corev1.ConditionFalse,
 			LastProbeTime: v1.Now(),
 			Reason:        "InvalidSetupKey",
@@ -119,7 +119,7 @@ func (r *NBSetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}}})
 	}
 	return ctrl.Result{}, r.setStatus(ctx, &nbSetupKey, netbirdiov1.NBSetupKeyStatus{Conditions: []netbirdiov1.NBSetupKeyCondition{{
-		Type:          netbirdiov1.Ready,
+		Type:          netbirdiov1.NBSetupKeyReady,
 		Status:        corev1.ConditionTrue,
 		LastProbeTime: v1.Now(),
 	}}})
@@ -151,6 +151,6 @@ func (r *NBSetupKeyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 				return nil
 			}),
-		). // Trigger reconciliation when the labeled Busybox resource changes
+		). // Trigger reconciliation when a referenced secret changes
 		Complete(r)
 }

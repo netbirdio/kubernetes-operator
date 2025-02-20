@@ -128,3 +128,44 @@ operator:
   tolerations: []
 
   affinity: {}
+
+ingress:
+  enabled: true
+  namespacedNetworks: false
+  router:
+    enabled: true
+    # replicas: 3
+    # resources:
+    #   requests:
+    #     cpu: 100m
+    #     memory: 100Mi
+    #   limits:
+    #     cpu: 100m
+    #     memory: 100Mi
+    # labels: {}
+    # annotations: {}
+    # nodeSelector: {}
+    # tolerations: []
+    # Only needed for namespacedNetworks
+    # namespaces:
+    # - default:
+        # replicas: 3
+        # resources:
+        #   requests:
+        #     cpu: 100m
+        #     memory: 100Mi
+        #   limits:
+        #     cpu: 100m
+        #     memory: 100Mi
+        # labels: {}
+        # annotations: {}
+        # nodeSelector: {}
+        # tolerations: []
+
+cluster: {}
+  # name: kubernetes
+  # dns: svc.cluster.local
+
+netbirdAPI:
+  key: ""
+  # keyFromSecret: "Secret name with NB_API_KEY=Service Account Token"

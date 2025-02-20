@@ -108,9 +108,9 @@ var _ = Describe("Pod Webhook", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				sk.Status = netbirdiov1.NBSetupKeyStatus{
-					Conditions: []netbirdiov1.NBSetupKeyCondition{
+					Conditions: []netbirdiov1.NBCondition{
 						{
-							Type:   netbirdiov1.Ready,
+							Type:   netbirdiov1.NBSetupKeyReady,
 							Status: corev1.ConditionTrue,
 						},
 					},

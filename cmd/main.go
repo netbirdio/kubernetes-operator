@@ -19,6 +19,7 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -45,6 +46,10 @@ import (
 	// +kubebuilder:scaffold:imports
 )
 
+const (
+	inClusterNamespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+)
+
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
@@ -62,11 +67,29 @@ func init() {
 func main() {
 	// NB Specific flags
 	var (
-		managementURL string
-		clientImage   string
+		managementURL      string
+		clientImage        string
+		clusterName        string
+		namespacedNetworks bool
+		clusterDNS         string
+		netbirdAPIKey      string
 	)
 	flag.StringVar(&managementURL, "netbird-management-url", "https://api.netbird.io", "Management service URL")
 	flag.StringVar(&clientImage, "netbird-client-image", "netbirdio/netbird:latest", "Image for netbird client container")
+	flag.StringVar(
+		&clusterName,
+		"cluster-name",
+		"kubernetes",
+		"User-friendly name for kubernetes cluster for NetBird resource creation",
+	)
+	flag.BoolVar(
+		&namespacedNetworks,
+		"namespaced-networks",
+		false,
+		"Create NetBird Network per namespace, set to true if a NetworkPolicy exists that would require this",
+	)
+	flag.StringVar(&clusterDNS, "cluster-dns", "svc.cluster.local", "Cluster DNS name")
+	flag.StringVar(&netbirdAPIKey, "netbird-api-key", "", "API key for NetBird API operations")
 
 	// Controller generic flags
 	var (
@@ -177,6 +200,87 @@ func main() {
 			os.Exit(1)
 		}
 	}
+	if len(netbirdAPIKey) > 0 {
+		if err = (&controller.NBRoutingPeerReconciler{
+			Client:             mgr.GetClient(),
+			Scheme:             mgr.GetScheme(),
+			ClientImage:        clientImage,
+			ClusterName:        clusterName,
+			APIKey:             netbirdAPIKey,
+			ManagementURL:      managementURL,
+			NamespacedNetworks: namespacedNetworks,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "NBRoutingPeer")
+			os.Exit(1)
+		}
+
+		controllerNamespace, err := getInClusterNamespace()
+		if err != nil {
+			setupLog.Error(err, "unable to get main namespace", "controller", "Service")
+			os.Exit(1)
+		}
+
+		if err = (&controller.ServiceReconciler{
+			Client:              mgr.GetClient(),
+			Scheme:              mgr.GetScheme(),
+			ClusterName:         clusterName,
+			ClusterDNS:          clusterDNS,
+			NamespacedNetworks:  namespacedNetworks,
+			ControllerNamespace: controllerNamespace,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "Service")
+			os.Exit(1)
+		}
+
+		if err = (&controller.NBResourceReconciler{
+			Client:        mgr.GetClient(),
+			Scheme:        mgr.GetScheme(),
+			APIKey:        netbirdAPIKey,
+			ManagementURL: managementURL,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "NBResource")
+			os.Exit(1)
+		}
+
+		if err = (&controller.NBGroupReconciler{
+			Client:        mgr.GetClient(),
+			Scheme:        mgr.GetScheme(),
+			APIKey:        netbirdAPIKey,
+			ManagementURL: managementURL,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "NBGroup")
+			os.Exit(1)
+		}
+
+		if err = (&controller.NBPolicyReconciler{
+			Client:        mgr.GetClient(),
+			Scheme:        mgr.GetScheme(),
+			APIKey:        netbirdAPIKey,
+			ManagementURL: managementURL,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "NBPolicy")
+			os.Exit(1)
+		}
+
+		if enableWebhooks {
+			if err = webhooknetbirdiov1.SetupNBResourceWebhookWithManager(mgr, managementURL, netbirdAPIKey); err != nil {
+				setupLog.Error(err, "unable to create webhook", "webhook", "NBResource")
+				os.Exit(1)
+			}
+
+			if err = webhooknetbirdiov1.SetupNBRoutingPeerWebhookWithManager(mgr, managementURL, netbirdAPIKey); err != nil {
+				setupLog.Error(err, "unable to create webhook", "webhook", "NBRoutingPeer")
+				os.Exit(1)
+			}
+
+			if err = webhooknetbirdiov1.SetupNBGroupWebhookWithManager(mgr, managementURL, netbirdAPIKey); err != nil {
+				setupLog.Error(err, "unable to create webhook", "webhook", "NBGroup")
+				os.Exit(1)
+			}
+		}
+	} else {
+		setupLog.Info("netbird API key not provided, ingress capabilities disabled")
+	}
 	// +kubebuilder:scaffold:builder
 
 	if webhookCertWatcher != nil {
@@ -201,4 +305,21 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+func getInClusterNamespace() (string, error) {
+	// Check whether the namespace file exists.
+	// If not, we are not running in cluster so can't guess the namespace.
+	if _, err := os.Stat(inClusterNamespacePath); os.IsNotExist(err) {
+		return "", fmt.Errorf("not running in-cluster, please specify LeaderElectionNamespace")
+	} else if err != nil {
+		return "", fmt.Errorf("error checking namespace file: %w", err)
+	}
+
+	// Load the namespace file and return its content
+	namespace, err := os.ReadFile(inClusterNamespacePath)
+	if err != nil {
+		return "", fmt.Errorf("error reading namespace file: %w", err)
+	}
+	return string(namespace), nil
 }

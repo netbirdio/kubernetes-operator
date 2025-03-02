@@ -11,8 +11,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/go-logr/logr"
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
 	"github.com/netbirdio/kubernetes-operator/internal/util"
 	netbird "github.com/netbirdio/netbird/management/client/rest"
@@ -35,7 +35,7 @@ var (
 	errNetBirdAPI      = fmt.Errorf("netbird API error")
 )
 
-func (r *NBPolicyReconciler) getResources(ctx context.Context, nbPolicy *netbirdiov1.NBPolicy) ([]netbirdiov1.NBResource, error) {
+func (r *NBPolicyReconciler) getResources(ctx context.Context, nbPolicy *netbirdiov1.NBPolicy, logger logr.Logger) ([]netbirdiov1.NBResource, error) {
 	var resourceList []netbirdiov1.NBResource
 	var updatedManagedServiceList []string
 	for _, rss := range nbPolicy.Status.ManagedServiceList {
@@ -43,7 +43,7 @@ func (r *NBPolicyReconciler) getResources(ctx context.Context, nbPolicy *netbird
 		namespacedName := types.NamespacedName{Namespace: strings.Split(rss, "/")[0], Name: strings.Split(rss, "/")[1]}
 		err := r.Client.Get(ctx, namespacedName, &resource)
 		if err != nil && !errors.IsNotFound(err) {
-			ctrl.Log.Error(errKubernetesAPI, "Error getting NBResource", "namespace", namespacedName.Namespace, "name", namespacedName.Name)
+			logger.Error(errKubernetesAPI, "Error getting NBResource", "namespace", namespacedName.Namespace, "name", namespacedName.Name)
 			nbPolicy.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("Error getting NBResource: %v", err))
 			return nil, err
 		}
@@ -58,12 +58,12 @@ func (r *NBPolicyReconciler) getResources(ctx context.Context, nbPolicy *netbird
 	return resourceList, nil
 }
 
-func (r *NBPolicyReconciler) mapResources(ctx context.Context, req ctrl.Request, nbPolicy *netbirdiov1.NBPolicy, resources []netbirdiov1.NBResource) (map[string][]int32, []string, error) {
+func (r *NBPolicyReconciler) mapResources(ctx context.Context, nbPolicy *netbirdiov1.NBPolicy, resources []netbirdiov1.NBResource, logger logr.Logger) (map[string][]int32, []string, error) {
 	portMapping := map[string]map[int32]interface{}{
 		"tcp": make(map[int32]interface{}),
 		"udp": make(map[int32]interface{}),
 	}
-	groups, err := r.groupNamesToIDs(ctx, req, nbPolicy.Spec.DestinationGroups)
+	groups, err := r.groupNamesToIDs(ctx, nbPolicy.Spec.DestinationGroups, logger)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -92,9 +92,9 @@ func (r *NBPolicyReconciler) mapResources(ctx context.Context, req ctrl.Request,
 	return ports, groups, nil
 }
 
-func (r *NBPolicyReconciler) createPolicy(ctx context.Context, req ctrl.Request, nbPolicy *netbirdiov1.NBPolicy, protocol string, sourceGroupIDs, destinationGroupIDs, ports []string) (*string, error) {
+func (r *NBPolicyReconciler) createPolicy(ctx context.Context, nbPolicy *netbirdiov1.NBPolicy, protocol string, sourceGroupIDs, destinationGroupIDs, ports []string, logger logr.Logger) (*string, error) {
 	policyName := fmt.Sprintf("%s %s", nbPolicy.Spec.Name, strings.ToUpper(protocol))
-	ctrl.Log.Info("Creating NetBird Policy", "name", policyName, "description", nbPolicy.Spec.Description, "protocol", protocol, "sources", sourceGroupIDs, "destinations", destinationGroupIDs, "ports", ports, "bidirectional", nbPolicy.Spec.Bidirectional)
+	logger.Info("Creating NetBird Policy", "name", policyName, "description", nbPolicy.Spec.Description, "protocol", protocol, "sources", sourceGroupIDs, "destinations", destinationGroupIDs, "ports", ports, "bidirectional", nbPolicy.Spec.Bidirectional)
 	policy, err := r.netbird.Policies.Create(ctx, api.PostApiPoliciesJSONRequestBody{
 		Enabled:     true,
 		Name:        policyName,
@@ -115,7 +115,7 @@ func (r *NBPolicyReconciler) createPolicy(ctx context.Context, req ctrl.Request,
 	})
 
 	if err != nil {
-		ctrl.Log.Error(errNetBirdAPI, "Error creating Policy", "namespace", req.Namespace, "name", req.Name, "err", err)
+		logger.Error(errNetBirdAPI, "Error creating Policy", "err", err)
 		nbPolicy.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("Error creating policy: %v", err))
 		return nil, err
 	}
@@ -123,9 +123,9 @@ func (r *NBPolicyReconciler) createPolicy(ctx context.Context, req ctrl.Request,
 	return policy.Id, nil
 }
 
-func (r *NBPolicyReconciler) updatePolicy(ctx context.Context, req ctrl.Request, policyID *string, nbPolicy *netbirdiov1.NBPolicy, protocol string, sourceGroupIDs, destinationGroupIDs, ports []string) (*string, bool, error) {
+func (r *NBPolicyReconciler) updatePolicy(ctx context.Context, policyID *string, nbPolicy *netbirdiov1.NBPolicy, protocol string, sourceGroupIDs, destinationGroupIDs, ports []string, logger logr.Logger) (*string, bool, error) {
 	policyName := fmt.Sprintf("%s %s", nbPolicy.Spec.Name, strings.ToUpper(protocol))
-	ctrl.Log.Info("Updating NetBird Policy", "name", policyName, "description", nbPolicy.Spec.Description, "protocol", protocol, "sources", sourceGroupIDs, "destinations", destinationGroupIDs, "ports", ports, "bidirectional", nbPolicy.Spec.Bidirectional)
+	logger.Info("Updating NetBird Policy", "name", policyName, "description", nbPolicy.Spec.Description, "protocol", protocol, "sources", sourceGroupIDs, "destinations", destinationGroupIDs, "ports", ports, "bidirectional", nbPolicy.Spec.Bidirectional)
 	policy, err := r.netbird.Policies.Update(ctx, *policyID, api.PutApiPoliciesPolicyIdJSONRequestBody{
 		Enabled:     true,
 		Name:        policyName,
@@ -146,7 +146,7 @@ func (r *NBPolicyReconciler) updatePolicy(ctx context.Context, req ctrl.Request,
 	})
 
 	if err != nil && !strings.Contains(err.Error(), "not found") {
-		ctrl.Log.Error(errNetBirdAPI, "Error updating Policy", "namespace", req.Namespace, "name", req.Name, "err", err)
+		logger.Error(errNetBirdAPI, "Error updating Policy", "err", err)
 		nbPolicy.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("Error updating policy: %v", err))
 		return policyID, false, err
 	}
@@ -154,7 +154,7 @@ func (r *NBPolicyReconciler) updatePolicy(ctx context.Context, req ctrl.Request,
 	requeue := false
 
 	if err != nil && strings.Contains(err.Error(), "not found") {
-		ctrl.Log.Info("Policy deleted from NetBird API, recreating", "namespace", req.Namespace, "name", req.Name, "protocol", protocol)
+		logger.Info("Policy deleted from NetBird API, recreating", "protocol", protocol)
 		policyID = nil
 		requeue = true
 		nbPolicy.Status.Conditions = netbirdiov1.NBConditionFalse("Gone", "Policy deleted from NetBird API")
@@ -169,9 +169,8 @@ func (r *NBPolicyReconciler) updatePolicy(ctx context.Context, req ctrl.Request,
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *NBPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, err error) {
-	_ = log.FromContext(ctx)
-
-	ctrl.Log.Info("NBPolicy: Reconciling", "namespace", req.Namespace, "name", req.Name)
+	logger := ctrl.Log.WithName("NBPolicy").WithValues("namespace", req.Namespace, "name", req.Name)
+	logger.Info("Reconciling NBPolicy")
 
 	var nbPolicy netbirdiov1.NBPolicy
 	err = r.Client.Get(ctx, req.NamespacedName, &nbPolicy)
@@ -180,7 +179,7 @@ func (r *NBPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 			err = nil
 		}
 		if err != nil {
-			ctrl.Log.Error(errKubernetesAPI, "error getting NBPolicy", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errKubernetesAPI, "error getting NBPolicy", "err", err)
 		}
 		return ctrl.Result{RequeueAfter: defaultRequeueAfter}, err
 	}
@@ -203,26 +202,26 @@ func (r *NBPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 		if len(nbPolicy.Finalizers) == 0 {
 			return ctrl.Result{}, nil
 		}
-		return ctrl.Result{}, r.handleDelete(ctx, req, nbPolicy)
+		return ctrl.Result{}, r.handleDelete(ctx, nbPolicy, logger)
 	}
 
-	resourceList, err := r.getResources(ctx, &nbPolicy)
+	resourceList, err := r.getResources(ctx, &nbPolicy, logger)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	portMapping, destGroups, err := r.mapResources(ctx, req, &nbPolicy, resourceList)
+	portMapping, destGroups, err := r.mapResources(ctx, &nbPolicy, resourceList, logger)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	sourceGroupIDs, err := r.groupNamesToIDs(ctx, req, nbPolicy.Spec.SourceGroups)
+	sourceGroupIDs, err := r.groupNamesToIDs(ctx, nbPolicy.Spec.SourceGroups, logger)
 	if err != nil {
 		nbPolicy.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("Error getting group IDs: %v", err))
 		return ctrl.Result{}, err
 	}
 
-	requeue, err := r.handlePolicies(ctx, req, &nbPolicy, sourceGroupIDs, destGroups, portMapping)
+	requeue, err := r.handlePolicies(ctx, &nbPolicy, sourceGroupIDs, destGroups, portMapping, logger)
 
 	if requeue || err != nil {
 		return ctrl.Result{Requeue: requeue}, err
@@ -233,7 +232,7 @@ func (r *NBPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 	return ctrl.Result{}, nil
 }
 
-func (r *NBPolicyReconciler) handlePolicies(ctx context.Context, req ctrl.Request, nbPolicy *netbirdiov1.NBPolicy, sourceGroups, destGroups []string, portMapping map[string][]int32) (bool, error) {
+func (r *NBPolicyReconciler) handlePolicies(ctx context.Context, nbPolicy *netbirdiov1.NBPolicy, sourceGroups, destGroups []string, portMapping map[string][]int32, logger logr.Logger) (bool, error) {
 	requeue := false
 
 	for protocol, ports := range portMapping {
@@ -244,14 +243,14 @@ func (r *NBPolicyReconciler) handlePolicies(ctx context.Context, req ctrl.Reques
 		case "udp":
 			policyID = nbPolicy.Status.UDPPolicyID
 		default:
-			ctrl.Log.Error(errKubernetesAPI, "Unknown protocol", "namespace", req.Namespace, "name", req.Name, "protocol", protocol)
+			logger.Error(errKubernetesAPI, "Unknown protocol", "protocol", protocol)
 			nbPolicy.Status.Conditions = netbirdiov1.NBConditionFalse("ConfigError", fmt.Sprintf("Unknown protocol: %s", protocol))
 			return requeue, errUnknownProtocol
 		}
 
 		if len(nbPolicy.Spec.Protocols) > 0 && !util.Contains(nbPolicy.Spec.Protocols, protocol) {
 			if policyID != nil {
-				ctrl.Log.Info("Deleting protocol policy as NBPolicy has restricted protocols", "protocol", protocol)
+				logger.Info("Deleting protocol policy as NBPolicy has restricted protocols", "protocol", protocol)
 				err := r.netbird.Policies.Delete(ctx, *policyID)
 				if err != nil && !strings.Contains(err.Error(), "not found") {
 					nbPolicy.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("Error deleting policy: %v", err))
@@ -260,20 +259,20 @@ func (r *NBPolicyReconciler) handlePolicies(ctx context.Context, req ctrl.Reques
 				policyID = nil
 
 			} else {
-				ctrl.Log.Info("Ignoring protocol as NBPolicy has restricted protocols", "protocol", protocol)
+				logger.Info("Ignoring protocol as NBPolicy has restricted protocols", "protocol", protocol)
 			}
 		} else if len(ports) == 0 && policyID == nil {
-			ctrl.Log.Info("0 ports found for protocol in policy", "namespace", req.Namespace, "name", req.Name, "protocol", protocol)
+			logger.Info("0 ports found for protocol in policy", "protocol", protocol)
 			continue
 		} else if len(destGroups) == 0 && policyID == nil {
-			ctrl.Log.Info("no destinations found for protocol in policy", "namespace", req.Namespace, "name", req.Name, "protocol", protocol)
+			logger.Info("no destinations found for protocol in policy", "protocol", protocol)
 			continue
 		} else if len(sourceGroups) == 0 && policyID == nil {
-			ctrl.Log.Info("no sources found for protocol in policy", "namespace", req.Namespace, "name", req.Name, "protocol", protocol)
+			logger.Info("no sources found for protocol in policy", "protocol", protocol)
 			continue
 		} else if len(ports) == 0 || len(destGroups) == 0 || len(sourceGroups) == 0 {
 			// Delete policy
-			ctrl.Log.Info("Deleting policy", "namespace", req.Namespace, "name", req.Name, "protocol", protocol)
+			logger.Info("Deleting policy", "protocol", protocol)
 			err := r.netbird.Policies.Delete(ctx, *policyID)
 			if err != nil && !strings.Contains(err.Error(), "not found") {
 				nbPolicy.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("Error deleting policy: %v", err))
@@ -291,9 +290,9 @@ func (r *NBPolicyReconciler) handlePolicies(ctx context.Context, req ctrl.Reques
 
 			var err error
 			if policyID == nil {
-				policyID, err = r.createPolicy(ctx, req, nbPolicy, protocol, sourceGroups, destGroups, stringPorts)
+				policyID, err = r.createPolicy(ctx, nbPolicy, protocol, sourceGroups, destGroups, stringPorts, logger)
 			} else {
-				policyID, requeue, err = r.updatePolicy(ctx, req, policyID, nbPolicy, protocol, sourceGroups, destGroups, stringPorts)
+				policyID, requeue, err = r.updatePolicy(ctx, policyID, nbPolicy, protocol, sourceGroups, destGroups, stringPorts, logger)
 			}
 			if err != nil {
 				return requeue, err
@@ -306,7 +305,7 @@ func (r *NBPolicyReconciler) handlePolicies(ctx context.Context, req ctrl.Reques
 		case "udp":
 			nbPolicy.Status.UDPPolicyID = policyID
 		default:
-			ctrl.Log.Error(errKubernetesAPI, "Unknown protocol", "namespace", req.Namespace, "name", req.Name, "protocol", protocol)
+			logger.Error(errKubernetesAPI, "Unknown protocol", "protocol", protocol)
 			nbPolicy.Status.Conditions = netbirdiov1.NBConditionFalse("ConfigError", fmt.Sprintf("Unknown protocol: %s", protocol))
 			return requeue, errUnknownProtocol
 		}
@@ -315,7 +314,7 @@ func (r *NBPolicyReconciler) handlePolicies(ctx context.Context, req ctrl.Reques
 	return requeue, nil
 }
 
-func (r *NBPolicyReconciler) handleDelete(ctx context.Context, req ctrl.Request, nbPolicy netbirdiov1.NBPolicy) error {
+func (r *NBPolicyReconciler) handleDelete(ctx context.Context, nbPolicy netbirdiov1.NBPolicy, logger logr.Logger) error {
 	if nbPolicy.Status.TCPPolicyID != nil {
 		err := r.netbird.Policies.Delete(ctx, *nbPolicy.Status.TCPPolicyID)
 		if err != nil {
@@ -325,7 +324,7 @@ func (r *NBPolicyReconciler) handleDelete(ctx context.Context, req ctrl.Request,
 	}
 	if nbPolicy.Status.UDPPolicyID != nil {
 		err := r.netbird.Policies.Delete(ctx, *nbPolicy.Status.UDPPolicyID)
-		if err != nil {
+		if err != nil && !strings.Contains("not found", err.Error()) {
 			return err
 		}
 		nbPolicy.Status.UDPPolicyID = nil
@@ -334,17 +333,17 @@ func (r *NBPolicyReconciler) handleDelete(ctx context.Context, req ctrl.Request,
 		nbPolicy.Finalizers = util.Without(nbPolicy.Finalizers, "netbird.io/cleanup")
 		err := r.Client.Update(ctx, &nbPolicy)
 		if err != nil {
-			ctrl.Log.Error(errKubernetesAPI, "Error updating NBPolicy", "namespace", req.Namespace, "name", req.Name, "err", err)
+			logger.Error(errKubernetesAPI, "Error updating NBPolicy", "err", err)
 			return err
 		}
 	}
 	return nil
 }
 
-func (r *NBPolicyReconciler) groupNamesToIDs(ctx context.Context, req ctrl.Request, groupNames []string) ([]string, error) {
+func (r *NBPolicyReconciler) groupNamesToIDs(ctx context.Context, groupNames []string, logger logr.Logger) ([]string, error) {
 	groups, err := r.netbird.Groups.List(ctx)
 	if err != nil {
-		ctrl.Log.Error(errNetBirdAPI, "Error listing Groups", "namespace", req.Namespace, "name", req.Name, "err", err)
+		logger.Error(errNetBirdAPI, "Error listing Groups", "err", err)
 		return nil, err
 	}
 

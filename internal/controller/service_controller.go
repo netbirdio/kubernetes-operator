@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
 	"github.com/netbirdio/kubernetes-operator/internal/util"
 	corev1 "k8s.io/api/core/v1"
@@ -16,7 +17,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // ServiceReconciler reconciles a Service object
@@ -46,15 +46,14 @@ var (
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
-
-	ctrl.Log.Info("Service: Reconciling", "namespace", req.Namespace, "name", req.Name)
+	logger := ctrl.Log.WithName("Service").WithValues("namespace", req.Namespace, "name", req.Name)
+	logger.Info("Reconciling Service")
 
 	svc := corev1.Service{}
 	err := r.Get(ctx, req.NamespacedName, &svc)
 	if err != nil {
 		if !errors.IsNotFound(err) {
-			ctrl.Log.Error(errKubernetesAPI, "error getting Service", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errKubernetesAPI, "error getting Service", "err", err)
 		}
 		return ctrl.Result{}, nil
 	}
@@ -65,24 +64,24 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	shouldExpose = shouldExpose && svc.DeletionTimestamp == nil
 
 	if shouldExpose {
-		return r.exposeService(ctx, req, svc)
+		return r.exposeService(ctx, req, svc, logger)
 	}
 
-	return r.hideService(ctx, req, svc)
+	return r.hideService(ctx, req, svc, logger)
 }
 
-func (r *ServiceReconciler) hideService(ctx context.Context, req ctrl.Request, svc corev1.Service) (ctrl.Result, error) {
+func (r *ServiceReconciler) hideService(ctx context.Context, req ctrl.Request, svc corev1.Service, logger logr.Logger) (ctrl.Result, error) {
 	var nbResource netbirdiov1.NBResource
 	err := r.Client.Get(ctx, req.NamespacedName, &nbResource)
 	if err != nil && !errors.IsNotFound(err) {
-		ctrl.Log.Error(errKubernetesAPI, "error getting NBResource", "err", err, "namespace", req.Namespace, "name", req.Name)
+		logger.Error(errKubernetesAPI, "error getting NBResource", "err", err)
 		return ctrl.Result{}, err
 	}
 
 	if !errors.IsNotFound(err) {
 		err = r.Client.Delete(ctx, &nbResource)
 		if err != nil {
-			ctrl.Log.Error(errKubernetesAPI, "error deleting NBResource", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errKubernetesAPI, "error deleting NBResource", "err", err)
 			return ctrl.Result{}, err
 		}
 	}
@@ -91,7 +90,7 @@ func (r *ServiceReconciler) hideService(ctx context.Context, req ctrl.Request, s
 		svc.Finalizers = util.Without(svc.Finalizers, "netbird.io/cleanup")
 		err := r.Client.Update(ctx, &svc)
 		if err != nil {
-			ctrl.Log.Error(errKubernetesAPI, "error updating Service", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errKubernetesAPI, "error updating Service", "err", err)
 			return ctrl.Result{}, err
 		}
 	}
@@ -99,7 +98,7 @@ func (r *ServiceReconciler) hideService(ctx context.Context, req ctrl.Request, s
 	return ctrl.Result{}, nil
 }
 
-func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request, svc corev1.Service) (ctrl.Result, error) {
+func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request, svc corev1.Service, logger logr.Logger) (ctrl.Result, error) {
 	routerNamespace := r.ControllerNamespace
 	if r.NamespacedNetworks {
 		routerNamespace = req.Namespace
@@ -109,7 +108,7 @@ func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request,
 		svc.Finalizers = append(svc.Finalizers, "netbird.io/cleanup")
 		err := r.Client.Update(ctx, &svc)
 		if err != nil {
-			ctrl.Log.Error(errKubernetesAPI, "error updating Service", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errKubernetesAPI, "error updating Service", "err", err)
 			return ctrl.Result{}, err
 		}
 	}
@@ -118,7 +117,7 @@ func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request,
 	// Check if NBRoutingPeer exists
 	err := r.Client.Get(ctx, types.NamespacedName{Namespace: routerNamespace, Name: "router"}, &routingPeer)
 	if err != nil && !errors.IsNotFound(err) {
-		ctrl.Log.Error(errKubernetesAPI, "error getting NBRoutingPeer", "err", err, "namespace", req.Namespace, "name", req.Name)
+		logger.Error(errKubernetesAPI, "error getting NBRoutingPeer", "err", err)
 		return ctrl.Result{}, err
 	}
 
@@ -135,24 +134,24 @@ func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request,
 
 		err = r.Client.Create(ctx, &routingPeer)
 		if err != nil {
-			ctrl.Log.Error(errKubernetesAPI, "error creating NBRoutingPeer", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errKubernetesAPI, "error creating NBRoutingPeer", "err", err)
 			return ctrl.Result{}, err
 		}
 
-		ctrl.Log.Info("Network not available")
+		logger.Info("Network not available")
 		// Requeue to make sure network is created
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 	}
 
 	if routingPeer.Status.NetworkID == nil {
-		ctrl.Log.Info("Network not available")
+		logger.Info("Network not available")
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 	}
 
 	var nbResource netbirdiov1.NBResource
 	err = r.Client.Get(ctx, req.NamespacedName, &nbResource)
 	if err != nil && !errors.IsNotFound(err) {
-		ctrl.Log.Error(errKubernetesAPI, "error getting NBResource", "err", err, "namespace", req.Namespace, "name", req.Name)
+		logger.Error(errKubernetesAPI, "error getting NBResource", "err", err)
 		return ctrl.Result{}, err
 	}
 
@@ -164,13 +163,13 @@ func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request,
 	if errors.IsNotFound(err) {
 		err = r.Client.Create(ctx, &nbResource)
 		if err != nil {
-			ctrl.Log.Error(errKubernetesAPI, "error creating NBResource", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errKubernetesAPI, "error creating NBResource", "err", err)
 			return ctrl.Result{}, err
 		}
 	} else {
 		err = r.Client.Update(ctx, &nbResource)
 		if err != nil {
-			ctrl.Log.Error(errKubernetesAPI, "error updating NBResource", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errKubernetesAPI, "error updating NBResource", "err", err)
 			return ctrl.Result{}, err
 		}
 	}

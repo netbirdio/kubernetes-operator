@@ -29,7 +29,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
@@ -45,17 +44,18 @@ type NBSetupKeyReconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *NBSetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	logger := ctrl.Log.WithName("NBSetupKey").WithValues("namespace", req.Namespace, "name", req.Name)
+	logger.Info("Reconciling NBSetupKey")
 
 	nbSetupKey := netbirdiov1.NBSetupKey{}
 	err := r.Get(ctx, req.NamespacedName, &nbSetupKey)
 	if err != nil {
-		ctrl.Log.Error(fmt.Errorf("internalError"), "error getting NBSetupKey", "err", err, "namespace", req.Namespace, "name", req.Name)
+		logger.Error(fmt.Errorf("internalError"), "error getting NBSetupKey", "err", err)
 		return ctrl.Result{}, nil
 	}
 
 	if nbSetupKey.Spec.SecretKeyRef.Name == "" || nbSetupKey.Spec.SecretKeyRef.Key == "" {
-		ctrl.Log.Error(fmt.Errorf("invalid NBSetupKey"), "secretKeyRef must contain both secret name and secret key", "namespace", req.Namespace, "name", req.Name)
+		logger.Error(fmt.Errorf("invalid NBSetupKey"), "secretKeyRef must contain both secret name and secret key")
 		return ctrl.Result{}, r.setStatus(ctx, &nbSetupKey, netbirdiov1.NBSetupKeyStatus{
 			Conditions: []netbirdiov1.NBCondition{
 				{
@@ -82,10 +82,10 @@ func (r *NBSetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	err = r.Get(ctx, types.NamespacedName{Namespace: nbSetupKey.Namespace, Name: nbSetupKey.Spec.SecretKeyRef.Name}, &secret)
 	if err != nil {
 		if !errors.IsNotFound(err) {
-			ctrl.Log.Error(fmt.Errorf("internalError"), "error getting secret", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(fmt.Errorf("internalError"), "error getting secret", "err", err)
 			return ctrl.Result{}, err
 		}
-		ctrl.Log.Error(fmt.Errorf("invalid NBSetupKey"), "secret referenced not found", "err", err, "namespace", req.Namespace, "name", req.Name)
+		logger.Error(fmt.Errorf("invalid NBSetupKey"), "secret referenced not found", "err", err)
 		return ctrl.Result{}, r.setStatus(ctx, &nbSetupKey, netbirdiov1.NBSetupKeyStatus{Conditions: []netbirdiov1.NBCondition{{
 			Type:          netbirdiov1.NBSetupKeyReady,
 			Status:        corev1.ConditionFalse,
@@ -97,7 +97,7 @@ func (r *NBSetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	uuidBytes, ok := secret.Data[nbSetupKey.Spec.SecretKeyRef.Key]
 	if !ok {
-		ctrl.Log.Error(fmt.Errorf("invalid NBSetupKey"), "secret key referenced not found", "namespace", req.Namespace, "name", req.Name)
+		logger.Error(fmt.Errorf("invalid NBSetupKey"), "secret key referenced not found")
 		return ctrl.Result{}, r.setStatus(ctx, &nbSetupKey, netbirdiov1.NBSetupKeyStatus{Conditions: []netbirdiov1.NBCondition{{
 			Type:          netbirdiov1.NBSetupKeyReady,
 			Status:        corev1.ConditionFalse,
@@ -109,7 +109,7 @@ func (r *NBSetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	_, err = uuid.Parse(string(uuidBytes))
 	if err != nil {
-		ctrl.Log.Error(fmt.Errorf("invalid NBSetupKey"), "setupKey is not a valid UUID", "err", err, "namespace", req.Namespace, "name", req.Name)
+		logger.Error(fmt.Errorf("invalid NBSetupKey"), "setupKey is not a valid UUID", "err", err)
 		return ctrl.Result{}, r.setStatus(ctx, &nbSetupKey, netbirdiov1.NBSetupKeyStatus{Conditions: []netbirdiov1.NBCondition{{
 			Type:          netbirdiov1.NBSetupKeyReady,
 			Status:        corev1.ConditionFalse,

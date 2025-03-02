@@ -14,8 +14,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/go-logr/logr"
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
 	"github.com/netbirdio/kubernetes-operator/internal/util"
 	netbird "github.com/netbirdio/netbird/management/client/rest"
@@ -37,15 +37,14 @@ type NBRoutingPeerReconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *NBRoutingPeerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, err error) {
-	_ = log.FromContext(ctx)
-
-	ctrl.Log.Info("NBRoutingPeer: Reconciling", "namespace", req.Namespace, "name", req.Name)
+	logger := ctrl.Log.WithName("NBRoutingPeer").WithValues("namespace", req.Namespace, "name", req.Name)
+	logger.Info("Reconciling NBRoutingPeer")
 
 	nbrp := &netbirdiov1.NBRoutingPeer{}
 	err = r.Get(ctx, req.NamespacedName, nbrp)
 	if err != nil {
 		if !errors.IsNotFound(err) {
-			ctrl.Log.Error(errKubernetesAPI, "error getting NBRoutingPeer", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errKubernetesAPI, "error getting NBRoutingPeer", "err", err)
 		}
 		return ctrl.Result{RequeueAfter: defaultRequeueAfter}, nil
 	}
@@ -58,7 +57,7 @@ func (r *NBRoutingPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			!util.Equivalent(originalNBRP.Status.Conditions, nbrp.Status.Conditions) {
 			err = r.Client.Status().Update(ctx, nbrp)
 			if err != nil {
-				ctrl.Log.Error(errKubernetesAPI, "error updating NBRoutingPeer Status", "err", err, "namespace", req.Namespace, "name", req.Name)
+				logger.Error(errKubernetesAPI, "error updating NBRoutingPeer Status", "err", err)
 			}
 		}
 		if !res.Requeue && res.RequeueAfter == 0 {
@@ -70,35 +69,35 @@ func (r *NBRoutingPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if len(nbrp.Finalizers) == 0 {
 			return ctrl.Result{}, nil
 		}
-		return r.handleDelete(ctx, req, nbrp)
+		return r.handleDelete(ctx, req, nbrp, logger)
 	}
 
-	ctrl.Log.Info("NBRoutingPeer: Checking network", "namespace", req.Namespace, "name", req.Name)
-	err = r.handleNetwork(ctx, req, nbrp)
+	logger.Info("NBRoutingPeer: Checking network")
+	err = r.handleNetwork(ctx, req, nbrp, logger)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	ctrl.Log.Info("NBRoutingPeer: Checking groups", "namespace", req.Namespace, "name", req.Name)
-	nbGroup, result, err := r.handleGroup(ctx, req, nbrp)
+	logger.Info("NBRoutingPeer: Checking groups")
+	nbGroup, result, err := r.handleGroup(ctx, req, nbrp, logger)
 	if nbGroup == nil {
 		return *result, err
 	}
 
-	ctrl.Log.Info("NBRoutingPeer: Checking setup keys", "namespace", req.Namespace, "name", req.Name)
-	result, err = r.handleSetupKey(ctx, req, nbrp, *nbGroup)
+	logger.Info("NBRoutingPeer: Checking setup keys")
+	result, err = r.handleSetupKey(ctx, req, nbrp, *nbGroup, logger)
 	if result != nil {
 		return *result, err
 	}
 
-	ctrl.Log.Info("NBRoutingPeer: Checking network router", "namespace", req.Namespace, "name", req.Name)
-	err = r.handleRouter(ctx, req, nbrp, *nbGroup)
+	logger.Info("NBRoutingPeer: Checking network router")
+	err = r.handleRouter(ctx, req, nbrp, *nbGroup, logger)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	ctrl.Log.Info("NBRoutingPeer: Checking deployment", "namespace", req.Namespace, "name", req.Name)
-	err = r.handleDeployment(ctx, req, nbrp)
+	logger.Info("NBRoutingPeer: Checking deployment")
+	err = r.handleDeployment(ctx, req, nbrp, logger)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -107,11 +106,11 @@ func (r *NBRoutingPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	return ctrl.Result{}, nil
 }
 
-func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl.Request, nbrp *netbirdiov1.NBRoutingPeer) error {
+func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl.Request, nbrp *netbirdiov1.NBRoutingPeer, logger logr.Logger) error {
 	routingPeerDeployment := appsv1.Deployment{}
 	err := r.Client.Get(ctx, req.NamespacedName, &routingPeerDeployment)
 	if err != nil && !errors.IsNotFound(err) {
-		ctrl.Log.Error(errKubernetesAPI, "error getting Deployment", "err", err, "namespace", req.Namespace, "name", req.Name)
+		logger.Error(errKubernetesAPI, "error getting Deployment", "err", err)
 		nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("error getting Deployment: %v", err))
 		return err
 	}
@@ -188,7 +187,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 
 		err = r.Client.Create(ctx, &routingPeerDeployment)
 		if err != nil {
-			ctrl.Log.Error(errKubernetesAPI, "error creating Deployment", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errKubernetesAPI, "error creating Deployment", "err", err)
 			nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("error creating Deployment: %v", err))
 			return err
 		}
@@ -260,7 +259,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 		}
 		err = r.Client.Patch(ctx, updatedDeployment, patch)
 		if err != nil {
-			ctrl.Log.Error(errKubernetesAPI, "error updating Deployment", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errKubernetesAPI, "error updating Deployment", "err", err)
 			nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("error updating Deployment: %v", err))
 			return err
 		}
@@ -269,18 +268,12 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 	return nil
 }
 
-func (r *NBRoutingPeerReconciler) handleRouter(ctx context.Context, req ctrl.Request, nbrp *netbirdiov1.NBRoutingPeer, nbGroup netbirdiov1.NBGroup) error {
-	// Refresh nbrp
-	err := r.Client.Get(ctx, req.NamespacedName, nbrp)
-	if err != nil {
-		return err
-	}
-
+func (r *NBRoutingPeerReconciler) handleRouter(ctx context.Context, req ctrl.Request, nbrp *netbirdiov1.NBRoutingPeer, nbGroup netbirdiov1.NBGroup, logger logr.Logger) error {
 	// Check NetworkRouter exists
 	routers, err := r.netbird.Networks.Routers(*nbrp.Status.NetworkID).List(ctx)
 
 	if err != nil {
-		ctrl.Log.Error(errNetBirdAPI, "error listing network routers", "err", err, "namespace", req.Namespace, "name", req.Name)
+		logger.Error(errNetBirdAPI, "error listing network routers", "err", err)
 		nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("error listing network routers: %v", err))
 		return err
 	}
@@ -297,7 +290,7 @@ func (r *NBRoutingPeerReconciler) handleRouter(ctx context.Context, req ctrl.Req
 			})
 
 			if err != nil {
-				ctrl.Log.Error(errNetBirdAPI, "error creating network router", "err", err, "namespace", req.Namespace, "name", req.Name)
+				logger.Error(errNetBirdAPI, "error creating network router", "err", err)
 				nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("error creating network router: %v", err))
 				return err
 			}
@@ -314,7 +307,7 @@ func (r *NBRoutingPeerReconciler) handleRouter(ctx context.Context, req ctrl.Req
 			})
 
 			if err != nil {
-				ctrl.Log.Error(errNetBirdAPI, "error updating network router", "err", err, "namespace", req.Namespace, "name", req.Name)
+				logger.Error(errNetBirdAPI, "error updating network router", "err", err)
 				nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("error updating network router: %v", err))
 				return err
 			}
@@ -324,7 +317,7 @@ func (r *NBRoutingPeerReconciler) handleRouter(ctx context.Context, req ctrl.Req
 	return nil
 }
 
-func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.Request, nbrp *netbirdiov1.NBRoutingPeer, nbGroup netbirdiov1.NBGroup) (*ctrl.Result, error) {
+func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.Request, nbrp *netbirdiov1.NBRoutingPeer, nbGroup netbirdiov1.NBGroup, logger logr.Logger) (*ctrl.Result, error) {
 	networkName := r.ClusterName
 	if r.NamespacedNetworks {
 		networkName += "-" + req.Namespace
@@ -341,7 +334,7 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 		})
 
 		if err != nil {
-			ctrl.Log.Error(errNetBirdAPI, "error creating setup key", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errNetBirdAPI, "error creating setup key", "err", err)
 			nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("error creating setup key: %v", err))
 			return &ctrl.Result{}, err
 		}
@@ -372,7 +365,7 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 		}
 
 		if err != nil {
-			ctrl.Log.Error(errKubernetesAPI, "error creating Secret", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errKubernetesAPI, "error creating Secret", "err", err)
 			nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("error creating secret: %v", err))
 			return &ctrl.Result{}, err
 		}
@@ -380,7 +373,7 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 		// Check SetupKey is not revoked
 		setupKey, err := r.netbird.SetupKeys.Get(ctx, *nbrp.Status.SetupKeyID)
 		if err != nil && !strings.Contains(err.Error(), "not found") {
-			ctrl.Log.Error(errNetBirdAPI, "error getting setup key", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errNetBirdAPI, "error getting setup key", "err", err)
 			nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("error getting setup key: %v", err))
 			return &ctrl.Result{}, err
 		}
@@ -395,7 +388,7 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 		skSecret := corev1.Secret{}
 		err = r.Client.Get(ctx, req.NamespacedName, &skSecret)
 		if err != nil && !errors.IsNotFound(err) {
-			ctrl.Log.Error(errKubernetesAPI, "error getting Secret", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errKubernetesAPI, "error getting Secret", "err", err)
 			nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("error getting secret: %v", err))
 			return &ctrl.Result{}, err
 		}
@@ -406,7 +399,7 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 			err = r.netbird.SetupKeys.Delete(ctx, *nbrp.Status.SetupKeyID)
 
 			if err != nil {
-				ctrl.Log.Error(errNetBirdAPI, "error deleting setup key", "err", err, "namespace", req.Namespace, "name", req.Name)
+				logger.Error(errNetBirdAPI, "error deleting setup key", "err", err)
 				nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("error deleting setup key: %v", err))
 				return &ctrl.Result{}, err
 			}
@@ -422,7 +415,7 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 	return nil, nil
 }
 
-func (r *NBRoutingPeerReconciler) handleGroup(ctx context.Context, req ctrl.Request, nbrp *netbirdiov1.NBRoutingPeer) (*netbirdiov1.NBGroup, *ctrl.Result, error) {
+func (r *NBRoutingPeerReconciler) handleGroup(ctx context.Context, req ctrl.Request, nbrp *netbirdiov1.NBRoutingPeer, logger logr.Logger) (*netbirdiov1.NBGroup, *ctrl.Result, error) {
 	networkName := r.ClusterName
 	if r.NamespacedNetworks {
 		networkName += "-" + req.Namespace
@@ -432,7 +425,7 @@ func (r *NBRoutingPeerReconciler) handleGroup(ctx context.Context, req ctrl.Requ
 	nbGroup := netbirdiov1.NBGroup{}
 	err := r.Client.Get(ctx, req.NamespacedName, &nbGroup)
 	if err != nil && !errors.IsNotFound(err) {
-		ctrl.Log.Error(errKubernetesAPI, "error getting NBGroup", "err", err, "namespace", req.Namespace, "name", req.Name)
+		logger.Error(errKubernetesAPI, "error getting NBGroup", "err", err)
 		nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("error getting NBGroup: %v", err))
 		return nil, &ctrl.Result{}, err
 	}
@@ -461,7 +454,7 @@ func (r *NBRoutingPeerReconciler) handleGroup(ctx context.Context, req ctrl.Requ
 		err = r.Client.Create(ctx, &nbGroup)
 
 		if err != nil {
-			ctrl.Log.Error(errKubernetesAPI, "error creating NBGroup", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errKubernetesAPI, "error creating NBGroup", "err", err)
 			nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("error creating NBGroup: %v", err))
 			return nil, &ctrl.Result{}, err
 		}
@@ -478,7 +471,7 @@ func (r *NBRoutingPeerReconciler) handleGroup(ctx context.Context, req ctrl.Requ
 	return &nbGroup, nil, nil
 }
 
-func (r *NBRoutingPeerReconciler) handleNetwork(ctx context.Context, req ctrl.Request, nbrp *netbirdiov1.NBRoutingPeer) error {
+func (r *NBRoutingPeerReconciler) handleNetwork(ctx context.Context, req ctrl.Request, nbrp *netbirdiov1.NBRoutingPeer, logger logr.Logger) error {
 	networkName := r.ClusterName
 	if r.NamespacedNetworks {
 		networkName += "-" + req.Namespace
@@ -488,14 +481,14 @@ func (r *NBRoutingPeerReconciler) handleNetwork(ctx context.Context, req ctrl.Re
 		// Check if network exists
 		networks, err := r.netbird.Networks.List(ctx)
 		if err != nil {
-			ctrl.Log.Error(errNetBirdAPI, "error listing networks", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errNetBirdAPI, "error listing networks", "err", err)
 			nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("error listing networks: %v", err))
 			return err
 		}
 		var network *api.Network
 		for _, n := range networks {
 			if n.Name == networkName {
-				ctrl.Log.Info("network already exists", "network-id", n.Id)
+				logger.Info("network already exists", "network-id", n.Id)
 				network = &n
 			}
 		}
@@ -503,13 +496,13 @@ func (r *NBRoutingPeerReconciler) handleNetwork(ctx context.Context, req ctrl.Re
 		if network != nil {
 			nbrp.Status.NetworkID = &network.Id
 		} else {
-			ctrl.Log.Info("creating network", "name", networkName)
+			logger.Info("creating network", "name", networkName)
 			network, err := r.netbird.Networks.Create(ctx, api.NetworkRequest{
 				Name:        networkName,
 				Description: &networkDescription,
 			})
 			if err != nil {
-				ctrl.Log.Error(errNetBirdAPI, "error creating network", "err", err, "namespace", req.Namespace, "name", req.Name)
+				logger.Error(errNetBirdAPI, "error creating network", "err", err)
 				nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("error creating network: %v", err))
 				return err
 			}
@@ -520,38 +513,38 @@ func (r *NBRoutingPeerReconciler) handleNetwork(ctx context.Context, req ctrl.Re
 	return nil
 }
 
-func (r *NBRoutingPeerReconciler) handleDelete(ctx context.Context, req ctrl.Request, nbrp *netbirdiov1.NBRoutingPeer) (ctrl.Result, error) {
+func (r *NBRoutingPeerReconciler) handleDelete(ctx context.Context, req ctrl.Request, nbrp *netbirdiov1.NBRoutingPeer, logger logr.Logger) (ctrl.Result, error) {
 	nbDeployment := appsv1.Deployment{}
 	err := r.Client.Get(ctx, req.NamespacedName, &nbDeployment)
 	if err != nil && !errors.IsNotFound(err) {
-		ctrl.Log.Error(errKubernetesAPI, "error getting Deployment", "err", err, "namespace", req.Namespace, "name", req.Name)
+		logger.Error(errKubernetesAPI, "error getting Deployment", "err", err)
 		return ctrl.Result{}, err
 	}
 	if err == nil {
 		err = r.Client.Delete(ctx, &nbDeployment)
 		if err != nil {
-			ctrl.Log.Error(errKubernetesAPI, "error deleting Deployment", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errKubernetesAPI, "error deleting Deployment", "err", err)
 			return ctrl.Result{}, err
 		}
 	}
 
 	if nbrp.Status.SetupKeyID != nil {
-		ctrl.Log.Info("Deleting setup key", "id", *nbrp.Status.SetupKeyID)
+		logger.Info("Deleting setup key", "id", *nbrp.Status.SetupKeyID)
 		err = r.netbird.SetupKeys.Delete(ctx, *nbrp.Status.SetupKeyID)
 		if err != nil && !strings.Contains(err.Error(), "not found") {
-			ctrl.Log.Error(errNetBirdAPI, "error deleting setupKey", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errNetBirdAPI, "error deleting setupKey", "err", err)
 			return ctrl.Result{}, err
 		}
 
 		setupKeyID := *nbrp.Status.SetupKeyID
 		nbrp.Status.SetupKeyID = nil
-		ctrl.Log.Info("Setup key deleted", "id", setupKeyID)
+		logger.Info("Setup key deleted", "id", setupKeyID)
 	}
 
 	if nbrp.Status.RouterID != nil {
 		err = r.netbird.Networks.Routers(*nbrp.Status.NetworkID).Delete(ctx, *nbrp.Status.RouterID)
 		if err != nil && !strings.Contains(err.Error(), "not found") {
-			ctrl.Log.Error(errNetBirdAPI, "error deleting Network Router", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errNetBirdAPI, "error deleting Network Router", "err", err)
 			return ctrl.Result{}, err
 		}
 
@@ -561,7 +554,7 @@ func (r *NBRoutingPeerReconciler) handleDelete(ctx context.Context, req ctrl.Req
 	nbGroup := netbirdiov1.NBGroup{}
 	err = r.Client.Get(ctx, req.NamespacedName, &nbGroup)
 	if err != nil && !errors.IsNotFound(err) {
-		ctrl.Log.Error(errKubernetesAPI, "error getting NBGroup", "err", err, "namespace", req.Namespace, "name", req.Name)
+		logger.Error(errKubernetesAPI, "error getting NBGroup", "err", err)
 		return ctrl.Result{}, err
 	}
 
@@ -569,26 +562,26 @@ func (r *NBRoutingPeerReconciler) handleDelete(ctx context.Context, req ctrl.Req
 		nbResourceList := netbirdiov1.NBResourceList{}
 		err = r.Client.List(ctx, &nbResourceList)
 		if err != nil {
-			ctrl.Log.Error(errKubernetesAPI, "error listing NBResource", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errKubernetesAPI, "error listing NBResource", "err", err)
 			return ctrl.Result{}, err
 		}
 
 		for _, nbrs := range nbResourceList.Items {
 			if nbrs.Spec.NetworkID == *nbrp.Status.NetworkID {
-				ctrl.Log.Info("Deleting NBResource", "namespace", nbrs.Namespace, "name", nbrs.Name)
+				logger.Info("Deleting NBResource", "namespace", nbrs.Namespace, "name", nbrs.Name)
 				err = r.Client.Delete(ctx, &nbrs)
 				if err != nil {
-					ctrl.Log.Error(errKubernetesAPI, "error deleting NBResource", "err", err, "namespace", req.Namespace, "name", req.Name)
+					logger.Error(errKubernetesAPI, "error deleting NBResource", "err", err)
 					return ctrl.Result{}, err
 				}
 			}
 		}
 
 		if len(nbResourceList.Items) == 0 {
-			ctrl.Log.Info("Deleting NetBird Network", "id", *nbrp.Status.NetworkID)
+			logger.Info("Deleting NetBird Network", "id", *nbrp.Status.NetworkID)
 			err = r.netbird.Networks.Delete(ctx, *nbrp.Status.NetworkID)
 			if err != nil && !strings.Contains(err.Error(), "not found") {
-				ctrl.Log.Error(errNetBirdAPI, "error deleting Network", "err", err, "namespace", req.Namespace, "name", req.Name)
+				logger.Error(errNetBirdAPI, "error deleting Network", "err", err)
 				return ctrl.Result{}, err
 			}
 
@@ -598,10 +591,10 @@ func (r *NBRoutingPeerReconciler) handleDelete(ctx context.Context, req ctrl.Req
 
 	if nbGroup.Spec.Name != "" && util.Contains(nbGroup.Finalizers, "netbird.io/routing-peer-cleanup") {
 		nbGroup.Finalizers = util.Without(nbGroup.Finalizers, "netbird.io/routing-peer-cleanup")
-		ctrl.Log.Info("Removing netbird.io/routing-peer-cleanup finalizer NBGroup", "namespace", nbGroup.Namespace, "name", nbGroup.Name)
+		logger.Info("Removing netbird.io/routing-peer-cleanup finalizer NBGroup", "namespace", nbGroup.Namespace, "name", nbGroup.Name)
 		err = r.Client.Update(ctx, &nbGroup)
 		if err != nil {
-			ctrl.Log.Error(errKubernetesAPI, "error deleting NBGroup", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errKubernetesAPI, "error deleting NBGroup", "err", err)
 			return ctrl.Result{}, err
 		}
 	}
@@ -611,11 +604,11 @@ func (r *NBRoutingPeerReconciler) handleDelete(ctx context.Context, req ctrl.Req
 	}
 
 	if len(nbrp.Finalizers) > 0 {
-		ctrl.Log.Info("Removing finalizers", "namespace", nbrp.Namespace, "name", nbrp.Name)
+		logger.Info("Removing finalizers", "namespace", nbrp.Namespace, "name", nbrp.Name)
 		nbrp.Finalizers = nil
 		err = r.Client.Update(ctx, nbrp)
 		if err != nil {
-			ctrl.Log.Error(errKubernetesAPI, "error updating NBRoutingPeer finalizers", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errKubernetesAPI, "error updating NBRoutingPeer finalizers", "err", err)
 			return ctrl.Result{}, err
 		}
 	}

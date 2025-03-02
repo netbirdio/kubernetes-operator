@@ -13,8 +13,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/go-logr/logr"
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
 	"github.com/netbirdio/kubernetes-operator/internal/util"
 	netbird "github.com/netbirdio/netbird/management/client/rest"
@@ -33,14 +33,14 @@ type NBResourceReconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *NBResourceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, err error) {
-	_ = log.FromContext(ctx)
-	ctrl.Log.Info("NBResource: Reconciling", "namespace", req.Namespace, "name", req.Name)
+	logger := ctrl.Log.WithName("NBResource").WithValues("namespace", req.Namespace, "name", req.Name)
+	logger.Info("Reconciling NBResource")
 
 	nbResource := &netbirdiov1.NBResource{}
 	err = r.Client.Get(ctx, req.NamespacedName, nbResource)
 	if err != nil {
 		if !errors.IsNotFound(err) {
-			ctrl.Log.Error(errKubernetesAPI, "error getting NBResource", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errKubernetesAPI, "error getting NBResource", "err", err)
 		}
 		return ctrl.Result{RequeueAfter: defaultRequeueAfter}, nil
 	}
@@ -63,16 +63,16 @@ func (r *NBResourceReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if len(nbResource.Finalizers) == 0 {
 			return ctrl.Result{}, nil
 		}
-		return ctrl.Result{}, r.handleDelete(ctx, req, nbResource)
+		return ctrl.Result{}, r.handleDelete(ctx, req, nbResource, logger)
 	}
 
-	groupIDs, result, err := r.handleGroups(ctx, req, nbResource)
+	groupIDs, result, err := r.handleGroups(ctx, req, nbResource, logger)
 	if result != nil {
 		nbResource.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("Error occurred handling groups: %v", err))
 		return *result, err
 	}
 
-	resource, err := r.handleNetBirdResource(ctx, req, nbResource, groupIDs)
+	resource, err := r.handleNetBirdResource(ctx, nbResource, groupIDs, logger)
 	if err != nil {
 		nbResource.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("Error occurred handling NetBird Network Resource: %v", err))
 		return ctrl.Result{}, err
@@ -83,13 +83,13 @@ func (r *NBResourceReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	err = r.handleGroupUpdate(ctx, req, nbResource, groupIDs, resource)
+	err = r.handleGroupUpdate(ctx, nbResource, groupIDs, resource, logger)
 	if err != nil {
 		nbResource.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("Error occurred handling groups: %v", err))
 		return ctrl.Result{}, err
 	}
 
-	err = r.handlePolicy(ctx, req, nbResource, groupIDs)
+	err = r.handlePolicy(ctx, req, nbResource, groupIDs, logger)
 	if err != nil {
 		nbResource.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("Error occurred handling policy changes: %v", err))
 	}
@@ -99,7 +99,7 @@ func (r *NBResourceReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	return ctrl.Result{}, nil
 }
 
-func (r *NBResourceReconciler) handlePolicy(ctx context.Context, req ctrl.Request, nbResource *netbirdiov1.NBResource, groupIDs []string) error {
+func (r *NBResourceReconciler) handlePolicy(ctx context.Context, req ctrl.Request, nbResource *netbirdiov1.NBResource, groupIDs []string, logger logr.Logger) error {
 	if nbResource.Status.PolicyName == nil && nbResource.Spec.PolicyName == "" {
 		return nil
 	}
@@ -111,7 +111,7 @@ func (r *NBResourceReconciler) handlePolicy(ctx context.Context, req ctrl.Reques
 		nbResource.Status.PolicyName = nil
 		err := r.Client.Get(ctx, types.NamespacedName{Name: *nbResource.Status.PolicyName}, &nbPolicy)
 		if err != nil {
-			ctrl.Log.Error(errKubernetesAPI, "error getting NBPolicy", "err", err, "namespace", req.Namespace, "name", req.Name, "policyName", nbResource.Spec.PolicyName)
+			logger.Error(errKubernetesAPI, "error getting NBPolicy", "err", err, "policyName", nbResource.Spec.PolicyName)
 			return err
 		}
 		if util.Contains(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String()) {
@@ -122,7 +122,7 @@ func (r *NBResourceReconciler) handlePolicy(ctx context.Context, req ctrl.Reques
 	} else {
 		err := r.Client.Get(ctx, types.NamespacedName{Name: nbResource.Spec.PolicyName}, &nbPolicy)
 		if err != nil {
-			ctrl.Log.Error(errKubernetesAPI, "error getting NBPolicy", "err", err, "namespace", req.Namespace, "name", req.Name, "policyName", nbResource.Spec.PolicyName)
+			logger.Error(errKubernetesAPI, "error getting NBPolicy", "err", err, "policyName", nbResource.Spec.PolicyName)
 			return err
 		}
 
@@ -158,7 +158,7 @@ func (r *NBResourceReconciler) handlePolicy(ctx context.Context, req ctrl.Reques
 	if updatePolicyStatus {
 		err := r.Client.Status().Update(ctx, &nbPolicy)
 		if err != nil {
-			ctrl.Log.Error(errKubernetesAPI, "error updating NBPolicy", "err", err, "namespace", req.Namespace, "name", req.Name, "policyName", nbResource.Spec.PolicyName)
+			logger.Error(errKubernetesAPI, "error updating NBPolicy", "err", err, "policyName", nbResource.Spec.PolicyName)
 			return err
 		}
 	}
@@ -166,7 +166,7 @@ func (r *NBResourceReconciler) handlePolicy(ctx context.Context, req ctrl.Reques
 	return nil
 }
 
-func (r *NBResourceReconciler) handleGroupUpdate(ctx context.Context, req ctrl.Request, nbResource *netbirdiov1.NBResource, groupIDs []string, resource *api.NetworkResource) error {
+func (r *NBResourceReconciler) handleGroupUpdate(ctx context.Context, nbResource *netbirdiov1.NBResource, groupIDs []string, resource *api.NetworkResource, logger logr.Logger) error {
 	// Handle possible updated group IDs
 	groupIDMap := make(map[string]interface{})
 	for _, g := range groupIDs {
@@ -190,7 +190,7 @@ func (r *NBResourceReconciler) handleGroupUpdate(ctx context.Context, req ctrl.R
 		})
 
 		if err != nil {
-			ctrl.Log.Error(errNetBirdAPI, "error updating resource", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errNetBirdAPI, "error updating resource", "err", err)
 			return err
 		}
 	}
@@ -198,13 +198,13 @@ func (r *NBResourceReconciler) handleGroupUpdate(ctx context.Context, req ctrl.R
 	return nil
 }
 
-func (r *NBResourceReconciler) handleNetBirdResource(ctx context.Context, req ctrl.Request, nbResource *netbirdiov1.NBResource, groupIDs []string) (*api.NetworkResource, error) {
+func (r *NBResourceReconciler) handleNetBirdResource(ctx context.Context, nbResource *netbirdiov1.NBResource, groupIDs []string, logger logr.Logger) (*api.NetworkResource, error) {
 	var resource *api.NetworkResource
 	var err error
 	if nbResource.Status.NetworkResourceID != nil {
 		resource, err = r.netbird.Networks.Resources(nbResource.Spec.NetworkID).Get(ctx, *nbResource.Status.NetworkResourceID)
 		if err != nil && !strings.Contains(err.Error(), "not found") {
-			ctrl.Log.Error(errNetBirdAPI, "error getting network resource", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errNetBirdAPI, "error getting network resource", "err", err)
 			return nil, err
 		}
 	}
@@ -218,7 +218,7 @@ func (r *NBResourceReconciler) handleNetBirdResource(ctx context.Context, req ct
 		})
 
 		if err != nil {
-			ctrl.Log.Error(errNetBirdAPI, "error creating resource", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errNetBirdAPI, "error creating resource", "err", err)
 			return nil, err
 		}
 
@@ -255,7 +255,7 @@ func (r *NBResourceReconciler) handleNetBirdResource(ctx context.Context, req ct
 	return resource, nil
 }
 
-func (r *NBResourceReconciler) handleGroups(ctx context.Context, req ctrl.Request, nbResource *netbirdiov1.NBResource) ([]string, *ctrl.Result, error) {
+func (r *NBResourceReconciler) handleGroups(ctx context.Context, req ctrl.Request, nbResource *netbirdiov1.NBResource, logger logr.Logger) ([]string, *ctrl.Result, error) {
 	var groupIDs []string
 
 	for _, groupName := range nbResource.Spec.Groups {
@@ -264,7 +264,7 @@ func (r *NBResourceReconciler) handleGroups(ctx context.Context, req ctrl.Reques
 		groupNameRFC = strings.ReplaceAll(groupNameRFC, " ", "-")
 		err := r.Client.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: groupNameRFC}, &nbGroup)
 		if err != nil && !errors.IsNotFound(err) {
-			ctrl.Log.Error(errKubernetesAPI, "error getting NBGroup", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errKubernetesAPI, "error getting NBGroup", "err", err)
 			return nil, &ctrl.Result{}, err
 		} else if errors.IsNotFound(err) {
 			nbGroup = netbirdiov1.NBGroup{
@@ -289,7 +289,7 @@ func (r *NBResourceReconciler) handleGroups(ctx context.Context, req ctrl.Reques
 
 			err = r.Client.Create(ctx, &nbGroup)
 			if err != nil {
-				ctrl.Log.Error(errKubernetesAPI, "error creating NBGroup", "err", err, "namespace", req.Namespace, "name", req.Name)
+				logger.Error(errKubernetesAPI, "error creating NBGroup", "err", err)
 				return nil, &ctrl.Result{}, err
 			}
 
@@ -313,7 +313,7 @@ func (r *NBResourceReconciler) handleGroups(ctx context.Context, req ctrl.Reques
 
 				err = r.Client.Update(ctx, &nbGroup)
 				if err != nil {
-					ctrl.Log.Error(errKubernetesAPI, "error updating NBGroup", "err", err, "namespace", req.Namespace, "name", req.Name)
+					logger.Error(errKubernetesAPI, "error updating NBGroup", "err", err)
 					return nil, &ctrl.Result{}, err
 				}
 			}
@@ -331,12 +331,12 @@ func (r *NBResourceReconciler) handleGroups(ctx context.Context, req ctrl.Reques
 	return groupIDs, nil, nil
 }
 
-func (r *NBResourceReconciler) handleDelete(ctx context.Context, req ctrl.Request, nbResource *netbirdiov1.NBResource) error {
+func (r *NBResourceReconciler) handleDelete(ctx context.Context, req ctrl.Request, nbResource *netbirdiov1.NBResource, logger logr.Logger) error {
 	if nbResource.Status.PolicyName != nil {
 		var nbPolicy netbirdiov1.NBPolicy
 		err := r.Client.Get(ctx, types.NamespacedName{Name: *nbResource.Status.PolicyName}, &nbPolicy)
 		if err != nil && !errors.IsNotFound(err) {
-			ctrl.Log.Error(errKubernetesAPI, "error getting NBPolicy", "err", err, "namespace", req.Namespace, "name", req.Name, "policyName", nbResource.Spec.PolicyName)
+			logger.Error(errKubernetesAPI, "error getting NBPolicy", "err", err, "policyName", nbResource.Spec.PolicyName)
 			return err
 		}
 
@@ -353,7 +353,7 @@ func (r *NBResourceReconciler) handleDelete(ctx context.Context, req ctrl.Reques
 	if nbResource.Status.NetworkResourceID != nil {
 		err := r.netbird.Networks.Resources(nbResource.Spec.NetworkID).Delete(ctx, *nbResource.Status.NetworkResourceID)
 		if err != nil && !strings.Contains(err.Error(), "not found") {
-			ctrl.Log.Error(errNetBirdAPI, "error deleting resource", "err", err, "namespace", req.Namespace, "name", req.Name)
+			logger.Error(errNetBirdAPI, "error deleting resource", "err", err)
 			return err
 		}
 
@@ -363,7 +363,7 @@ func (r *NBResourceReconciler) handleDelete(ctx context.Context, req ctrl.Reques
 	nbGroupList := netbirdiov1.NBGroupList{}
 	err := r.Client.List(ctx, &nbGroupList, &client.ListOptions{Namespace: req.Namespace})
 	if err != nil {
-		ctrl.Log.Error(errKubernetesAPI, "error listing NBGroup", "err", err, "namespace", req.Namespace, "name", req.Name)
+		logger.Error(errKubernetesAPI, "error listing NBGroup", "err", err)
 		return err
 	}
 
@@ -372,7 +372,7 @@ func (r *NBResourceReconciler) handleDelete(ctx context.Context, req ctrl.Reques
 			g.Finalizers = util.Without(g.Finalizers, "netbird.io/resource-cleanup")
 			err = r.Client.Update(ctx, &g)
 			if err != nil && !errors.IsNotFound(err) {
-				ctrl.Log.Error(errKubernetesAPI, "error updating NBGroup", "err", err, "namespace", req.Namespace, "name", req.Name)
+				logger.Error(errKubernetesAPI, "error updating NBGroup", "err", err)
 				return err
 			}
 		}
@@ -381,7 +381,7 @@ func (r *NBResourceReconciler) handleDelete(ctx context.Context, req ctrl.Reques
 	nbResource.Finalizers = nil
 	err = r.Client.Update(ctx, nbResource)
 	if err != nil {
-		ctrl.Log.Error(errKubernetesAPI, "error updating NBGroup", "err", err, "namespace", req.Namespace, "name", req.Name)
+		logger.Error(errKubernetesAPI, "error updating NBGroup", "err", err)
 		return err
 	}
 

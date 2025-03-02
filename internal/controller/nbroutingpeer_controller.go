@@ -91,7 +91,7 @@ func (r *NBRoutingPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	logger.Info("NBRoutingPeer: Checking network router")
-	err = r.handleRouter(ctx, req, nbrp, *nbGroup, logger)
+	err = r.handleRouter(ctx, nbrp, *nbGroup, logger)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -268,7 +268,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 	return nil
 }
 
-func (r *NBRoutingPeerReconciler) handleRouter(ctx context.Context, req ctrl.Request, nbrp *netbirdiov1.NBRoutingPeer, nbGroup netbirdiov1.NBGroup, logger logr.Logger) error {
+func (r *NBRoutingPeerReconciler) handleRouter(ctx context.Context, nbrp *netbirdiov1.NBRoutingPeer, nbGroup netbirdiov1.NBGroup, logger logr.Logger) error {
 	// Check NetworkRouter exists
 	routers, err := r.netbird.Networks.Routers(*nbrp.Status.NetworkID).List(ctx)
 

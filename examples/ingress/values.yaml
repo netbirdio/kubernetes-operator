@@ -1,0 +1,12 @@
+ingress:
+  enabled: true
+  router:
+    enabled: true
+  policies:
+    default:
+      name: Kubernetes Default Policy
+      sourceGroups:
+      - All
+
+netbirdAPI:
+  key: "nbp_m0LM9ZZvDUzFO0pY50iChDOTxJgKFM3DIqmZ" # Replace with valid NetBird Service Account token

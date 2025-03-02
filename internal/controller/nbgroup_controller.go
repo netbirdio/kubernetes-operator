@@ -28,6 +28,11 @@ type NBGroupReconciler struct {
 }
 
 const (
+	// defaultRequeueAfter default requeue duration
+	// due to controller-runtime limitations, sync periods may reach up to 10 hours if no changes are detected
+	// in watched resources.
+	// This may cause issues when NetBird-side resources are out-of-sync and need to be reconciled, this is a temporary
+	// fix to this issue by syncing with NetBird more frequently.
 	defaultRequeueAfter = 15 * time.Minute
 )
 
@@ -69,7 +74,9 @@ func (r *NBGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	return r.syncNetBirdGroup(ctx, &nbGroup, logger)
 }
 
+// syncNetBirdGroup reconciliation logic for non-deleted objects.
 func (r *NBGroupReconciler) syncNetBirdGroup(ctx context.Context, nbGroup *netbirdiov1.NBGroup, logger logr.Logger) (ctrl.Result, error) {
+	// Get all NetBird groups to ensure no group duplication
 	groups, err := r.netbird.Groups.List(ctx)
 	if err != nil {
 		logger.Error(errNetBirdAPI, "error listing groups", "err", err)
@@ -81,6 +88,8 @@ func (r *NBGroupReconciler) syncNetBirdGroup(ctx context.Context, nbGroup *netbi
 			group = &g
 		}
 	}
+
+	// Create group if not exists, and update status.groupId
 	if nbGroup.Status.GroupID == nil && group == nil {
 		logger.Info("NBGroup: Creating group on NetBird", "name", nbGroup.Spec.Name)
 		group, err := r.netbird.Groups.Create(ctx, api.GroupRequest{
@@ -118,6 +127,7 @@ func (r *NBGroupReconciler) syncNetBirdGroup(ctx context.Context, nbGroup *netbi
 }
 
 func (r *NBGroupReconciler) handleDelete(ctx context.Context, nbGroup netbirdiov1.NBGroup, logger logr.Logger) error {
+	// Group doesn't exist on NetBird, no need for cleanup
 	if nbGroup.Status.GroupID == nil {
 		nbGroup.Finalizers = util.Without(nbGroup.Finalizers, "netbird.io/group-cleanup")
 		err := r.Client.Update(ctx, &nbGroup)
@@ -160,6 +170,9 @@ func (r *NBGroupReconciler) handleDelete(ctx context.Context, nbGroup netbirdiov
 				return nil
 			}
 		}
+
+		// No other NBGroup with same name on the cluster
+		// This could be a group created by user elsewhere or some resources belonging to the group are still deleting.
 		return err
 	}
 

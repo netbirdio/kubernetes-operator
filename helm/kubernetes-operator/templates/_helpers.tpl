@@ -92,7 +92,7 @@ caCert: {{ index $secret.data "ca.crt" }}
 clientCert: {{ index $secret.data "tls.crt" }}
 clientKey: {{ index $secret.data "tls.key" }}
 {{- else -}}
-{{- $altNames := list (printf "%s.%s" $serviceName .Release.Namespace) (printf "%s.%s.svc" $serviceName .Release.Namespace) (printf "%s.%s.svc.%s" $serviceName .Release.Namespace .Values.webhook.cluster.dnsDomain) -}}
+{{- $altNames := list (printf "%s.%s" $serviceName .Release.Namespace) (printf "%s.%s.svc" $serviceName .Release.Namespace) (printf "%s.%s.%s" $serviceName .Release.Namespace .Values.cluster.dns) -}}
 {{- $ca := genCA "kubernetes-operator-ca" 3650 -}}
 {{- $cert := genSignedCert (include "kubernetes-operator.fullname" .) nil $altNames 3650 $ca -}}
 caCert: {{ $ca.Cert | b64enc }}

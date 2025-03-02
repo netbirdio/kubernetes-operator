@@ -70,6 +70,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return r.hideService(ctx, req, svc, logger)
 }
 
+// hideService deletes NBResource for Service
 func (r *ServiceReconciler) hideService(ctx context.Context, req ctrl.Request, svc corev1.Service, logger logr.Logger) (ctrl.Result, error) {
 	var nbResource netbirdiov1.NBResource
 	err := r.Client.Get(ctx, req.NamespacedName, &nbResource)
@@ -98,6 +99,7 @@ func (r *ServiceReconciler) hideService(ctx context.Context, req ctrl.Request, s
 	return ctrl.Result{}, nil
 }
 
+// exposeService creates/updates NBResource for Service
 func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request, svc corev1.Service, logger logr.Logger) (ctrl.Result, error) {
 	routerNamespace := r.ControllerNamespace
 	if r.NamespacedNetworks {
@@ -177,6 +179,7 @@ func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request,
 	return ctrl.Result{}, nil
 }
 
+// reconcileNBResource ensures NBResource settings are in-line with Service definition and annotations
 func (r *ServiceReconciler) reconcileNBResource(nbResource *netbirdiov1.NBResource, req ctrl.Request, svc corev1.Service, routingPeer netbirdiov1.NBRoutingPeer) error {
 	groups := []string{fmt.Sprintf("%s-%s-%s", r.ClusterName, req.Namespace, req.Name)}
 	if v, ok := svc.Annotations[serviceGroupsAnnotation]; ok {
@@ -242,6 +245,7 @@ func (r *ServiceReconciler) reconcileNBResource(nbResource *netbirdiov1.NBResour
 			}
 		}
 	}
+	// TODO: Handle removed policy name
 
 	return nil
 }

@@ -4,7 +4,7 @@ on:
   push:
     paths:
       # update this file to trigger helm chart release
-      - 'helm/netbird-operator/Chart.yaml'
+      - 'helm/kubernetes-operator/Chart.yaml'
     branches:
       - main
 
@@ -18,49 +18,25 @@ jobs:
       contents: write
       pages: write
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v3.1.0
         with:
           fetch-depth: 0
 
-      - name: Set ENVs
-        id: env-setup
+      - name: Configure Git
         run: |
-          echo "SHA_SHORT=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           git config user.name "$GITHUB_ACTOR"
           git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
 
-      - name: Package Charts
-        run: |
-          # Package charts
-          mkdir -p charts/.ci-build
-          echo "Setting chart version to ${{ steps.env-setup.outputs.CHART_VERSION }}"
-
-          for DIR in $CHART_BASE_DIR/*; do
-            # Check if Chart.yaml exists in this directory
-            if [ -f "${DIR}/Chart.yaml" ]; then
-              echo "Packaging ${DIR}"
-              helm dependency update $DIR
-              helm lint $DIR
-              helm package $DIR --destination charts/.ci-build
-            fi
-          done
-          git fetch --all
-
-      - name: Upload chart artifacts
-        uses: actions/upload-artifact@v4
+      - name: Install Helm
+        uses: azure/setup-helm@v3.4
         with:
-          name: helm-charts-${{ github.ref_name }}
-          path: charts/.ci-build/*
-          retention-days: 30
+          version: v3.4.2
 
-      - name: Publish to GH-Pages
-        id: ghpublish
-        run: |
-          git checkout $GH_PAGES_BRANCH --force
-          helm repo index charts/.ci-build/ --merge index.yaml --url ${{ github.server_url }}/${{github.repository}}/releases/download/${{ github.ref_name }}
-          cp charts/.ci-build/index.yaml index.yaml
-          echo "New index:" && cat index.yaml
-          git add index.yaml charts
-          git commit -a -m "bot: update pages index for helm charts"
-          git push origin $GH_PAGES_BRANCH
+      - name: Run chart-releaser
+        uses: helm/chart-releaser-action@v1.4.1
+        with:
+          charts_dir: helm
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          CR_RELEASE_NAME_TEMPLATE: "helm-v{{ .Version }}"

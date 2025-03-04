@@ -44,7 +44,7 @@ jobs:
 
       - name: Lint Helm Chart
         run: |
-          helm lint ./helm/netbird-operator
+          helm lint ./helm/kubernetes-operator
 
       - name: Install cert-manager via Helm
         run: |
@@ -60,7 +60,7 @@ jobs:
  
       - name: Install Helm chart for project
         run: |
-          helm install test-chart --create-namespace --namespace netbird --set 'operator.image.tag=debug' ./helm/netbird-operator
+          helm install test-chart --create-namespace --namespace netbird --set 'operator.image.tag=debug' ./helm/kubernetes-operator
 
       - name: Check Helm release status
         run: |

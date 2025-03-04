@@ -43,7 +43,7 @@ help: ## Display this help.
 
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) crd paths="./..." output:crd:artifacts:config=helm/netbird-operator/crds
+	$(CONTROLLER_GEN) crd paths="./..." output:crd:artifacts:config=helm/kubernetes-operator/crds
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -126,7 +126,7 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 .PHONY: build-installer
 build-installer: manifests ## Generate a consolidated YAML with CRDs and deployment.
 	mkdir -p manifests
-	$(HELM) template --include-crds netbird-operator helm/netbird-operator > manifests/install.yaml
+	$(HELM) template --include-crds kubernetes-operator helm/kubernetes-operator > manifests/install.yaml
 
 ##@ Deployment
 
@@ -136,19 +136,19 @@ endif
 
 .PHONY: install
 install: manifests ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	$(KUBECTL) apply -f helm/netbird-operator/crds
+	$(KUBECTL) apply -f helm/kubernetes-operator/crds
 
 .PHONY: uninstall
 uninstall: manifests ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUBECTL) delete -f helm/netbird-operator/crds
+	$(KUBECTL) delete -f helm/kubernetes-operator/crds
 
 .PHONY: deploy
 deploy: manifests ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	$(HELM) install -n netbird --create-namespace netbird-operator --set operator.image.tag=$(word 2,$(subst :, ,${IMG})) helm/netbird-operator
+	$(HELM) install -n netbird --create-namespace kubernetes-operator --set operator.image.tag=$(word 2,$(subst :, ,${IMG})) helm/kubernetes-operator
 
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(HELM) uninstall -n netbird netbird-operator
+	$(HELM) uninstall -n netbird kubernetes-operator
 
 ##@ Dependencies
 

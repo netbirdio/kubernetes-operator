@@ -1,15 +1,15 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "netbird-operator.fullname" . }}
+  name: {{ include "kubernetes-operator.fullname" . }}
   labels:
     app.kubernetes.io/component: operator
-    {{- include "netbird-operator.labels" . | nindent 4 }}
+    {{- include "kubernetes-operator.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.operator.replicaCount }}
   selector:
     matchLabels:
-      {{- include "netbird-operator.selectorLabels" . | nindent 6 }}
+      {{- include "kubernetes-operator.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       {{- with .Values.operator.podAnnotations }}
@@ -18,7 +18,7 @@ spec:
       {{- end }}
       labels:
         app.kubernetes.io/component: operator
-        {{- include "netbird-operator.labels" . | nindent 8 }}
+        {{- include "kubernetes-operator.labels" . | nindent 8 }}
         {{- with .Values.operator.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -27,7 +27,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "netbird-operator.serviceAccountName" . }}
+      serviceAccountName: {{ include "kubernetes-operator.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.operator.podSecurityContext | nindent 8 }}
       containers:
@@ -85,7 +85,7 @@ spec:
       - name: webhook-certs
         secret:
           defaultMode: 420
-          secretName: {{ template "netbird-operator.webhookCertSecret" . }}
+          secretName: {{ template "kubernetes-operator.webhookCertSecret" . }}
       {{- with .Values.operator.volumes }}
         {{- toYaml . | nindent 8 }}
       {{- end }}

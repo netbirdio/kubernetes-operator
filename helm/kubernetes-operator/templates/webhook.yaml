@@ -1,22 +1,22 @@
-{{ $tls := fromYaml ( include "netbird-operator.webhookCerts" . ) }}
+{{ $tls := fromYaml ( include "kubernetes-operator.webhookCerts" . ) }}
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
 {{- if $.Values.webhook.enableCertManager }}
   annotations:
-    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ template "netbird-operator.fullname" . }}-serving-cert
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ template "kubernetes-operator.fullname" . }}-serving-cert
 {{- end }}
-  name: {{ include "netbird-operator.fullname" . }}-mpod-webhook
+  name: {{ include "kubernetes-operator.fullname" . }}-mpod-webhook
   labels:
-    {{- include "netbird-operator.labels" . | nindent 4 }}
+    {{- include "kubernetes-operator.labels" . | nindent 4 }}
 webhooks:
 - clientConfig:
     {{- if not $.Values.webhook.enableCertManager -}}
     caBundle: {{ $tls.caCert }}
     {{ end }}
     service:
-      name: {{ template "netbird-operator.webhookService" . }}
+      name: {{ template "kubernetes-operator.webhookService" . }}
       namespace: {{ $.Release.Namespace }}
       path: /mutate--v1-pod
   failurePolicy: Fail
@@ -33,7 +33,7 @@ webhooks:
     - key: app.kubernetes.io/name
       operator: NotIn
       values:
-      - {{ include "netbird-operator.name" . }}
+      - {{ include "kubernetes-operator.name" . }}
     {{- if .Values.webhook.objectSelector.matchExpressions }}
     {{- toYaml .Values.webhook.objectSelector.matchExpressions | nindent 4 }}
     {{- end }}
@@ -57,18 +57,18 @@ kind: ValidatingWebhookConfiguration
 metadata:
 {{- if $.Values.webhook.enableCertManager }}
   annotations:
-    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ template "netbird-operator.fullname" . }}-serving-cert
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ template "kubernetes-operator.fullname" . }}-serving-cert
 {{- end }}
-  name: {{ include "netbird-operator.fullname" . }}-vnbsetupkey-webhook
+  name: {{ include "kubernetes-operator.fullname" . }}-vnbsetupkey-webhook
   labels:
-    {{- include "netbird-operator.labels" . | nindent 4 }}
+    {{- include "kubernetes-operator.labels" . | nindent 4 }}
 webhooks:
 - clientConfig:
     {{- if not $.Values.webhook.enableCertManager -}}
     caBundle: {{ $tls.caCert }}
     {{ end }}
     service:
-      name: {{ template "netbird-operator.webhookService" . }}
+      name: {{ template "kubernetes-operator.webhookService" . }}
       namespace: {{ $.Release.Namespace }}
       path: /validate-netbird-io-v1-nbsetupkey
   failurePolicy: Fail
@@ -96,10 +96,10 @@ webhooks:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: {{ template "netbird-operator.webhookCertSecret" . }}
+  name: {{ template "kubernetes-operator.webhookCertSecret" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-{{ include "netbird-operator.labels" . | indent 4 }}
+{{ include "kubernetes-operator.labels" . | indent 4 }}
 type: kubernetes.io/tls
 data:
   ca.crt: {{ $tls.caCert }}
@@ -109,26 +109,26 @@ data:
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: {{ template "netbird-operator.fullname" . }}-serving-cert
+  name: {{ template "kubernetes-operator.fullname" . }}-serving-cert
   namespace: {{ .Release.Namespace }}
   labels:
-{{ include "netbird-operator.labels" . | indent 4 }}
+{{ include "kubernetes-operator.labels" . | indent 4 }}
 spec:
   dnsNames:
-  - {{ template "netbird-operator.webhookService" . }}.{{ .Release.Namespace }}.svc
-  - {{ template "netbird-operator.webhookService" . }}.{{ .Release.Namespace }}.svc.{{ .Values.webhook.cluster.dnsDomain }}
+  - {{ template "kubernetes-operator.webhookService" . }}.{{ .Release.Namespace }}.svc
+  - {{ template "kubernetes-operator.webhookService" . }}.{{ .Release.Namespace }}.svc.{{ .Values.webhook.cluster.dnsDomain }}
   issuerRef:
     kind: Issuer
-    name: {{ template "netbird-operator.fullname" . }}-selfsigned-issuer
-  secretName: {{ template "netbird-operator.webhookCertSecret" . }}
+    name: {{ template "kubernetes-operator.fullname" . }}-selfsigned-issuer
+  secretName: {{ template "kubernetes-operator.webhookCertSecret" . }}
 ---
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
-  name: {{ template "netbird-operator.fullname" . }}-selfsigned-issuer
+  name: {{ template "kubernetes-operator.fullname" . }}-selfsigned-issuer
   namespace: {{ .Release.Namespace }}
   labels:
-{{ include "netbird-operator.labels" . | indent 4 }}
+{{ include "kubernetes-operator.labels" . | indent 4 }}
 spec:
   selfSigned: {}
 {{- end }}

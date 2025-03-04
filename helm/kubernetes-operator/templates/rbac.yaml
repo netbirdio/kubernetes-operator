@@ -1,9 +1,9 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "netbird-operator.fullname" . }}
+  name: {{ include "kubernetes-operator.fullname" . }}
   labels:
-    {{- include "netbird-operator.labels" . | nindent 4 }}
+    {{- include "kubernetes-operator.labels" . | nindent 4 }}
 rules:
 - apiGroups:
   - netbird.io
@@ -49,24 +49,24 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ include "netbird-operator.fullname" . }}
+  name: {{ include "kubernetes-operator.fullname" . }}
   labels:
-    {{- include "netbird-operator.labels" . | nindent 4 }}
+    {{- include "kubernetes-operator.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ include "netbird-operator.fullname" . }}
+  name: {{ include "kubernetes-operator.fullname" . }}
 subjects:
 - kind: ServiceAccount
-  name: {{ include "netbird-operator.serviceAccountName" . }}
+  name: {{ include "kubernetes-operator.serviceAccountName" . }}
   namespace: {{ .Release.Namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ include "netbird-operator.fullname" . }}
+  name: {{ include "kubernetes-operator.fullname" . }}
   labels:
-    {{- include "netbird-operator.labels" . | nindent 4 }}
+    {{- include "kubernetes-operator.labels" . | nindent 4 }}
 rules:
 - apiGroups:
   - ""
@@ -103,14 +103,14 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: {{ include "netbird-operator.fullname" . }}
+  name: {{ include "kubernetes-operator.fullname" . }}
   labels:
-    {{- include "netbird-operator.labels" . | nindent 4 }}
+    {{- include "kubernetes-operator.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: {{ include "netbird-operator.fullname" . }}
+  name: {{ include "kubernetes-operator.fullname" . }}
 subjects:
 - kind: ServiceAccount
-  name: {{ include "netbird-operator.serviceAccountName" . }}
+  name: {{ include "kubernetes-operator.serviceAccountName" . }}
   namespace: {{ .Release.Namespace }}

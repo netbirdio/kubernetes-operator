@@ -32,7 +32,7 @@ import (
 const namespace = "netbird"
 
 // metricsServiceName is the name of the metrics service of the project
-const metricsServiceName = "netbird-operator-metrics"
+const metricsServiceName = "kubernetes-operator-metrics"
 
 var _ = Describe("Manager", Ordered, func() {
 	var controllerPodName string
@@ -57,13 +57,13 @@ var _ = Describe("Manager", Ordered, func() {
 		_, err = utils.Run(cmd)
 		Expect(err).NotTo(HaveOccurred(), "Failed to install CRDs")
 
-		By("deploying the netbird-operator")
+		By("deploying the kubernetes-operator")
 		cmd = exec.Command("make", "deploy", fmt.Sprintf("IMG=%s", projectImage))
 		out, err := utils.Run(cmd)
 		if err != nil {
 			fmt.Println(out)
 		}
-		Expect(err).NotTo(HaveOccurred(), "Failed to deploy the netbird-operator")
+		Expect(err).NotTo(HaveOccurred(), "Failed to deploy the kubernetes-operator")
 	})
 
 	// After all tests have been executed, clean up by undeploying the controller, uninstalling CRDs,
@@ -73,7 +73,7 @@ var _ = Describe("Manager", Ordered, func() {
 		cmd := exec.Command("kubectl", "delete", "pod", "curl-metrics", "-n", namespace)
 		_, _ = utils.Run(cmd)
 
-		By("undeploying the netbird-operator")
+		By("undeploying the kubernetes-operator")
 		cmd = exec.Command("make", "undeploy")
 		_, _ = utils.Run(cmd)
 
@@ -134,11 +134,11 @@ var _ = Describe("Manager", Ordered, func() {
 
 	Context("Manager", func() {
 		It("should run successfully", func() {
-			By("validating that the netbird-operator pod is running as expected")
+			By("validating that the kubernetes-operator pod is running as expected")
 			verifyControllerUp := func(g Gomega) {
-				// Get the name of the netbird-operator pod
+				// Get the name of the kubernetes-operator pod
 				cmd := exec.Command("kubectl", "get",
-					"pods", "-l", "app.kubernetes.io/component=operator,app.kubernetes.io/name=netbird-operator",
+					"pods", "-l", "app.kubernetes.io/component=operator,app.kubernetes.io/name=kubernetes-operator",
 					"-o", "go-template={{ range .items }}"+
 						"{{ if not .metadata.deletionTimestamp }}"+
 						"{{ .metadata.name }}"+
@@ -147,11 +147,11 @@ var _ = Describe("Manager", Ordered, func() {
 				)
 
 				podOutput, err := utils.Run(cmd)
-				g.Expect(err).NotTo(HaveOccurred(), "Failed to retrieve netbird-operator pod information")
+				g.Expect(err).NotTo(HaveOccurred(), "Failed to retrieve kubernetes-operator pod information")
 				podNames := utils.GetNonEmptyLines(podOutput)
 				g.Expect(podNames).To(HaveLen(1), "expected 1 controller pod running")
 				controllerPodName = podNames[0]
-				g.Expect(controllerPodName).To(ContainSubstring("netbird-operator"))
+				g.Expect(controllerPodName).To(ContainSubstring("kubernetes-operator"))
 
 				// Validate the pod's status
 				cmd = exec.Command("kubectl", "get",
@@ -160,7 +160,7 @@ var _ = Describe("Manager", Ordered, func() {
 				)
 				output, err := utils.Run(cmd)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(output).To(Equal("Running"), "Incorrect netbird-operator pod status")
+				g.Expect(output).To(Equal("Running"), "Incorrect kubernetes-operator pod status")
 			}
 			Eventually(verifyControllerUp).Should(Succeed())
 		})
@@ -240,7 +240,7 @@ var _ = Describe("Manager", Ordered, func() {
 		It("should provisioned cert-manager", func() {
 			By("validating that cert-manager has the certificate Secret")
 			verifyCertManager := func(g Gomega) {
-				cmd := exec.Command("kubectl", "get", "secrets", "netbird-operator-tls", "-n", namespace)
+				cmd := exec.Command("kubectl", "get", "secrets", "kubernetes-operator-tls", "-n", namespace)
 				_, err := utils.Run(cmd)
 				g.Expect(err).NotTo(HaveOccurred())
 			}
@@ -252,7 +252,7 @@ var _ = Describe("Manager", Ordered, func() {
 			verifyCAInjection := func(g Gomega) {
 				cmd := exec.Command("kubectl", "get",
 					"mutatingwebhookconfigurations.admissionregistration.k8s.io",
-					"netbird-operator-mpod-webhook",
+					"kubernetes-operator-mpod-webhook",
 					"-o", "go-template={{ range .webhooks }}{{ .clientConfig.caBundle }}{{ end }}")
 				mwhOutput, err := utils.Run(cmd)
 				g.Expect(err).NotTo(HaveOccurred())
@@ -266,7 +266,7 @@ var _ = Describe("Manager", Ordered, func() {
 			verifyCAInjection := func(g Gomega) {
 				cmd := exec.Command("kubectl", "get",
 					"validatingwebhookconfigurations.admissionregistration.k8s.io",
-					"netbird-operator-vnbsetupkey-webhook",
+					"kubernetes-operator-vnbsetupkey-webhook",
 					"-o", "go-template={{ range .webhooks }}{{ .clientConfig.caBundle }}{{ end }}")
 				vwhOutput, err := utils.Run(cmd)
 				g.Expect(err).NotTo(HaveOccurred())

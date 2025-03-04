@@ -26,12 +26,12 @@ kubectl apply -n netbird -f https://github.com/netbirdio/kubernetes-operator/rel
 
 ```sh
 helm repo add netbirdio https://netbirdio.github.io/kubernetes-operator
-helm install -n netbird netbird-operator netbirdio/netbird-operator
+helm install -n netbird kubernetes-operator netbirdio/kubernetes-operator
 ```
 
 For more options, check the default values by running
 ```sh
-helm show values netbirdio/netbird-operator
+helm show values netbirdio/kubernetes-operator
 ```
 
 ### To Uninstall
@@ -45,7 +45,7 @@ kubectl delete namespace netbird
 **Using helm**
 
 ```sh
-helm uninstall -n netbird netbird-operator
+helm uninstall -n netbird kubernetes-operator
 ```
 
 ### Provision pods with NetBird access

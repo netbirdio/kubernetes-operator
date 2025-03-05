@@ -66,6 +66,8 @@ netbirdAPI:
 
 ingress:
   enabled: true
+cluster:
+  name: kubernetes
 ```
 
 ### Exposing a Service

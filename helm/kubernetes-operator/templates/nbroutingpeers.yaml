@@ -1,0 +1,75 @@
+{{- if and .Values.ingress.enabled .Values.ingress.router.enabled }}
+{{- if .Values.ingress.namespacedNetworks }}
+{{ $defaults := .Values.ingress.router }}
+{{ range $k, $v := .Values.ingress.router.namespaces }}
+apiVersion: netbird.io/v1
+kind: NBRoutingPeer
+metadata:
+  finalizers:
+    - netbird.io/cleanup
+  labels:
+    app.kubernetes.io/component: operator
+    {{- include "kubernetes-operator.labels" $ | nindent 4 }}
+  name: router
+  namespace: {{ $k }}
+{{ $spec := merge $defaults $v }}
+{{- if or (or (or $spec.replicas $spec.resources) (or $spec.labels $spec.annotations)) (or $spec.nodeSelector $spec.tolerations) }}
+spec:
+  {{- if $spec.replicas }}
+  replicas: {{ $spec.replicas }}
+  {{- end }}
+  {{- if $spec.resources }}
+  resources: {{ $spec.resources }}
+  {{- end }}
+  {{- if $spec.labels }}
+  labels: {{ $spec.labels }}
+  {{- end }}
+  {{- if $spec.annotations }}
+  annotations: {{ $spec.annotations }}
+  {{- end }}
+  {{- if $spec.nodeSelector }}
+  nodeSelector: {{ $spec.nodeSelector }}
+  {{- end }}
+  {{- if $spec.tolerations }}
+  tolerations: {{ $spec.tolerations }}
+  {{- end }}
+{{- end }}
+---
+{{- end }}
+{{- else }}
+{{- with .Values.ingress.router }}
+apiVersion: netbird.io/v1
+kind: NBRoutingPeer
+metadata:
+  finalizers:
+    - netbird.io/cleanup
+  labels:
+    app.kubernetes.io/component: operator
+    {{- include "kubernetes-operator.labels" $ | nindent 4 }}
+  name: router
+{{- if or (or (or .replicas .resources) (or .labels .annotations)) (or .nodeSelector .tolerations) }}
+spec:
+  {{- if .replicas }}
+  replicas: {{ .replicas }}
+  {{- end }}
+  {{- if .resources }}
+  resources: {{ .resources }}
+  {{- end }}
+  {{- if .labels }}
+  labels: {{ .labels }}
+  {{- end }}
+  {{- if .annotations }}
+  annotations: {{ .annotations }}
+  {{- end }}
+  {{- if .nodeSelector }}
+  nodeSelector: {{ .nodeSelector }}
+  {{- end }}
+  {{- if .tolerations }}
+  tolerations: {{ .tolerations }}
+  {{- end }}
+{{- else }}
+spec: {}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

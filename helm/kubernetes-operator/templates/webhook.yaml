@@ -12,7 +12,7 @@ metadata:
     {{- include "kubernetes-operator.labels" . | nindent 4 }}
 webhooks:
 - clientConfig:
-    {{- if not $.Values.webhook.enableCertManager -}}
+    {{- if not $.Values.webhook.enableCertManager }}
     caBundle: {{ $tls.caCert }}
     {{ end }}
     service:
@@ -64,7 +64,7 @@ metadata:
     {{- include "kubernetes-operator.labels" . | nindent 4 }}
 webhooks:
 - clientConfig:
-    {{- if not $.Values.webhook.enableCertManager -}}
+    {{- if not $.Values.webhook.enableCertManager }}
     caBundle: {{ $tls.caCert }}
     {{ end }}
     service:
@@ -89,8 +89,127 @@ webhooks:
     - CREATE
     - UPDATE
     resources:
-    - "*/*"
+    - "nbsetupkeys"
   sideEffects: None
+{{- if and $.Values.ingress.enabled (or .Values.netbirdAPI.key .Values.netbirdAPI.keyFromSecret) }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+{{- if $.Values.webhook.enableCertManager }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ template "kubernetes-operator.fullname" . }}-serving-cert
+{{- end }}
+  name: {{ include "kubernetes-operator.fullname" . }}-vnbresource-webhook
+  labels:
+    {{- include "kubernetes-operator.labels" . | nindent 4 }}
+webhooks:
+- clientConfig:
+    {{- if not $.Values.webhook.enableCertManager }}
+    caBundle: {{ $tls.caCert }}
+    {{ end }}
+    service:
+      name: {{ template "kubernetes-operator.webhookService" . }}
+      namespace: {{ $.Release.Namespace }}
+      path: /validate-netbird-io-v1-nbresource
+  failurePolicy: Fail
+  name: vnbresource-v1.netbird.io
+  admissionReviewVersions:
+  - v1
+  {{- if .Values.webhook.namespaceSelectors }}
+  namespaceSelector:
+    matchExpressions:
+    {{ toYaml .Values.webhook.namespaceSelectors | nindent 4 }}
+  {{ end }}
+  rules:
+  - apiGroups:
+    - netbird.io
+    apiVersions:
+    - v1
+    operations:
+    - DELETE
+    resources:
+    - "nbresources"
+  sideEffects: None
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+{{- if $.Values.webhook.enableCertManager }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ template "kubernetes-operator.fullname" . }}-serving-cert
+{{- end }}
+  name: {{ include "kubernetes-operator.fullname" . }}-vnbroutingpeer-webhook
+  labels:
+    {{- include "kubernetes-operator.labels" . | nindent 4 }}
+webhooks:
+- clientConfig:
+    {{- if not $.Values.webhook.enableCertManager }}
+    caBundle: {{ $tls.caCert }}
+    {{ end }}
+    service:
+      name: {{ template "kubernetes-operator.webhookService" . }}
+      namespace: {{ $.Release.Namespace }}
+      path: /validate-netbird-io-v1-nbroutingpeer
+  failurePolicy: Fail
+  name: vnbroutingpeer-v1.netbird.io
+  admissionReviewVersions:
+  - v1
+  {{- if .Values.webhook.namespaceSelectors }}
+  namespaceSelector:
+    matchExpressions:
+    {{ toYaml .Values.webhook.namespaceSelectors | nindent 4 }}
+  {{ end }}
+  rules:
+  - apiGroups:
+    - netbird.io
+    apiVersions:
+    - v1
+    operations:
+    - DELETE
+    resources:
+    - "nbroutingpeers"
+  sideEffects: None
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+{{- if $.Values.webhook.enableCertManager }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ template "kubernetes-operator.fullname" . }}-serving-cert
+{{- end }}
+  name: {{ include "kubernetes-operator.fullname" . }}-vnbgroup-webhook
+  labels:
+    {{- include "kubernetes-operator.labels" . | nindent 4 }}
+webhooks:
+- clientConfig:
+    {{- if not $.Values.webhook.enableCertManager }}
+    caBundle: {{ $tls.caCert }}
+    {{ end }}
+    service:
+      name: {{ template "kubernetes-operator.webhookService" . }}
+      namespace: {{ $.Release.Namespace }}
+      path: /validate-netbird-io-v1-nbgroup
+  failurePolicy: Fail
+  name: vnbgroup-v1.netbird.io
+  admissionReviewVersions:
+  - v1
+  {{- if .Values.webhook.namespaceSelectors }}
+  namespaceSelector:
+    matchExpressions:
+    {{ toYaml .Values.webhook.namespaceSelectors | nindent 4 }}
+  {{ end }}
+  rules:
+  - apiGroups:
+    - netbird.io
+    apiVersions:
+    - v1
+    operations:
+    - DELETE
+    resources:
+    - "nbgroups"
+  sideEffects: None
+{{- end }}
 ---
 {{- if not $.Values.webhook.enableCertManager }}
 apiVersion: v1
@@ -116,7 +235,7 @@ metadata:
 spec:
   dnsNames:
   - {{ template "kubernetes-operator.webhookService" . }}.{{ .Release.Namespace }}.svc
-  - {{ template "kubernetes-operator.webhookService" . }}.{{ .Release.Namespace }}.svc.{{ .Values.webhook.cluster.dnsDomain }}
+  - {{ template "kubernetes-operator.webhookService" . }}.{{ .Release.Namespace }}.{{ .Values.cluster.dns }}
   issuerRef:
     kind: Issuer
     name: {{ template "kubernetes-operator.fullname" . }}-selfsigned-issuer

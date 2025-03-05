@@ -1,4 +1,6 @@
 clusterSecretsPermissions:
+  # Required for NBSetupKey validation
+  # Required for Ingress functionality to create and validate secrets for routing peers
   allowAllSecrets: true
 
 webhook:
@@ -7,22 +9,21 @@ webhook:
     port: 443
     targetPort: 9443
 
-  cluster:
-    # Cluster DNS domain (required for requesting TLS certificates)
-    dnsDomain: cluster.local
-
   # TLS configuration for webhook
+  # Optional, unused if webhook.enableCertManager is set to true
   tls: {}
 
-  # Use cert-manager to provision webhook certificates
+  # Use cert-manager to provision webhook certificates (recommended)
   enableCertManager: true
 
+  # Narrow down validation and mutation webhooks namespaces
   namespaceSelectors: []
     # - key: foo
     #   operator: In
     #   values:
     #   - bar
 
+  # Narrow down validation and mutation webhooks objects
   objectSelector:
     matchExpressions: []
       # - key: app.kubernetes.io/name
@@ -128,3 +129,56 @@ operator:
   tolerations: []
 
   affinity: {}
+
+ingress:
+  # Enable ingress capabilities to expose services
+  enabled: false
+  # Create router per namespace, useful for strict networking requirements
+  namespacedNetworks: false
+  router:
+    # Deploy routing peer(s)
+    enabled: false
+    # replicas: 3
+    # resources:
+    #   requests:
+    #     cpu: 100m
+    #     memory: 100Mi
+    #   limits:
+    #     cpu: 100m
+    #     memory: 100Mi
+    # labels: {}
+    # annotations: {}
+    # nodeSelector: {}
+    # tolerations: []
+    # Only needed if namespacedNetworks is set to true
+    namespaces: {}
+      # default:
+        # replicas: 3
+        # resources:
+        #   requests:
+        #     cpu: 100m
+        #     memory: 100Mi
+        #   limits:
+        #     cpu: 100m
+        #     memory: 100Mi
+        # labels: {}
+        # annotations: {}
+        # nodeSelector: {}
+        # tolerations: []
+  # NetBird Policies for use with exposed services
+  policies: {}
+    # default:
+    #   name: Kubernetes Default Policy
+    #   sourceGroups:
+    #   - All
+
+cluster:
+  # Cluster DNS name (used for webhooks certificates and for network resource DNS names)
+  dns: svc.cluster.local
+  # Cluster name (used for generating network and network resource names in NetBird)
+  # name: kubernetes
+
+netbirdAPI: {}
+  # NetBird Service Account Token
+  # key: "nbp_m0LM9ZZvDUzFO0pY50iChDOTxJgKFM3DIqmZ"
+  # keyFromSecret: "Secret name with NB_API_KEY=Service Account Token"

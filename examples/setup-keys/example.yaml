@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: test
+  namespace: default
+stringData:
+  SETUP_KEY: 50445ABC-8901-4050-8047-0A390658A79B # Replace with valid setup key
+---
+apiVersion: netbird.io/v1
+kind: NBSetupKey
+metadata:
+  name: test
+  namespace: default
+spec:
+  secretKeyRef:
+    name: test
+    key: SETUP_KEY
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: test
+  name: test
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: test
+      annotations:
+        netbird.io/setup-key: test
+    spec:
+      containers:
+        - image: ubuntu
+          imagePullPolicy: Always
+          name: ubuntu
+          command:
+            - sleep
+            - inf

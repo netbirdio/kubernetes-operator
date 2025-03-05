@@ -21,13 +21,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// NBSetupKeyConditionType is a valid value for PodCondition.Type
-type NBSetupKeyConditionType string
+// NBConditionType is a valid value for PodCondition.Type
+type NBConditionType string
 
 // These are built-in conditions of pod. An application may use a custom condition not listed here.
 const (
-	// Ready indicates whether NBSetupKey is valid and ready to use.
-	Ready NBSetupKeyConditionType = "Ready"
+	// NBSetupKeyReady indicates whether NBSetupKey is valid and ready to use.
+	NBSetupKeyReady NBConditionType = "Ready"
 )
 
 // NBSetupKeySpec defines the desired state of NBSetupKey.
@@ -40,28 +40,55 @@ type NBSetupKeySpec struct {
 
 // NBSetupKeyStatus defines the observed state of NBSetupKey.
 type NBSetupKeyStatus struct {
-	Conditions []NBSetupKeyCondition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,2,rep,name=conditions"`
+	// +optional
+	Conditions []NBCondition `json:"conditions,omitempty"`
 }
 
-// NBSetupKeyCondition defines a condition in NBSetupKey status.
-type NBSetupKeyCondition struct {
+// NBCondition defines a condition in NBSetupKey status.
+type NBCondition struct {
 	// Type is the type of the condition.
-	Type NBSetupKeyConditionType `json:"type" protobuf:"bytes,1,opt,name=type,casttype=NBSetupKeyConditionType"`
+	Type NBConditionType `json:"type"`
 	// Status is the status of the condition.
 	// Can be True, False, Unknown.
-	Status corev1.ConditionStatus `json:"status" protobuf:"bytes,2,opt,name=status,casttype=ConditionStatus"`
+	Status corev1.ConditionStatus `json:"status"`
 	// Last time we probed the condition.
 	// +optional
-	LastProbeTime metav1.Time `json:"lastProbeTime,omitempty" protobuf:"bytes,3,opt,name=lastProbeTime"`
+	LastProbeTime metav1.Time `json:"lastProbeTime,omitempty"`
 	// Last time the condition transitioned from one status to another.
 	// +optional
-	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty" protobuf:"bytes,4,opt,name=lastTransitionTime"`
+	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
 	// Unique, one-word, CamelCase reason for the condition's last transition.
 	// +optional
-	Reason string `json:"reason,omitempty" protobuf:"bytes,5,opt,name=reason"`
+	Reason string `json:"reason,omitempty"`
 	// Human-readable message indicating details about last transition.
 	// +optional
-	Message string `json:"message,omitempty" protobuf:"bytes,6,opt,name=message"`
+	Message string `json:"message,omitempty"`
+}
+
+// NBConditionTrue returns default true condition
+func NBConditionTrue() []NBCondition {
+	return []NBCondition{
+		{
+			Type:               NBSetupKeyReady,
+			LastProbeTime:      metav1.Now(),
+			LastTransitionTime: metav1.Now(),
+			Status:             corev1.ConditionTrue,
+		},
+	}
+}
+
+// NBConditionFalse returns default false condition
+func NBConditionFalse(reason, msg string) []NBCondition {
+	return []NBCondition{
+		{
+			Type:               NBSetupKeyReady,
+			LastProbeTime:      metav1.Now(),
+			LastTransitionTime: metav1.Now(),
+			Status:             corev1.ConditionFalse,
+			Reason:             reason,
+			Message:            msg,
+		},
+	}
 }
 
 // +kubebuilder:object:root=true

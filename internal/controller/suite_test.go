@@ -32,6 +32,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	foobarv1 "k8s.io/api/core/v1"
+
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
 	// +kubebuilder:scaffold:imports
 )
@@ -60,6 +62,9 @@ var _ = BeforeSuite(func() {
 
 	var err error
 	err = netbirdiov1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = foobarv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	// +kubebuilder:scaffold:scheme

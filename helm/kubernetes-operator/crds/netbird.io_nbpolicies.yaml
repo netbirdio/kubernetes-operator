@@ -4,20 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.17.1
-  name: nbsetupkeys.netbird.io
+  name: nbpolicies.netbird.io
 spec:
   group: netbird.io
   names:
-    kind: NBSetupKey
-    listKind: NBSetupKeyList
-    plural: nbsetupkeys
-    singular: nbsetupkey
-  scope: Namespaced
+    kind: NBPolicy
+    listKind: NBPolicyList
+    plural: nbpolicies
+    singular: nbpolicy
+  scope: Cluster
   versions:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: NBSetupKey is the Schema for the nbsetupkeys API.
+        description: NBPolicy is the Schema for the nbpolicies API.
         properties:
           apiVersion:
             description: |-
@@ -37,41 +37,46 @@ spec:
           metadata:
             type: object
           spec:
-            description: NBSetupKeySpec defines the desired state of NBSetupKey.
+            description: NBPolicySpec defines the desired state of NBPolicy.
             properties:
-              managementURL:
-                description: ManagementURL optional, override operator management
-                  URL
+              bidirectional:
+                default: true
+                type: boolean
+              description:
                 type: string
-              secretKeyRef:
-                description: SecretKeyRef is a reference to the secret containing
-                  the setup key
-                properties:
-                  key:
-                    description: The key of the secret to select from.  Must be a
-                      valid secret key.
-                    type: string
-                  name:
-                    default: ""
-                    description: |-
-                      Name of the referent.
-                      This field is effectively required, but due to backwards compatibility is
-                      allowed to be empty. Instances of this type with an empty value here are
-                      almost certainly wrong.
-                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                    type: string
-                  optional:
-                    description: Specify whether the Secret or its key must be defined
-                    type: boolean
-                required:
-                - key
-                type: object
-                x-kubernetes-map-type: atomic
+              destinationGroups:
+                items:
+                  minLength: 1
+                  type: string
+                type: array
+              name:
+                description: Name Policy name
+                minLength: 1
+                type: string
+              ports:
+                items:
+                  format: int32
+                  maximum: 65535
+                  minimum: 0
+                  type: integer
+                type: array
+              protocols:
+                items:
+                  enum:
+                  - tcp
+                  - udp
+                  type: string
+                type: array
+              sourceGroups:
+                items:
+                  minLength: 1
+                  type: string
+                type: array
             required:
-            - secretKeyRef
+            - name
             type: object
           status:
-            description: NBSetupKeyStatus defines the observed state of NBSetupKey.
+            description: NBPolicyStatus defines the observed state of NBPolicy.
             properties:
               conditions:
                 items:
@@ -107,6 +112,17 @@ spec:
                   - type
                   type: object
                 type: array
+              lastUpdatedAt:
+                format: date-time
+                type: string
+              managedServiceList:
+                items:
+                  type: string
+                type: array
+              tcpPolicyID:
+                type: string
+              udpPolicyID:
+                type: string
             type: object
         type: object
     served: true

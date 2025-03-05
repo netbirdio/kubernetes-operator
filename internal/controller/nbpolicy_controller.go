@@ -35,6 +35,7 @@ var (
 	errNetBirdAPI      = fmt.Errorf("netbird API error")
 )
 
+// getResources get all NBResource objects in policy.status.managedServiceList
 func (r *NBPolicyReconciler) getResources(ctx context.Context, nbPolicy *netbirdiov1.NBPolicy, logger logr.Logger) ([]netbirdiov1.NBResource, error) {
 	var resourceList []netbirdiov1.NBResource
 	var updatedManagedServiceList []string
@@ -58,6 +59,8 @@ func (r *NBPolicyReconciler) getResources(ctx context.Context, nbPolicy *netbird
 	return resourceList, nil
 }
 
+// mapResources map each NBResource ports and protocols into one object to generate the policy
+// returns map[protocol] => ports, destination group IDs
 func (r *NBPolicyReconciler) mapResources(ctx context.Context, nbPolicy *netbirdiov1.NBPolicy, resources []netbirdiov1.NBResource, logger logr.Logger) (map[string][]int32, []string, error) {
 	portMapping := map[string]map[int32]interface{}{
 		"tcp": make(map[int32]interface{}),
@@ -92,6 +95,7 @@ func (r *NBPolicyReconciler) mapResources(ctx context.Context, nbPolicy *netbird
 	return ports, groups, nil
 }
 
+// createPolicy helper for creating policy with settings
 func (r *NBPolicyReconciler) createPolicy(ctx context.Context, nbPolicy *netbirdiov1.NBPolicy, protocol string, sourceGroupIDs, destinationGroupIDs, ports []string, logger logr.Logger) (*string, error) {
 	policyName := fmt.Sprintf("%s %s", nbPolicy.Spec.Name, strings.ToUpper(protocol))
 	logger.Info("Creating NetBird Policy", "name", policyName, "description", nbPolicy.Spec.Description, "protocol", protocol, "sources", sourceGroupIDs, "destinations", destinationGroupIDs, "ports", ports, "bidirectional", nbPolicy.Spec.Bidirectional)
@@ -123,6 +127,7 @@ func (r *NBPolicyReconciler) createPolicy(ctx context.Context, nbPolicy *netbird
 	return policy.Id, nil
 }
 
+// updatePolicy helper for updating policy with settings
 func (r *NBPolicyReconciler) updatePolicy(ctx context.Context, policyID *string, nbPolicy *netbirdiov1.NBPolicy, protocol string, sourceGroupIDs, destinationGroupIDs, ports []string, logger logr.Logger) (*string, bool, error) {
 	policyName := fmt.Sprintf("%s %s", nbPolicy.Spec.Name, strings.ToUpper(protocol))
 	logger.Info("Updating NetBird Policy", "name", policyName, "description", nbPolicy.Spec.Description, "protocol", protocol, "sources", sourceGroupIDs, "destinations", destinationGroupIDs, "ports", ports, "bidirectional", nbPolicy.Spec.Bidirectional)
@@ -221,7 +226,7 @@ func (r *NBPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 		return ctrl.Result{}, err
 	}
 
-	requeue, err := r.handlePolicies(ctx, &nbPolicy, sourceGroupIDs, destGroups, portMapping, logger)
+	requeue, err := r.syncPolicy(ctx, &nbPolicy, sourceGroupIDs, destGroups, portMapping, logger)
 
 	if requeue || err != nil {
 		return ctrl.Result{Requeue: requeue}, err
@@ -232,7 +237,8 @@ func (r *NBPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 	return ctrl.Result{}, nil
 }
 
-func (r *NBPolicyReconciler) handlePolicies(ctx context.Context, nbPolicy *netbirdiov1.NBPolicy, sourceGroups, destGroups []string, portMapping map[string][]int32, logger logr.Logger) (bool, error) {
+// syncPolicy ensure upstream policy is up-to-date
+func (r *NBPolicyReconciler) syncPolicy(ctx context.Context, nbPolicy *netbirdiov1.NBPolicy, sourceGroups, destGroups []string, portMapping map[string][]int32, logger logr.Logger) (bool, error) {
 	requeue := false
 
 	for protocol, ports := range portMapping {
@@ -340,6 +346,7 @@ func (r *NBPolicyReconciler) handleDelete(ctx context.Context, nbPolicy netbirdi
 	return nil
 }
 
+// groupNamesToIDs map list of NetBird group names to group IDs
 func (r *NBPolicyReconciler) groupNamesToIDs(ctx context.Context, groupNames []string, logger logr.Logger) ([]string, error) {
 	groups, err := r.netbird.Groups.List(ctx)
 	if err != nil {

@@ -106,6 +106,7 @@ func (r *NBRoutingPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	return ctrl.Result{}, nil
 }
 
+// handleDeployment reconcile routing peer Deployment
 func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl.Request, nbrp *netbirdiov1.NBRoutingPeer, logger logr.Logger) error {
 	routingPeerDeployment := appsv1.Deployment{}
 	err := r.Client.Get(ctx, req.NamespacedName, &routingPeerDeployment)
@@ -115,6 +116,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 		return err
 	}
 
+	// Create deployment
 	if errors.IsNotFound(err) {
 		var replicas int32 = 3
 		if nbrp.Spec.Replicas != nil {
@@ -253,6 +255,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 
 		patch := client.StrategicMergeFrom(&routingPeerDeployment)
 		bs, _ := patch.Data(updatedDeployment)
+		// To ensure no useless patching is done to the deployment being watched
 		// Minimum patch size is 2 for "{}"
 		if len(bs) <= 2 {
 			return nil
@@ -268,6 +271,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 	return nil
 }
 
+// handleRouter reconcile network routing peer in NetBird management API
 func (r *NBRoutingPeerReconciler) handleRouter(ctx context.Context, nbrp *netbirdiov1.NBRoutingPeer, nbGroup netbirdiov1.NBGroup, logger logr.Logger) error {
 	// Check NetworkRouter exists
 	routers, err := r.netbird.Networks.Routers(*nbrp.Status.NetworkID).List(ctx)
@@ -280,8 +284,10 @@ func (r *NBRoutingPeerReconciler) handleRouter(ctx context.Context, nbrp *netbir
 
 	if nbrp.Status.RouterID == nil || len(routers) == 0 {
 		if len(routers) > 0 {
+			// Router exists but isn't saved to status
 			nbrp.Status.RouterID = &routers[0].Id
 		} else {
+			// Create network router
 			router, err := r.netbird.Networks.Routers(*nbrp.Status.NetworkID).Create(ctx, api.NetworkRouterRequest{
 				Enabled:    true,
 				Masquerade: true,
@@ -298,6 +304,7 @@ func (r *NBRoutingPeerReconciler) handleRouter(ctx context.Context, nbrp *netbir
 			nbrp.Status.RouterID = &router.Id
 		}
 	} else {
+		// Ensure network router settings are correct
 		if !routers[0].Enabled || !routers[0].Masquerade || routers[0].Metric != 9999 || len(*routers[0].PeerGroups) != 1 || (*routers[0].PeerGroups)[0] != *nbGroup.Status.GroupID {
 			_, err = r.netbird.Networks.Routers(*nbrp.Status.NetworkID).Update(ctx, routers[0].Id, api.NetworkRouterRequest{
 				Enabled:    true,
@@ -317,6 +324,7 @@ func (r *NBRoutingPeerReconciler) handleRouter(ctx context.Context, nbrp *netbir
 	return nil
 }
 
+// handleSetupKey reconcile setup key and regenerate if invalid
 func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.Request, nbrp *netbirdiov1.NBRoutingPeer, nbGroup netbirdiov1.NBGroup, logger logr.Logger) (*ctrl.Result, error) {
 	networkName := r.ClusterName
 	if r.NamespacedNetworks {
@@ -381,10 +389,11 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 		if (err != nil && strings.Contains(err.Error(), "not found")) || setupKey.Revoked {
 			nbrp.Status.SetupKeyID = nil
 
+			// Requeue to avoid repeating code
 			return &ctrl.Result{Requeue: true}, nil
 		}
 
-		// Check if valid setup key exists
+		// Check if secret is valid
 		skSecret := corev1.Secret{}
 		err = r.Client.Get(ctx, req.NamespacedName, &skSecret)
 		if err != nil && !errors.IsNotFound(err) {
@@ -415,6 +424,7 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 	return nil, nil
 }
 
+// handleGroup creates/updates NBGroup for routing peer
 func (r *NBRoutingPeerReconciler) handleGroup(ctx context.Context, req ctrl.Request, nbrp *netbirdiov1.NBRoutingPeer, logger logr.Logger) (*netbirdiov1.NBGroup, *ctrl.Result, error) {
 	networkName := r.ClusterName
 	if r.NamespacedNetworks {
@@ -471,6 +481,7 @@ func (r *NBRoutingPeerReconciler) handleGroup(ctx context.Context, req ctrl.Requ
 	return &nbGroup, nil, nil
 }
 
+// handleNetwork Create/Update NetBird Network
 func (r *NBRoutingPeerReconciler) handleNetwork(ctx context.Context, req ctrl.Request, nbrp *netbirdiov1.NBRoutingPeer, logger logr.Logger) error {
 	networkName := r.ClusterName
 	if r.NamespacedNetworks {

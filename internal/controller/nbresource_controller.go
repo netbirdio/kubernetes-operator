@@ -99,6 +99,7 @@ func (r *NBResourceReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	return ctrl.Result{}, nil
 }
 
+// handlePolicy update NBPolicy if defined to add self reference to policy status
 func (r *NBResourceReconciler) handlePolicy(ctx context.Context, req ctrl.Request, nbResource *netbirdiov1.NBResource, groupIDs []string, logger logr.Logger) error {
 	if nbResource.Status.PolicyName == nil && nbResource.Spec.PolicyName == "" {
 		return nil
@@ -108,6 +109,7 @@ func (r *NBResourceReconciler) handlePolicy(ctx context.Context, req ctrl.Reques
 
 	var nbPolicy netbirdiov1.NBPolicy
 	if nbResource.Spec.PolicyName == "" && nbResource.Status.PolicyName != nil {
+		// Remove self reference from policy status
 		nbResource.Status.PolicyName = nil
 		err := r.Client.Get(ctx, types.NamespacedName{Name: *nbResource.Status.PolicyName}, &nbPolicy)
 		if err != nil {
@@ -120,6 +122,8 @@ func (r *NBResourceReconciler) handlePolicy(ctx context.Context, req ctrl.Reques
 			updatePolicyStatus = true
 		}
 	} else {
+		// Update policy settings if any difference is found
+		// TODO: Handle updated policy name by removing reference from old policy name in status.policyName
 		err := r.Client.Get(ctx, types.NamespacedName{Name: nbResource.Spec.PolicyName}, &nbPolicy)
 		if err != nil {
 			logger.Error(errKubernetesAPI, "error getting NBPolicy", "err", err, "policyName", nbResource.Spec.PolicyName)
@@ -166,6 +170,7 @@ func (r *NBResourceReconciler) handlePolicy(ctx context.Context, req ctrl.Reques
 	return nil
 }
 
+// handleGroupUpdate update network resource groups
 func (r *NBResourceReconciler) handleGroupUpdate(ctx context.Context, nbResource *netbirdiov1.NBResource, groupIDs []string, resource *api.NetworkResource, logger logr.Logger) error {
 	// Handle possible updated group IDs
 	groupIDMap := make(map[string]interface{})
@@ -198,6 +203,7 @@ func (r *NBResourceReconciler) handleGroupUpdate(ctx context.Context, nbResource
 	return nil
 }
 
+// handleNetBirdResource sync NetBird Network Resource
 func (r *NBResourceReconciler) handleNetBirdResource(ctx context.Context, nbResource *netbirdiov1.NBResource, groupIDs []string, logger logr.Logger) (*api.NetworkResource, error) {
 	var resource *api.NetworkResource
 	var err error
@@ -208,6 +214,8 @@ func (r *NBResourceReconciler) handleNetBirdResource(ctx context.Context, nbReso
 			return nil, err
 		}
 	}
+
+	// Create/Update upstream network resource
 	if nbResource.Status.NetworkResourceID == nil && resource == nil {
 		resource, err := r.netbird.Networks.Resources(nbResource.Spec.NetworkID).Create(ctx, api.NetworkResourceRequest{
 			Address:     nbResource.Spec.Address,
@@ -255,6 +263,7 @@ func (r *NBResourceReconciler) handleNetBirdResource(ctx context.Context, nbReso
 	return resource, nil
 }
 
+// handleGroups create NBGroup objects for each group specified in NBResource
 func (r *NBResourceReconciler) handleGroups(ctx context.Context, req ctrl.Request, nbResource *netbirdiov1.NBResource, logger logr.Logger) ([]string, *ctrl.Result, error) {
 	var groupIDs []string
 
@@ -267,6 +276,7 @@ func (r *NBResourceReconciler) handleGroups(ctx context.Context, req ctrl.Reques
 			logger.Error(errKubernetesAPI, "error getting NBGroup", "err", err)
 			return nil, &ctrl.Result{}, err
 		} else if errors.IsNotFound(err) {
+			// Create NBGroup
 			nbGroup = netbirdiov1.NBGroup{
 				ObjectMeta: v1.ObjectMeta{
 					Name:      groupNameRFC,
@@ -295,6 +305,7 @@ func (r *NBResourceReconciler) handleGroups(ctx context.Context, req ctrl.Reques
 
 			continue
 		} else {
+			// Add NBResource as owner to NBGroup if not already done
 			ownerExists := false
 			for _, o := range nbGroup.OwnerReferences {
 				if o.UID == nbResource.UID {
@@ -324,6 +335,7 @@ func (r *NBResourceReconciler) handleGroups(ctx context.Context, req ctrl.Reques
 		}
 	}
 
+	// if not all groups are ready, requeue
 	if len(groupIDs) != len(nbResource.Spec.Groups) {
 		return nil, &ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 	}
@@ -368,6 +380,7 @@ func (r *NBResourceReconciler) handleDelete(ctx context.Context, req ctrl.Reques
 	}
 
 	for _, g := range nbGroupList.Items {
+		// TODO: Handle multiple owners
 		if len(g.OwnerReferences) > 0 && g.OwnerReferences[0].UID == nbResource.UID {
 			g.Finalizers = util.Without(g.Finalizers, "netbird.io/resource-cleanup")
 			err = r.Client.Update(ctx, &g)

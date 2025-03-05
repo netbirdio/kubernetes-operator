@@ -235,7 +235,7 @@ metadata:
 spec:
   dnsNames:
   - {{ template "kubernetes-operator.webhookService" . }}.{{ .Release.Namespace }}.svc
-  - {{ template "kubernetes-operator.webhookService" . }}.{{ .Release.Namespace }}.svc.{{ .Values.webhook.cluster.dnsDomain }}
+  - {{ template "kubernetes-operator.webhookService" . }}.{{ .Release.Namespace }}.{{ .Values.cluster.dns }}
   issuerRef:
     kind: Issuer
     name: {{ template "kubernetes-operator.fullname" . }}-selfsigned-issuer

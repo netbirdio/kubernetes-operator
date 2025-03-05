@@ -5,7 +5,7 @@ https://github.com/user-attachments/assets/5472a499-e63d-4301-a513-ad84cfe5ca7b
 
 ## Description
 
-This operator enables easily provisioning NetBird access on kubernetes clusters, allowing users to access internal resources directly.
+This operator easily provides NetBird access on Kubernetes clusters, allowing users to access internal resources directly.
 
 ## Getting Started
 
@@ -18,7 +18,7 @@ This operator enables easily provisioning NetBird access on kubernetes clusters,
 
 ### Deployment
 > [!NOTE]
-> Helm Installation method is recommended due to automation of multiple settings within the deployment.
+> Helm Installation method is recommended due to the automation of multiple settings within the deployment.
 
 #### Using Helm
 
@@ -27,14 +27,15 @@ This operator enables easily provisioning NetBird access on kubernetes clusters,
 helm repo add netbirdio https://netbirdio.github.io/kubernetes-operator
 ```
 2. (Recommended) Install [cert-manager](https://cert-manager.io/docs/installation/#default-static-install).
-1. (Recommended) Create a values.yaml file, check `helm show values netbirdio/kubernetes-operator` for more info.
-1. Install using `helm install --create-namespace -f values.yaml -n netbird netbird-operator netbirdio/kubernetes-operator`.
+3. (Recommended) Create a values.yaml file, check `helm show values netbirdio/kubernetes-operator` for more info.
+4. Install using `helm install --create-namespace -f values.yaml -n netbird netbird-operator netbirdio/kubernetes-operator`.
 
+> Learn more about the values.yaml options [here](helm/netbird-operator/values.yaml) and  [Granting controller access to NetBird Management](docs/values.md#granting-controller-access-to-netbird-management).
 #### Using install.yaml
 
 > [!IMPORTANT]
-> install.yaml only includes a very basic template for deploying a stripped down version of kubernetes-operator.
-> This excludes any and all configuration for ingress capabilities, and requires cert-manager to be installed.
+> install.yaml only includes a very basic template for deploying a stripped-down version of Kubernetes-operator.
+> This excludes any and all configurations for ingress capabilities and requires the cert-manager to be installed.
 
 ```sh
 kubectl create namespace netbird
@@ -43,13 +44,13 @@ kubectl apply -n netbird -f https://raw.githubusercontent.com/netbirdio/kubernet
 
 ### Usage
 
-Checks [usage.md](docs/usage.md).
+Check the usage of [usage.md](docs/usage.md) and examples.
 
 ## Contributing
 
 ### Prerequisites
 
-To be able to develop on this project, you need to have the following tools installed:
+To be able to develop this project, you need to have the following tools installed:
 
 - [Git](https://git-scm.com/).
 - [Make](https://www.gnu.org/software/make/).

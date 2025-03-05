@@ -30,7 +30,7 @@ helm repo add netbirdio https://netbirdio.github.io/kubernetes-operator
 3. (Recommended) Create a values.yaml file, check `helm show values netbirdio/kubernetes-operator` for more info.
 4. Install using `helm install --create-namespace -f values.yaml -n netbird netbird-operator netbirdio/kubernetes-operator`.
 
-> Learn more about the values.yaml options [here](helm/netbird-operator/values.yaml) and  [Granting controller access to NetBird Management](docs/values.md#granting-controller-access-to-netbird-management).
+> Learn more about the values.yaml options [here](helm/kubernetes-operator/values.yaml) and  [Granting controller access to NetBird Management](docs/usage.md#granting-controller-access-to-netbird-management).
 #### Using install.yaml
 
 > [!IMPORTANT]

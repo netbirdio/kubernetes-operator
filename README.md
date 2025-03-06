@@ -43,15 +43,17 @@ kubectl apply -n netbird -f https://raw.githubusercontent.com/netbirdio/kubernet
 ```
 
 ### Version
-Latest version: v0.1.0
+We have developed and executed tests against Kubernetes v1.31, but it should work with most recent Kubernetes version.
+
+Latest operator version: v0.1.1.
 
 Tested against:
-|Distribution|Test status|
-|---|---|
-|Google GKE|Pass|
-|AWS EKS|Pass|
-|Azure AKS|Not tested|
-|OpenShift|Not tested|
+|Distribution|Test status|Kubernetes Version|
+|---|---|---|
+|Google GKE|Pass|1.31.5|
+|AWS EKS|Pass|1.31|
+|Azure AKS|Not tested|N/A|
+|OpenShift|Not tested|N/A|
 
 > We would love community feedback to improve the test matrix. Please submit a PR with your test results.
 

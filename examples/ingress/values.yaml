@@ -1,3 +1,6 @@
+#operator:
+#  image:
+#    tag: "0.1.0"
 ingress:
   enabled: true
   router:

@@ -42,7 +42,7 @@ spec:
 ...
 ```
 
-Since 0.27.0 NetBird supports extra DNS labels, which extends the DNS names that you can link to peers by grouping them and load balancing access using DNS round-robin. To enable this feature, add the following annotation to the pod:
+Since v0.27.0, NetBird supports extra DNS labels, which extends the DNS names that you can link to peers by grouping them and load balancing access using DNS round-robin. To enable this feature, add the following annotation to the pod:
 ```yaml
     netbird.io/extra-dns-labels: "label1,label2"
 ```

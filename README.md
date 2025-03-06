@@ -27,8 +27,16 @@ This operator easily provides NetBird access on Kubernetes clusters, allowing us
 helm repo add netbirdio https://netbirdio.github.io/kubernetes-operator
 ```
 2. (Recommended) Install [cert-manager](https://cert-manager.io/docs/installation/#default-static-install).
-3. (Recommended) Create a values.yaml file, check `helm show values netbirdio/kubernetes-operator` for more info.
+```sh
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.17.0/cert-manager.yaml
+```
+3. (Recommended) Create a [`values.yaml`](examples/ingress/values.yaml) file, check `helm show values netbirdio/kubernetes-operator` for more info.
 4. Install using `helm install --create-namespace -f values.yaml -n netbird netbird-operator netbirdio/kubernetes-operator`.
+5. (Optional) Create an [`exposed-nginx.yaml`](examples/ingress/exposed-nginx.yaml) file to create a Nginx service for testing.
+6. (Optional) Apply the Nginx service:
+```sh
+kubectl apply -f exposed-nginx.yaml
+```
 
 > Learn more about the values.yaml options [here](helm/kubernetes-operator/values.yaml) and  [Granting controller access to NetBird Management](docs/usage.md#granting-controller-access-to-netbird-management).
 #### Using install.yaml

@@ -26,14 +26,20 @@ This operator easily provides NetBird access on Kubernetes clusters, allowing us
 ```sh
 helm repo add netbirdio https://netbirdio.github.io/kubernetes-operator
 ```
-2. (Recommended) Install [cert-manager](https://cert-manager.io/docs/installation/#default-static-install).
+2. (Recommended) Install [cert-manager](https://cert-manager.io/docs/installation/#default-static-install) for k8s API to communicate with the NetBird operator.
 ```sh
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.17.0/cert-manager.yaml
 ```
-3. (Recommended) Create a [`values.yaml`](examples/ingress/values.yaml) file, check `helm show values netbirdio/kubernetes-operator` for more info.
-4. Install using `helm install --create-namespace -f values.yaml -n netbird netbird-operator netbirdio/kubernetes-operator`.
-5. (Optional) Create an [`exposed-nginx.yaml`](examples/ingress/exposed-nginx.yaml) file to create a Nginx service for testing.
-6. (Optional) Apply the Nginx service:
+3. Add NetBird API token
+```shell
+kubectl create namespace netbird
+kubectl -n netbird create secret generic netbird-mgmt-api-key --from-literal=NB_API_KEY=$(cat ~/nb-pat.secret)
+```
+4. (Recommended) Create a [`values.yaml`](examples/ingress/values.yaml) file, check `helm show values netbirdio/kubernetes-operator` for more info.
+5. Install using `helm install --create-namespace -f values.yaml -n netbird netbird-operator netbirdio/kubernetes-operator`.
+6. (Recommended) Check pod status using `kubectl get pods -n netbird`.
+6. (Optional) Create an [`exposed-nginx.yaml`](examples/ingress/exposed-nginx.yaml) file to create a Nginx service for testing.
+7. (Optional) Apply the Nginx service:
 ```sh
 kubectl apply -f exposed-nginx.yaml
 ```

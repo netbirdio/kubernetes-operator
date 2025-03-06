@@ -42,6 +42,19 @@ kubectl create namespace netbird
 kubectl apply -n netbird -f https://raw.githubusercontent.com/netbirdio/kubernetes-operator/refs/heads/main/manifests/install.yaml
 ```
 
+### Version
+Latest version: v0.1.0
+
+Tested against:
+|Distribution|Test status|
+|---|---|
+|Google GKE|Pass|
+|AWS EKS|Pass|
+|Azure AKS|Not tested|
+|OpenShift|Not tested|
+
+> We would love community feedback to improve the test matrix. Please submit a PR with your test results.
+
 ### Usage
 
 Check the usage of [usage.md](docs/usage.md) and examples.

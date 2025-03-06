@@ -323,7 +323,7 @@ func (r *NBPolicyReconciler) syncPolicy(ctx context.Context, nbPolicy *netbirdio
 func (r *NBPolicyReconciler) handleDelete(ctx context.Context, nbPolicy netbirdiov1.NBPolicy, logger logr.Logger) error {
 	if nbPolicy.Status.TCPPolicyID != nil {
 		err := r.netbird.Policies.Delete(ctx, *nbPolicy.Status.TCPPolicyID)
-		if err != nil {
+		if err != nil && !strings.Contains("not found", err.Error()) {
 			return err
 		}
 		nbPolicy.Status.TCPPolicyID = nil

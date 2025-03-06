@@ -2,6 +2,16 @@ apiVersion: v1
 entries:
   kubernetes-operator:
   - apiVersion: v2
+    appVersion: v0.1.0-rc.3
+    created: "2025-03-06T08:58:01.237254581Z"
+    description: A Helm chart for Kubernetes
+    digest: 6309f8a231aceb48b6023ec2499b540611d86c8f9d435ab8c6cb75d287a9bde6
+    name: kubernetes-operator
+    type: application
+    urls:
+    - https://github.com/netbirdio/kubernetes-operator/releases/download/helm-v0.1.2/kubernetes-operator-0.1.2.tgz
+    version: 0.1.2
+  - apiVersion: v2
     appVersion: v0.1.0
     created: "2025-03-05T08:03:22.755260774Z"
     description: A Helm chart for Kubernetes
@@ -22,4 +32,4 @@ entries:
     urls:
     - https://github.com/netbirdio/kubernetes-operator/releases/download/helm-v0.1.0/netbird-operator-0.1.0.tgz
     version: 0.1.0
-generated: "2025-03-05T08:03:22.755270071Z"
+generated: "2025-03-06T08:58:01.237267615Z"

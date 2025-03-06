@@ -2,14 +2,14 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: test
-  name: test
+    app: nginx
+  name: nginx
   namespace: default
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: test
+      app: nginx
   strategy:
     rollingUpdate:
       maxSurge: 25%
@@ -18,7 +18,7 @@ spec:
   template:
     metadata:
       labels:
-        app: test
+        app: nginx
     spec:
       containers:
       - image: nginx
@@ -34,8 +34,8 @@ metadata:
     netbird.io/resource-name: nginx
     netbird.io/groups: nginx-k8s-gke
   labels:
-    app: test
-  name: test
+    app: nginx
+  name: nginx
   namespace: default
 spec:
   ports:
@@ -44,5 +44,5 @@ spec:
     protocol: TCP
     targetPort: 80
   selector:
-    app: test
+    app: nginx
   type: ClusterIP

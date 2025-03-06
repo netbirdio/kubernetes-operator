@@ -32,6 +32,7 @@ metadata:
     netbird.io/expose: "true"
     netbird.io/policy: default
     netbird.io/resource-name: nginx
+    netbird.io/groups: nginx-k8s-gke
   labels:
     app: test
   name: test

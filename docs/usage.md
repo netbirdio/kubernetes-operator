@@ -1,6 +1,6 @@
 # Usage
 
-## Provision pods with NetBird access
+## Provision pods with NetBird access using side-cars
 
 1. Create a Setup Key in your [NetBird console](https://docs.netbird.io/how-to/register-machines-using-setup-keys#using-setup-keys).
 1. Create a Secret object in the namespace where you need to provision NetBird access (secret name and field can be anything).
@@ -42,6 +42,12 @@ spec:
 ...
 ```
 
+Since 0.27.0 NetBird supports extra DNS labels, which extends the DNS names that you can link to peers by grouping them and load balancing access using DNS round-robin. To enable this feature, add the following annotation to the pod:
+```yaml
+    netbird.io/extra-dns-labels: "label1,label2"
+```
+With this setup, all peers with the same extra label would be used in a DNS round-robin fashion.
+
 ## Provisioning Networks (Ingress Functionality)
 
 ### Granting controller access to NetBird Management
@@ -69,7 +75,7 @@ ingress:
 cluster:
   name: kubernetes
 ```
-
+> Learn more about the values.yaml options [here](../helm/kubernetes-operator/values.yaml).
 ### Exposing a Service
 
 > [!IMPORTANT]  

@@ -19,6 +19,7 @@ var _ = Describe("Service Controller", func() {
 			Namespace: "default",
 			Name:      "test-resource",
 		}
+		const policyName = "test"
 		var service *corev1.Service
 
 		var controllerReconciler *ServiceReconciler
@@ -127,7 +128,7 @@ var _ = Describe("Service Controller", func() {
 					})
 					Expect(err).NotTo(HaveOccurred())
 					Expect(k8sClient.Get(ctx, typeNamespacedName, service)).To(Succeed())
-					Expect(service.Finalizers).To(HaveLen(0))
+					Expect(service.Finalizers).To(BeEmpty())
 					nbResource := &netbirdiov1.NBResource{}
 					Expect(k8sClient.Get(ctx, typeNamespacedName, nbResource)).NotTo(Succeed())
 				})
@@ -137,7 +138,7 @@ var _ = Describe("Service Controller", func() {
 					if service.Annotations == nil {
 						service.Annotations = make(map[string]string)
 					}
-					service.Annotations[ServiceExposeAnnotation] = "true"
+					service.Annotations[ServiceExposeAnnotation] = "trueish"
 					Expect(k8sClient.Update(ctx, service)).To(Succeed())
 				})
 
@@ -154,7 +155,7 @@ var _ = Describe("Service Controller", func() {
 					})
 					Expect(err).NotTo(HaveOccurred())
 					Expect(res.RequeueAfter).NotTo(BeZero())
-					nbrp.Status.NetworkID = util.Ptr("test")
+					nbrp.Status.NetworkID = util.Ptr(policyName)
 					Expect(k8sClient.Status().Update(ctx, nbrp)).To(Succeed())
 					res, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
 						NamespacedName: typeNamespacedName,
@@ -174,7 +175,7 @@ var _ = Describe("Service Controller", func() {
 					}
 					Expect(k8sClient.Create(ctx, nbrp)).To(Succeed())
 
-					nbrp.Status.NetworkID = util.Ptr("test")
+					nbrp.Status.NetworkID = util.Ptr(policyName)
 					Expect(k8sClient.Status().Update(ctx, nbrp)).To(Succeed())
 				})
 				When("Service should be exposed", func() {
@@ -204,7 +205,7 @@ var _ = Describe("Service Controller", func() {
 							Expect(nbResource.Spec.Address).To(Equal(typeNamespacedName.Name + "." + typeNamespacedName.Namespace + "." + controllerReconciler.ClusterDNS))
 							Expect(nbResource.Spec.Groups).To(ConsistOf([]string{controllerReconciler.ClusterName + "-" + typeNamespacedName.Namespace + "-" + typeNamespacedName.Name}))
 							Expect(nbResource.Spec.Name).To(Equal(typeNamespacedName.Namespace + "-" + typeNamespacedName.Name))
-							Expect(nbResource.Spec.NetworkID).To(Equal("test"))
+							Expect(nbResource.Spec.NetworkID).To(Equal(policyName))
 							Expect(nbResource.Spec.PolicyName).To(BeEmpty())
 							Expect(nbResource.Spec.TCPPorts).To(BeEmpty())
 							Expect(nbResource.Spec.UDPPorts).To(BeEmpty())
@@ -212,7 +213,7 @@ var _ = Describe("Service Controller", func() {
 					})
 					When("policy is specified", func() {
 						BeforeEach(func() {
-							service.Annotations[servicePolicyAnnotation] = "test"
+							service.Annotations[servicePolicyAnnotation] = policyName
 							Expect(k8sClient.Update(ctx, service)).To(Succeed())
 						})
 						When("nothing is restricted", func() {
@@ -223,7 +224,7 @@ var _ = Describe("Service Controller", func() {
 								Expect(err).NotTo(HaveOccurred())
 								nbResource := &netbirdiov1.NBResource{}
 								Expect(k8sClient.Get(ctx, typeNamespacedName, nbResource)).To(Succeed())
-								Expect(nbResource.Spec.PolicyName).To(Equal("test"))
+								Expect(nbResource.Spec.PolicyName).To(Equal(policyName))
 								Expect(nbResource.Spec.TCPPorts).To(ConsistOf([]int32{443, 80}))
 								Expect(nbResource.Spec.UDPPorts).To(ConsistOf([]int32{443, 80}))
 							})
@@ -239,7 +240,7 @@ var _ = Describe("Service Controller", func() {
 								Expect(err).NotTo(HaveOccurred())
 								nbResource := &netbirdiov1.NBResource{}
 								Expect(k8sClient.Get(ctx, typeNamespacedName, nbResource)).To(Succeed())
-								Expect(nbResource.Spec.PolicyName).To(Equal("test"))
+								Expect(nbResource.Spec.PolicyName).To(Equal(policyName))
 								Expect(nbResource.Spec.TCPPorts).To(ConsistOf([]int32{80}))
 								Expect(nbResource.Spec.UDPPorts).To(ConsistOf([]int32{80}))
 							})
@@ -255,7 +256,7 @@ var _ = Describe("Service Controller", func() {
 								Expect(err).NotTo(HaveOccurred())
 								nbResource := &netbirdiov1.NBResource{}
 								Expect(k8sClient.Get(ctx, typeNamespacedName, nbResource)).To(Succeed())
-								Expect(nbResource.Spec.PolicyName).To(Equal("test"))
+								Expect(nbResource.Spec.PolicyName).To(Equal(policyName))
 								Expect(nbResource.Spec.TCPPorts).To(ConsistOf([]int32{80, 443}))
 								Expect(nbResource.Spec.UDPPorts).To(BeEmpty())
 							})
@@ -284,7 +285,7 @@ var _ = Describe("Service Controller", func() {
 							Expect(err).NotTo(HaveOccurred())
 							nbResource := &netbirdiov1.NBResource{}
 							Expect(k8sClient.Get(ctx, typeNamespacedName, nbResource)).To(Succeed())
-							Expect(nbResource.Spec.Groups).To(ConsistOf([]string{"meow", "wow", "test"}))
+							Expect(nbResource.Spec.Groups).To(ConsistOf([]string{"meow", "wow", policyName}))
 						})
 					})
 				})
@@ -301,7 +302,7 @@ var _ = Describe("Service Controller", func() {
 						Name:      typeNamespacedName.Namespace + "-" + typeNamespacedName.Name,
 						Address:   typeNamespacedName.Name + "." + typeNamespacedName.Namespace + "." + controllerReconciler.ClusterDNS,
 						Groups:    []string{controllerReconciler.ClusterName + "-" + typeNamespacedName.Namespace + "-" + typeNamespacedName.Name},
-						NetworkID: "test",
+						NetworkID: policyName,
 					},
 				}
 				Expect(k8sClient.Create(ctx, nbResource)).To(Succeed())
@@ -321,7 +322,7 @@ var _ = Describe("Service Controller", func() {
 				}
 				Expect(k8sClient.Create(ctx, nbrp)).To(Succeed())
 
-				nbrp.Status.NetworkID = util.Ptr("test")
+				nbrp.Status.NetworkID = util.Ptr(policyName)
 				Expect(k8sClient.Status().Update(ctx, nbrp)).To(Succeed())
 			})
 
@@ -368,7 +369,7 @@ var _ = Describe("Service Controller", func() {
 			})
 			When("policy changes", func() {
 				It("should update policy in NBResource spec", func() {
-					service.Annotations[servicePolicyAnnotation] = "test"
+					service.Annotations[servicePolicyAnnotation] = policyName
 					Expect(k8sClient.Update(ctx, service)).To(Succeed())
 					_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
 						NamespacedName: typeNamespacedName,
@@ -377,14 +378,14 @@ var _ = Describe("Service Controller", func() {
 
 					nbResource := &netbirdiov1.NBResource{}
 					Expect(k8sClient.Get(ctx, typeNamespacedName, nbResource)).To(Succeed())
-					Expect(nbResource.Spec.PolicyName).To(Equal("test"))
+					Expect(nbResource.Spec.PolicyName).To(Equal(policyName))
 				})
 			})
 			When("policy is removed", func() {
 				It("should remove policy in NBResource spec", func() {
 					nbResource := &netbirdiov1.NBResource{}
 					Expect(k8sClient.Get(ctx, typeNamespacedName, nbResource)).To(Succeed())
-					nbResource.Spec.PolicyName = "test"
+					nbResource.Spec.PolicyName = policyName
 					Expect(k8sClient.Update(ctx, nbResource)).To(Succeed())
 
 					_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -401,12 +402,12 @@ var _ = Describe("Service Controller", func() {
 				It("should update ports in NBResource spec", func() {
 					nbResource := &netbirdiov1.NBResource{}
 					Expect(k8sClient.Get(ctx, typeNamespacedName, nbResource)).To(Succeed())
-					nbResource.Spec.PolicyName = "test"
+					nbResource.Spec.PolicyName = policyName
 					nbResource.Spec.TCPPorts = []int32{443, 80}
 					nbResource.Spec.UDPPorts = []int32{443, 80}
 					Expect(k8sClient.Update(ctx, nbResource)).To(Succeed())
 
-					service.Annotations[servicePolicyAnnotation] = "test"
+					service.Annotations[servicePolicyAnnotation] = policyName
 					service.Annotations[servicePortsAnnotation] = "80"
 					Expect(k8sClient.Update(ctx, service)).To(Succeed())
 
@@ -425,12 +426,12 @@ var _ = Describe("Service Controller", func() {
 				It("should update protocol in NBResource spec", func() {
 					nbResource := &netbirdiov1.NBResource{}
 					Expect(k8sClient.Get(ctx, typeNamespacedName, nbResource)).To(Succeed())
-					nbResource.Spec.PolicyName = "test"
+					nbResource.Spec.PolicyName = policyName
 					nbResource.Spec.TCPPorts = []int32{443, 80}
 					nbResource.Spec.UDPPorts = []int32{443, 80}
 					Expect(k8sClient.Update(ctx, nbResource)).To(Succeed())
 
-					service.Annotations[servicePolicyAnnotation] = "test"
+					service.Annotations[servicePolicyAnnotation] = policyName
 					service.Annotations[serviceProtocolAnnotation] = "tcp"
 					Expect(k8sClient.Update(ctx, service)).To(Succeed())
 

@@ -90,8 +90,9 @@ var _ = Describe("NBGroup Controller", func() {
 				}
 
 				mux.HandleFunc("/api/groups", func(w http.ResponseWriter, r *http.Request) {
-					if r.Method == "GET" {
-						w.Write([]byte("[]"))
+					if r.Method == http.MethodGet {
+						_, err := w.Write([]byte("[]"))
+						Expect(err).NotTo(HaveOccurred())
 					} else {
 						resp := api.Group{
 							Id:   "Test",
@@ -99,7 +100,8 @@ var _ = Describe("NBGroup Controller", func() {
 						}
 						bs, err := json.Marshal(resp)
 						Expect(err).NotTo(HaveOccurred())
-						w.Write(bs)
+						_, err = w.Write(bs)
+						Expect(err).NotTo(HaveOccurred())
 					}
 				})
 
@@ -135,7 +137,8 @@ var _ = Describe("NBGroup Controller", func() {
 					}
 					bs, err := json.Marshal(resp)
 					Expect(err).NotTo(HaveOccurred())
-					w.Write(bs)
+					_, err = w.Write(bs)
+					Expect(err).NotTo(HaveOccurred())
 				})
 
 				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -178,7 +181,8 @@ var _ = Describe("NBGroup Controller", func() {
 					method := ""
 					mux.HandleFunc("/api/groups/Test", func(w http.ResponseWriter, r *http.Request) {
 						method = r.Method
-						w.Write([]byte("{}"))
+						_, err := w.Write([]byte("{}"))
+						Expect(err).NotTo(HaveOccurred())
 					})
 
 					_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -187,7 +191,7 @@ var _ = Describe("NBGroup Controller", func() {
 					Expect(err).NotTo(HaveOccurred())
 					err = k8sClient.Get(ctx, typeNamespacedName, &nbGroup)
 					Expect(errors.IsNotFound(err)).To(BeTrue())
-					Expect(method).To(Equal("DELETE"))
+					Expect(method).To(Equal(http.MethodDelete))
 				})
 			})
 
@@ -205,7 +209,8 @@ var _ = Describe("NBGroup Controller", func() {
 					mux.HandleFunc("/api/groups/Test", func(w http.ResponseWriter, r *http.Request) {
 						method = r.Method
 						w.WriteHeader(400)
-						w.Write([]byte(`{"message": "group has been linked to Policy: meow"}`))
+						_, err := w.Write([]byte(`{"message": "group has been linked to Policy: meow"}`))
+						Expect(err).NotTo(HaveOccurred())
 					})
 
 					_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -214,7 +219,7 @@ var _ = Describe("NBGroup Controller", func() {
 					Expect(err).To(HaveOccurred())
 					err = k8sClient.Get(ctx, typeNamespacedName, &nbGroup)
 					Expect(errors.IsNotFound(err)).To(BeFalse())
-					Expect(method).To(Equal("DELETE"))
+					Expect(method).To(Equal(http.MethodDelete))
 				})
 			})
 
@@ -246,7 +251,8 @@ var _ = Describe("NBGroup Controller", func() {
 					mux.HandleFunc("/api/groups/Test", func(w http.ResponseWriter, r *http.Request) {
 						method = r.Method
 						w.WriteHeader(400)
-						w.Write([]byte(`{"message": "group has been linked to Policy: meow"}`))
+						_, err := w.Write([]byte(`{"message": "group has been linked to Policy: meow"}`))
+						Expect(err).NotTo(HaveOccurred())
 					})
 
 					_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -256,7 +262,7 @@ var _ = Describe("NBGroup Controller", func() {
 					Expect(err).NotTo(HaveOccurred())
 					err = k8sClient.Get(ctx, typeNamespacedName, &nbGroup)
 					Expect(errors.IsNotFound(err)).To(BeTrue())
-					Expect(method).To(Equal("DELETE"))
+					Expect(method).To(Equal(http.MethodDelete))
 				})
 			})
 		})
@@ -278,7 +284,8 @@ var _ = Describe("NBGroup Controller", func() {
 					}
 					bs, err := json.Marshal(resp)
 					Expect(err).NotTo(HaveOccurred())
-					w.Write(bs)
+					_, err = w.Write(bs)
+					Expect(err).NotTo(HaveOccurred())
 				})
 
 				nbGroup.Status.GroupID = util.Ptr("Toast")
@@ -307,20 +314,22 @@ var _ = Describe("NBGroup Controller", func() {
 				}
 
 				mux.HandleFunc("/api/groups", func(w http.ResponseWriter, r *http.Request) {
-					if r.Method == "GET" {
+					if r.Method == http.MethodGet {
 						resp := []api.Group{}
 						bs, err := json.Marshal(resp)
 						Expect(err).NotTo(HaveOccurred())
-						w.Write(bs)
+						_, err = w.Write(bs)
+						Expect(err).NotTo(HaveOccurred())
 					}
-					if r.Method == "POST" {
+					if r.Method == http.MethodPost {
 						resp := api.Group{
 							Id:   "Test",
 							Name: resourceName,
 						}
 						bs, err := json.Marshal(resp)
 						Expect(err).NotTo(HaveOccurred())
-						w.Write(bs)
+						_, err = w.Write(bs)
+						Expect(err).NotTo(HaveOccurred())
 					}
 				})
 

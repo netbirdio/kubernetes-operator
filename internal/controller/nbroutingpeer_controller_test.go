@@ -171,7 +171,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 				networkCreated := false
 				mux.HandleFunc("/api/networks", func(w http.ResponseWriter, r *http.Request) {
 					defer GinkgoRecover()
-					if r.Method == "POST" {
+					if r.Method == http.MethodPost {
 						networkCreated = true
 						var req api.PostApiNetworksJSONRequestBody
 						bs, err := io.ReadAll(r.Body)
@@ -187,9 +187,11 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 						}
 						bs, err = json.Marshal(resp)
 						Expect(err).NotTo(HaveOccurred())
-						w.Write(bs)
-					} else if r.Method == "GET" {
-						w.Write([]byte("[]"))
+						_, err = w.Write(bs)
+						Expect(err).NotTo(HaveOccurred())
+					} else if r.Method == http.MethodGet {
+						_, err := w.Write([]byte("[]"))
+						Expect(err).NotTo(HaveOccurred())
 					}
 				})
 				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -207,7 +209,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 			BeforeEach(func() {
 				mux.HandleFunc("/api/networks", func(w http.ResponseWriter, r *http.Request) {
 					defer GinkgoRecover()
-					if r.Method == "GET" {
+					if r.Method == http.MethodGet {
 						resp := []api.Network{
 							{
 								Id:          "test",
@@ -217,7 +219,8 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 						}
 						bs, err := json.Marshal(resp)
 						Expect(err).NotTo(HaveOccurred())
-						w.Write(bs)
+						_, err = w.Write(bs)
+						Expect(err).NotTo(HaveOccurred())
 					}
 				})
 
@@ -251,7 +254,8 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 						}
 						bs, err := json.Marshal(resp)
 						Expect(err).NotTo(HaveOccurred())
-						w.Write(bs)
+						_, err = w.Write(bs)
+						Expect(err).NotTo(HaveOccurred())
 					})
 
 					secret := &corev1.Secret{
@@ -271,7 +275,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 						routerCreated := false
 						mux.HandleFunc("/api/networks/test/routers", func(w http.ResponseWriter, r *http.Request) {
 							defer GinkgoRecover()
-							if r.Method == "POST" {
+							if r.Method == http.MethodPost {
 								routerCreated = true
 								var req api.PostApiNetworksNetworkIdRoutersJSONRequestBody
 								bs, err := io.ReadAll(r.Body)
@@ -292,12 +296,14 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								}
 								bs, err = json.Marshal(resp)
 								Expect(err).NotTo(HaveOccurred())
-								w.Write(bs)
-							} else if r.Method == "GET" {
+								_, err = w.Write(bs)
+								Expect(err).NotTo(HaveOccurred())
+							} else if r.Method == http.MethodGet {
 								resp := []api.NetworkRouter{}
 								bs, err := json.Marshal(resp)
 								Expect(err).NotTo(HaveOccurred())
-								w.Write(bs)
+								_, err = w.Write(bs)
+								Expect(err).NotTo(HaveOccurred())
 							}
 						})
 
@@ -320,7 +326,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 						routerUpdated := false
 						mux.HandleFunc("/api/networks/test/routers", func(w http.ResponseWriter, r *http.Request) {
 							defer GinkgoRecover()
-							if r.Method == "GET" {
+							if r.Method == http.MethodGet {
 								resp := []api.NetworkRouter{
 									{
 										Id:         "test",
@@ -332,13 +338,14 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								}
 								bs, err := json.Marshal(resp)
 								Expect(err).NotTo(HaveOccurred())
-								w.Write(bs)
+								_, err = w.Write(bs)
+								Expect(err).NotTo(HaveOccurred())
 							}
 						})
 
 						mux.HandleFunc("/api/networks/test/routers/test", func(w http.ResponseWriter, r *http.Request) {
 							defer GinkgoRecover()
-							if r.Method == "PUT" {
+							if r.Method == http.MethodPut {
 								routerUpdated = true
 								var req api.PutApiNetworksNetworkIdRoutersRouterIdJSONRequestBody
 								bs, err := io.ReadAll(r.Body)
@@ -359,7 +366,8 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								}
 								bs, err = json.Marshal(resp)
 								Expect(err).NotTo(HaveOccurred())
-								w.Write(bs)
+								_, err = w.Write(bs)
+								Expect(err).NotTo(HaveOccurred())
 							}
 						})
 
@@ -382,7 +390,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 
 					mux.HandleFunc("/api/networks/test/routers", func(w http.ResponseWriter, r *http.Request) {
 						defer GinkgoRecover()
-						if r.Method == "GET" {
+						if r.Method == http.MethodGet {
 							resp := []api.NetworkRouter{
 								{
 									Id:         "test",
@@ -394,7 +402,8 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 							}
 							bs, err := json.Marshal(resp)
 							Expect(err).NotTo(HaveOccurred())
-							w.Write(bs)
+							_, err = w.Write(bs)
+							Expect(err).NotTo(HaveOccurred())
 						}
 					})
 				})
@@ -411,7 +420,8 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 							}
 							bs, err := json.Marshal(resp)
 							Expect(err).NotTo(HaveOccurred())
-							w.Write(bs)
+							_, err = w.Write(bs)
+							Expect(err).NotTo(HaveOccurred())
 						})
 
 						secret := &corev1.Secret{
@@ -469,7 +479,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								setupKeyCreated := false
 								mux.HandleFunc("/api/setup-keys", func(w http.ResponseWriter, r *http.Request) {
 									defer GinkgoRecover()
-									if r.Method == "POST" {
+									if r.Method == http.MethodPost {
 										setupKeyCreated = true
 										var req api.PostApiSetupKeysJSONRequestBody
 										bs, err := io.ReadAll(r.Body)
@@ -491,7 +501,8 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 										}
 										bs, err = json.Marshal(resp)
 										Expect(err).NotTo(HaveOccurred())
-										w.Write(bs)
+										_, err = w.Write(bs)
+										Expect(err).NotTo(HaveOccurred())
 									}
 								})
 								_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -511,7 +522,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								setupKeyCreated := false
 								mux.HandleFunc("/api/setup-keys", func(w http.ResponseWriter, r *http.Request) {
 									defer GinkgoRecover()
-									if r.Method == "POST" {
+									if r.Method == http.MethodPost {
 										setupKeyCreated = true
 										var req api.PostApiSetupKeysJSONRequestBody
 										bs, err := io.ReadAll(r.Body)
@@ -533,24 +544,27 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 										}
 										bs, err = json.Marshal(resp)
 										Expect(err).NotTo(HaveOccurred())
-										w.Write(bs)
+										_, err = w.Write(bs)
+										Expect(err).NotTo(HaveOccurred())
 									}
 								})
 
 								setupKeyDeleted := false
 								mux.HandleFunc("/api/setup-keys/skid", func(w http.ResponseWriter, r *http.Request) {
 									defer GinkgoRecover()
-									if r.Method == "GET" {
+									if r.Method == http.MethodGet {
 										resp := api.SetupKey{
 											Id:      "skid",
 											Revoked: false,
 										}
 										bs, err := json.Marshal(resp)
 										Expect(err).NotTo(HaveOccurred())
-										w.Write(bs)
-									} else if r.Method == "DELETE" {
+										_, err = w.Write(bs)
+										Expect(err).NotTo(HaveOccurred())
+									} else if r.Method == http.MethodDelete {
 										setupKeyDeleted = true
-										w.Write([]byte(`{}`))
+										_, err := w.Write([]byte(`{}`))
+										Expect(err).NotTo(HaveOccurred())
 									}
 								})
 
@@ -581,7 +595,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								setupKeyCreated := false
 								mux.HandleFunc("/api/setup-keys", func(w http.ResponseWriter, r *http.Request) {
 									defer GinkgoRecover()
-									if r.Method == "POST" {
+									if r.Method == http.MethodPost {
 										setupKeyCreated = true
 										var req api.PostApiSetupKeysJSONRequestBody
 										bs, err := io.ReadAll(r.Body)
@@ -603,24 +617,27 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 										}
 										bs, err = json.Marshal(resp)
 										Expect(err).NotTo(HaveOccurred())
-										w.Write(bs)
+										_, err = w.Write(bs)
+										Expect(err).NotTo(HaveOccurred())
 									}
 								})
 
 								setupKeyDeleted := false
 								mux.HandleFunc("/api/setup-keys/skid", func(w http.ResponseWriter, r *http.Request) {
 									defer GinkgoRecover()
-									if r.Method == "GET" {
+									if r.Method == http.MethodGet {
 										resp := api.SetupKey{
 											Id:      "skid",
 											Revoked: true,
 										}
 										bs, err := json.Marshal(resp)
 										Expect(err).NotTo(HaveOccurred())
-										w.Write(bs)
-									} else if r.Method == "DELETE" {
+										_, err = w.Write(bs)
+										Expect(err).NotTo(HaveOccurred())
+									} else if r.Method == http.MethodDelete {
 										setupKeyDeleted = true
-										w.Write([]byte(`{}`))
+										_, err := w.Write([]byte(`{}`))
+										Expect(err).NotTo(HaveOccurred())
 									}
 								})
 
@@ -662,7 +679,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								setupKeyCreated := false
 								mux.HandleFunc("/api/setup-keys", func(w http.ResponseWriter, r *http.Request) {
 									defer GinkgoRecover()
-									if r.Method == "POST" {
+									if r.Method == http.MethodPost {
 										setupKeyCreated = true
 										var req api.PostApiSetupKeysJSONRequestBody
 										bs, err := io.ReadAll(r.Body)
@@ -684,19 +701,22 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 										}
 										bs, err = json.Marshal(resp)
 										Expect(err).NotTo(HaveOccurred())
-										w.Write(bs)
+										_, err = w.Write(bs)
+										Expect(err).NotTo(HaveOccurred())
 									}
 								})
 
 								setupKeyDeleted := false
 								mux.HandleFunc("/api/setup-keys/skid", func(w http.ResponseWriter, r *http.Request) {
 									defer GinkgoRecover()
-									if r.Method == "GET" {
+									if r.Method == http.MethodGet {
 										w.WriteHeader(404)
-										w.Write([]byte(`{"message": "setup-key skid not found", "code": 404}`))
-									} else if r.Method == "DELETE" {
+										_, err := w.Write([]byte(`{"message": "setup-key skid not found", "code": 404}`))
+										Expect(err).NotTo(HaveOccurred())
+									} else if r.Method == http.MethodDelete {
 										setupKeyDeleted = true
-										w.Write([]byte(`{}`))
+										_, err := w.Write([]byte(`{}`))
+										Expect(err).NotTo(HaveOccurred())
 									}
 								})
 
@@ -738,17 +758,19 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								setupKeyDeleted := false
 								mux.HandleFunc("/api/setup-keys/skid", func(w http.ResponseWriter, r *http.Request) {
 									defer GinkgoRecover()
-									if r.Method == "GET" {
+									if r.Method == http.MethodGet {
 										resp := api.SetupKey{
 											Id:      "skid",
 											Revoked: false,
 										}
 										bs, err := json.Marshal(resp)
 										Expect(err).NotTo(HaveOccurred())
-										w.Write(bs)
-									} else if r.Method == "DELETE" {
+										_, err = w.Write(bs)
+										Expect(err).NotTo(HaveOccurred())
+									} else if r.Method == http.MethodDelete {
 										setupKeyDeleted = true
-										w.Write([]byte(`{}`))
+										_, err := w.Write([]byte(`{}`))
+										Expect(err).NotTo(HaveOccurred())
 									}
 								})
 
@@ -793,7 +815,8 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								}
 								bs, err := json.Marshal(resp)
 								Expect(err).NotTo(HaveOccurred())
-								w.Write(bs)
+								_, err = w.Write(bs)
+								Expect(err).NotTo(HaveOccurred())
 							})
 
 							secret := &corev1.Secret{
@@ -882,7 +905,8 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								}
 								bs, err := json.Marshal(resp)
 								Expect(err).NotTo(HaveOccurred())
-								w.Write(bs)
+								_, err = w.Write(bs)
+								Expect(err).NotTo(HaveOccurred())
 							})
 
 							secret := &corev1.Secret{
@@ -902,15 +926,17 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 
 							mux.HandleFunc("/api/networks/test", func(w http.ResponseWriter, r *http.Request) {
 								defer GinkgoRecover()
-								Expect(r.Method).To(Equal("DELETE"))
-								w.Write([]byte(`{}`))
+								Expect(r.Method).To(Equal(http.MethodDelete))
+								_, err = w.Write([]byte(`{}`))
+								Expect(err).NotTo(HaveOccurred())
 								networkDeleted = true
 							})
 
 							mux.HandleFunc("/api/networks/test/routers/test", func(w http.ResponseWriter, r *http.Request) {
 								defer GinkgoRecover()
-								Expect(r.Method).To(Equal("DELETE"))
-								w.Write([]byte(`{}`))
+								Expect(r.Method).To(Equal(http.MethodDelete))
+								_, err = w.Write([]byte(`{}`))
+								Expect(err).NotTo(HaveOccurred())
 								routerDeleted = true
 							})
 						})

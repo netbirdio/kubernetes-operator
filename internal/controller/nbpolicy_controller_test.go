@@ -104,7 +104,8 @@ var _ = Describe("NBPolicy Controller", func() {
 					}
 					bs, err := json.Marshal(resp)
 					Expect(err).NotTo(HaveOccurred())
-					w.Write(bs)
+					_, err = w.Write(bs)
+					Expect(err).NotTo(HaveOccurred())
 				})
 
 				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -158,13 +159,14 @@ var _ = Describe("NBPolicy Controller", func() {
 					}
 					bs, err := json.Marshal(resp)
 					Expect(err).NotTo(HaveOccurred())
-					w.Write(bs)
+					_, err = w.Write(bs)
+					Expect(err).NotTo(HaveOccurred())
 				})
 
 				policyCreated := false
 				mux.HandleFunc("/api/policies", func(w http.ResponseWriter, r *http.Request) {
 					defer GinkgoRecover()
-					if r.Method == "POST" {
+					if r.Method == http.MethodPost {
 						var policyReq api.PostApiPoliciesJSONRequestBody
 						bs, err := io.ReadAll(r.Body)
 						Expect(err).NotTo(HaveOccurred())
@@ -199,7 +201,8 @@ var _ = Describe("NBPolicy Controller", func() {
 						}
 						bs, err = json.Marshal(resp)
 						Expect(err).NotTo(HaveOccurred())
-						w.Write(bs)
+						_, err = w.Write(bs)
+						Expect(err).NotTo(HaveOccurred())
 					}
 				})
 
@@ -233,14 +236,16 @@ var _ = Describe("NBPolicy Controller", func() {
 					}
 					bs, err := json.Marshal(resp)
 					Expect(err).NotTo(HaveOccurred())
-					w.Write(bs)
+					_, err = w.Write(bs)
+					Expect(err).NotTo(HaveOccurred())
 				})
 
 				policyDeleted := false
 				mux.HandleFunc("/api/policies/policyid", func(w http.ResponseWriter, r *http.Request) {
-					if r.Method == "DELETE" {
+					if r.Method == http.MethodDelete {
 						policyDeleted = true
-						w.Write([]byte("{}"))
+						_, err := w.Write([]byte("{}"))
+						Expect(err).NotTo(HaveOccurred())
 					}
 				})
 
@@ -296,13 +301,14 @@ var _ = Describe("NBPolicy Controller", func() {
 					}
 					bs, err := json.Marshal(resp)
 					Expect(err).NotTo(HaveOccurred())
-					w.Write(bs)
+					_, err = w.Write(bs)
+					Expect(err).NotTo(HaveOccurred())
 				})
 
 				policyCreated := false
 				mux.HandleFunc("/api/policies", func(w http.ResponseWriter, r *http.Request) {
 					defer GinkgoRecover()
-					if r.Method == "POST" {
+					if r.Method == http.MethodPost {
 						var policyReq api.PostApiPoliciesJSONRequestBody
 						bs, err := io.ReadAll(r.Body)
 						Expect(err).NotTo(HaveOccurred())
@@ -337,7 +343,8 @@ var _ = Describe("NBPolicy Controller", func() {
 						}
 						bs, err = json.Marshal(resp)
 						Expect(err).NotTo(HaveOccurred())
-						w.Write(bs)
+						_, err = w.Write(bs)
+						Expect(err).NotTo(HaveOccurred())
 					}
 				})
 
@@ -371,14 +378,16 @@ var _ = Describe("NBPolicy Controller", func() {
 					}
 					bs, err := json.Marshal(resp)
 					Expect(err).NotTo(HaveOccurred())
-					w.Write(bs)
+					_, err = w.Write(bs)
+					Expect(err).NotTo(HaveOccurred())
 				})
 
 				policyDeleted := false
 				mux.HandleFunc("/api/policies/policyid", func(w http.ResponseWriter, r *http.Request) {
-					if r.Method == "DELETE" {
+					if r.Method == http.MethodDelete {
 						policyDeleted = true
-						w.Write([]byte("{}"))
+						_, err := w.Write([]byte("{}"))
+						Expect(err).NotTo(HaveOccurred())
 					}
 				})
 
@@ -438,15 +447,17 @@ var _ = Describe("NBPolicy Controller", func() {
 					}
 					bs, err := json.Marshal(resp)
 					Expect(err).NotTo(HaveOccurred())
-					w.Write(bs)
+					_, err = w.Write(bs)
+					Expect(err).NotTo(HaveOccurred())
 				})
 
 				policyDeleted := false
 				mux.HandleFunc("/api/policies/policyid", func(w http.ResponseWriter, r *http.Request) {
 					defer GinkgoRecover()
-					if r.Method == "DELETE" {
+					if r.Method == http.MethodDelete {
 						policyDeleted = true
-						w.Write([]byte("{}"))
+						_, err := w.Write([]byte("{}"))
+						Expect(err).NotTo(HaveOccurred())
 					}
 				})
 
@@ -537,13 +548,14 @@ var _ = Describe("NBPolicy Controller", func() {
 					}
 					bs, err := json.Marshal(resp)
 					Expect(err).NotTo(HaveOccurred())
-					w.Write(bs)
+					_, err = w.Write(bs)
+					Expect(err).NotTo(HaveOccurred())
 				})
 
 				policyUpdated := false
 				mux.HandleFunc("/api/policies/policyid", func(w http.ResponseWriter, r *http.Request) {
 					defer GinkgoRecover()
-					if r.Method == "PUT" {
+					if r.Method == http.MethodPut {
 						policyUpdated = true
 
 						var policyReq api.PostApiPoliciesJSONRequestBody
@@ -574,7 +586,8 @@ var _ = Describe("NBPolicy Controller", func() {
 						Expect(*policyReq.Rules[0].Sources).To(HaveLen(1))
 						Expect((*policyReq.Rules[0].Sources)[0]).To(Equal("meow"))
 
-						w.Write([]byte("{}"))
+						_, err = w.Write([]byte("{}"))
+						Expect(err).NotTo(HaveOccurred())
 					}
 				})
 
@@ -603,17 +616,19 @@ var _ = Describe("NBPolicy Controller", func() {
 
 				tcpPolicyDeleted := false
 				mux.HandleFunc("/api/policies/policyidtcp", func(w http.ResponseWriter, r *http.Request) {
-					if r.Method == "DELETE" {
+					if r.Method == http.MethodDelete {
 						tcpPolicyDeleted = true
-						w.Write([]byte("{}"))
+						_, err := w.Write([]byte("{}"))
+						Expect(err).NotTo(HaveOccurred())
 					}
 				})
 
 				udpPolicyDeleted := false
 				mux.HandleFunc("/api/policies/policyidudp", func(w http.ResponseWriter, r *http.Request) {
-					if r.Method == "DELETE" {
+					if r.Method == http.MethodDelete {
 						udpPolicyDeleted = true
-						w.Write([]byte("{}"))
+						_, err := w.Write([]byte("{}"))
+						Expect(err).NotTo(HaveOccurred())
 					}
 				})
 

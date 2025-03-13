@@ -98,7 +98,8 @@ var _ = Describe("NBResource Controller", func() {
 				}
 				bs, err := json.Marshal(resp)
 				Expect(err).NotTo(HaveOccurred())
-				w.Write(bs)
+				_, err = w.Write(bs)
+				Expect(err).NotTo(HaveOccurred())
 			})
 		})
 
@@ -131,7 +132,7 @@ var _ = Describe("NBResource Controller", func() {
 
 				mux.HandleFunc("/api/networks/test/resources", func(w http.ResponseWriter, r *http.Request) {
 					defer GinkgoRecover()
-					if r.Method == "POST" {
+					if r.Method == http.MethodPost {
 						networkResourceCreated = true
 						bs, err := io.ReadAll(r.Body)
 						Expect(err).NotTo(HaveOccurred())
@@ -161,7 +162,8 @@ var _ = Describe("NBResource Controller", func() {
 						}
 						bs, err = json.Marshal(resp)
 						Expect(err).NotTo(HaveOccurred())
-						w.Write(bs)
+						_, err = w.Write(bs)
+						Expect(err).NotTo(HaveOccurred())
 					}
 				})
 				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -216,7 +218,7 @@ var _ = Describe("NBResource Controller", func() {
 					resourceUpdated := false
 					mux.HandleFunc("/api/networks/test/resources/test", func(w http.ResponseWriter, r *http.Request) {
 						defer GinkgoRecover()
-						if r.Method == "GET" {
+						if r.Method == http.MethodGet {
 							resp := api.NetworkResource{
 								Address:     nbresource.Spec.Address,
 								Description: &networkDescription,
@@ -237,8 +239,9 @@ var _ = Describe("NBResource Controller", func() {
 							}
 							bs, err := json.Marshal(resp)
 							Expect(err).NotTo(HaveOccurred())
-							w.Write(bs)
-						} else if r.Method == "PUT" {
+							_, err = w.Write(bs)
+							Expect(err).NotTo(HaveOccurred())
+						} else if r.Method == http.MethodPut {
 							resourceUpdated = true
 							bs, err := io.ReadAll(r.Body)
 							Expect(err).NotTo(HaveOccurred())
@@ -268,7 +271,8 @@ var _ = Describe("NBResource Controller", func() {
 							}
 							bs, err = json.Marshal(resp)
 							Expect(err).NotTo(HaveOccurred())
-							w.Write(bs)
+							_, err = w.Write(bs)
+							Expect(err).NotTo(HaveOccurred())
 						}
 					})
 
@@ -287,7 +291,7 @@ var _ = Describe("NBResource Controller", func() {
 				BeforeEach(func() {
 					mux.HandleFunc("/api/networks/test/resources/test", func(w http.ResponseWriter, r *http.Request) {
 						defer GinkgoRecover()
-						if r.Method == "GET" {
+						if r.Method == http.MethodGet {
 							resp := api.NetworkResource{
 								Address:     nbresource.Spec.Address,
 								Description: &networkDescription,
@@ -304,7 +308,8 @@ var _ = Describe("NBResource Controller", func() {
 							}
 							bs, err := json.Marshal(resp)
 							Expect(err).NotTo(HaveOccurred())
-							w.Write(bs)
+							_, err = w.Write(bs)
+							Expect(err).NotTo(HaveOccurred())
 						}
 					})
 				})
@@ -422,7 +427,7 @@ var _ = Describe("NBResource Controller", func() {
 
 							nbGroup := &netbirdiov1.NBGroup{}
 							Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "meow"}, nbGroup)).To(Succeed())
-							Expect(nbGroup.Finalizers).To(HaveLen(0))
+							Expect(nbGroup.Finalizers).To(BeEmpty())
 							Expect(nbGroup.OwnerReferences).To(HaveLen(1))
 						})
 					})
@@ -499,9 +504,10 @@ var _ = Describe("NBResource Controller", func() {
 				BeforeEach(func() {
 					mux.HandleFunc("/api/networks/test/resources/test", func(w http.ResponseWriter, r *http.Request) {
 						defer GinkgoRecover()
-						if r.Method == "GET" {
+						if r.Method == http.MethodGet {
 							w.WriteHeader(404)
-							w.Write([]byte(`{"message": "not found", "code": 404}`))
+							_, err := w.Write([]byte(`{"message": "not found", "code": 404}`))
+							Expect(err).NotTo(HaveOccurred())
 						}
 					})
 				})
@@ -660,9 +666,10 @@ var _ = Describe("NBResource Controller", func() {
 				resourceDeleted := false
 				mux.HandleFunc("/api/networks/test/resources/test", func(w http.ResponseWriter, r *http.Request) {
 					defer GinkgoRecover()
-					if r.Method == "DELETE" {
+					if r.Method == http.MethodDelete {
 						resourceDeleted = true
-						w.Write([]byte(`{}`))
+						_, err := w.Write([]byte(`{}`))
+						Expect(err).NotTo(HaveOccurred())
 					}
 				})
 
@@ -681,7 +688,7 @@ var _ = Describe("NBResource Controller", func() {
 				if errors.IsNotFound(err) {
 					return
 				}
-				Expect(group.Finalizers).To(HaveLen(0))
+				Expect(group.Finalizers).To(BeEmpty())
 			})
 			It("should remove owner reference from shared NBGroups", func() {
 				group := &netbirdiov1.NBGroup{}

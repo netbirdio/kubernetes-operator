@@ -35,6 +35,11 @@ var (
 	errNetBirdAPI      = fmt.Errorf("netbird API error")
 )
 
+const (
+	protocolTCP = "tcp"
+	protocolUDP = "udp"
+)
+
 // getResources get all NBResource objects in policy.status.managedServiceList
 func (r *NBPolicyReconciler) getResources(ctx context.Context, nbPolicy *netbirdiov1.NBPolicy, logger logr.Logger) ([]netbirdiov1.NBResource, error) {
 	var resourceList []netbirdiov1.NBResource
@@ -63,8 +68,8 @@ func (r *NBPolicyReconciler) getResources(ctx context.Context, nbPolicy *netbird
 // returns map[protocol] => ports, destination group IDs
 func (r *NBPolicyReconciler) mapResources(ctx context.Context, nbPolicy *netbirdiov1.NBPolicy, resources []netbirdiov1.NBResource, logger logr.Logger) (map[string][]int32, []string, error) {
 	portMapping := map[string]map[int32]interface{}{
-		"tcp": make(map[int32]interface{}),
-		"udp": make(map[int32]interface{}),
+		protocolTCP: make(map[int32]interface{}),
+		protocolUDP: make(map[int32]interface{}),
 	}
 	groups, err := r.groupNamesToIDs(ctx, nbPolicy.Spec.DestinationGroups, logger)
 	if err != nil {
@@ -77,10 +82,10 @@ func (r *NBPolicyReconciler) mapResources(ctx context.Context, nbPolicy *netbird
 			groups = append(groups, resource.Status.Groups...)
 
 			for _, p := range resource.Spec.TCPPorts {
-				portMapping["tcp"][p] = nil
+				portMapping[protocolTCP][p] = nil
 			}
 			for _, p := range resource.Spec.UDPPorts {
-				portMapping["udp"][p] = nil
+				portMapping[protocolUDP][p] = nil
 			}
 		}
 	}
@@ -247,9 +252,9 @@ func (r *NBPolicyReconciler) syncPolicy(ctx context.Context, nbPolicy *netbirdio
 	for protocol, ports := range portMapping {
 		var policyID *string
 		switch protocol {
-		case "tcp":
+		case protocolTCP:
 			policyID = nbPolicy.Status.TCPPolicyID
-		case "udp":
+		case protocolUDP:
 			policyID = nbPolicy.Status.UDPPolicyID
 		default:
 			logger.Error(errKubernetesAPI, "Unknown protocol", "protocol", protocol)
@@ -309,9 +314,9 @@ func (r *NBPolicyReconciler) syncPolicy(ctx context.Context, nbPolicy *netbirdio
 		}
 
 		switch protocol {
-		case "tcp":
+		case protocolTCP:
 			nbPolicy.Status.TCPPolicyID = policyID
-		case "udp":
+		case protocolUDP:
 			nbPolicy.Status.UDPPolicyID = policyID
 		default:
 			logger.Error(errKubernetesAPI, "Unknown protocol", "protocol", protocol)

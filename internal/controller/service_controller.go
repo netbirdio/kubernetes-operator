@@ -203,64 +203,73 @@ func (r *ServiceReconciler) reconcileNBResource(nbResource *netbirdiov1.NBResour
 	nbResource.Spec.Address = fmt.Sprintf("%s.%s.%s", svc.Name, svc.Namespace, r.ClusterDNS)
 	nbResource.Spec.Groups = groups
 
-	if v, ok := svc.Annotations[servicePolicyAnnotation]; ok {
-		nbResource.Spec.PolicyName = v
-		var filterProtocols []string
-		if v, ok := svc.Annotations[serviceProtocolAnnotation]; ok {
-			filterProtocols = []string{v}
-		}
-		var filterPorts []int32
-		if v, ok := svc.Annotations[servicePortsAnnotation]; ok {
-			for _, v := range strings.Split(v, ",") {
-				port, err := strconv.ParseInt(v, 10, 64)
-				if err != nil {
-					return err
-				}
-
-				filterPorts = append(filterPorts, int32(port))
-			}
-		}
-
-		for _, p := range svc.Spec.Ports {
-			switch p.Protocol {
-			case corev1.ProtocolSCTP:
-				if (len(filterPorts) > 0 && !util.Contains(filterPorts, p.Port)) || (len(filterProtocols) > 0 && !util.Contains(filterProtocols, "tcp")) {
-					if util.Contains(nbResource.Spec.TCPPorts, p.Port) {
-						nbResource.Spec.TCPPorts = util.Without(nbResource.Spec.TCPPorts, p.Port)
-					}
-					continue
-				}
-				if !util.Contains(nbResource.Spec.TCPPorts, p.Port) {
-					nbResource.Spec.TCPPorts = append(nbResource.Spec.TCPPorts, p.Port)
-				}
-			case corev1.ProtocolTCP:
-				if (len(filterPorts) > 0 && !util.Contains(filterPorts, p.Port)) || (len(filterProtocols) > 0 && !util.Contains(filterProtocols, "tcp")) {
-					if util.Contains(nbResource.Spec.TCPPorts, p.Port) {
-						nbResource.Spec.TCPPorts = util.Without(nbResource.Spec.TCPPorts, p.Port)
-					}
-					continue
-				}
-				if !util.Contains(nbResource.Spec.TCPPorts, p.Port) {
-					nbResource.Spec.TCPPorts = append(nbResource.Spec.TCPPorts, p.Port)
-				}
-			case corev1.ProtocolUDP:
-				if (len(filterPorts) > 0 && !util.Contains(filterPorts, p.Port)) || (len(filterProtocols) > 0 && !util.Contains(filterProtocols, "udp")) {
-					if util.Contains(nbResource.Spec.UDPPorts, p.Port) {
-						nbResource.Spec.UDPPorts = util.Without(nbResource.Spec.UDPPorts, p.Port)
-					}
-					continue
-				}
-				if !util.Contains(nbResource.Spec.UDPPorts, p.Port) {
-					nbResource.Spec.UDPPorts = append(nbResource.Spec.UDPPorts, p.Port)
-				}
-			default:
-				return errUnknownProtocol
-			}
+	if _, ok := svc.Annotations[servicePolicyAnnotation]; ok {
+		err := r.applyPolicy(nbResource, svc)
+		if err != nil {
+			return err
 		}
 	} else if nbResource.Spec.PolicyName != "" {
 		nbResource.Spec.PolicyName = ""
 		nbResource.Spec.TCPPorts = nil
 		nbResource.Spec.UDPPorts = nil
+	}
+
+	return nil
+}
+
+func (r *ServiceReconciler) applyPolicy(nbResource *netbirdiov1.NBResource, svc corev1.Service) error {
+	nbResource.Spec.PolicyName = svc.Annotations[servicePolicyAnnotation]
+	var filterProtocols []string
+	if v, ok := svc.Annotations[serviceProtocolAnnotation]; ok {
+		filterProtocols = []string{v}
+	}
+	var filterPorts []int32
+	if v, ok := svc.Annotations[servicePortsAnnotation]; ok {
+		for _, v := range strings.Split(v, ",") {
+			port, err := strconv.ParseInt(v, 10, 64)
+			if err != nil {
+				return err
+			}
+
+			filterPorts = append(filterPorts, int32(port))
+		}
+	}
+
+	for _, p := range svc.Spec.Ports {
+		switch p.Protocol {
+		case corev1.ProtocolSCTP:
+			if (len(filterPorts) > 0 && !util.Contains(filterPorts, p.Port)) || (len(filterProtocols) > 0 && !util.Contains(filterProtocols, "tcp")) {
+				if util.Contains(nbResource.Spec.TCPPorts, p.Port) {
+					nbResource.Spec.TCPPorts = util.Without(nbResource.Spec.TCPPorts, p.Port)
+				}
+				continue
+			}
+			if !util.Contains(nbResource.Spec.TCPPorts, p.Port) {
+				nbResource.Spec.TCPPorts = append(nbResource.Spec.TCPPorts, p.Port)
+			}
+		case corev1.ProtocolTCP:
+			if (len(filterPorts) > 0 && !util.Contains(filterPorts, p.Port)) || (len(filterProtocols) > 0 && !util.Contains(filterProtocols, "tcp")) {
+				if util.Contains(nbResource.Spec.TCPPorts, p.Port) {
+					nbResource.Spec.TCPPorts = util.Without(nbResource.Spec.TCPPorts, p.Port)
+				}
+				continue
+			}
+			if !util.Contains(nbResource.Spec.TCPPorts, p.Port) {
+				nbResource.Spec.TCPPorts = append(nbResource.Spec.TCPPorts, p.Port)
+			}
+		case corev1.ProtocolUDP:
+			if (len(filterPorts) > 0 && !util.Contains(filterPorts, p.Port)) || (len(filterProtocols) > 0 && !util.Contains(filterProtocols, "udp")) {
+				if util.Contains(nbResource.Spec.UDPPorts, p.Port) {
+					nbResource.Spec.UDPPorts = util.Without(nbResource.Spec.UDPPorts, p.Port)
+				}
+				continue
+			}
+			if !util.Contains(nbResource.Spec.UDPPorts, p.Port) {
+				nbResource.Spec.UDPPorts = append(nbResource.Spec.UDPPorts, p.Port)
+			}
+		default:
+			return errUnknownProtocol
+		}
 	}
 
 	return nil

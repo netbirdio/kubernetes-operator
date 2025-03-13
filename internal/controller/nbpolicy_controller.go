@@ -87,6 +87,7 @@ func (r *NBPolicyReconciler) mapResources(ctx context.Context, nbPolicy *netbird
 
 	ports := make(map[string][]int32)
 	for k, vs := range portMapping {
+		ports[k] = nil
 		for v := range vs {
 			ports[k] = append(ports[k], v)
 		}
@@ -131,7 +132,7 @@ func (r *NBPolicyReconciler) createPolicy(ctx context.Context, nbPolicy *netbird
 func (r *NBPolicyReconciler) updatePolicy(ctx context.Context, policyID *string, nbPolicy *netbirdiov1.NBPolicy, protocol string, sourceGroupIDs, destinationGroupIDs, ports []string, logger logr.Logger) (*string, bool, error) {
 	policyName := fmt.Sprintf("%s %s", nbPolicy.Spec.Name, strings.ToUpper(protocol))
 	logger.Info("Updating NetBird Policy", "name", policyName, "description", nbPolicy.Spec.Description, "protocol", protocol, "sources", sourceGroupIDs, "destinations", destinationGroupIDs, "ports", ports, "bidirectional", nbPolicy.Spec.Bidirectional)
-	policy, err := r.netbird.Policies.Update(ctx, *policyID, api.PutApiPoliciesPolicyIdJSONRequestBody{
+	_, err := r.netbird.Policies.Update(ctx, *policyID, api.PutApiPoliciesPolicyIdJSONRequestBody{
 		Enabled:     true,
 		Name:        policyName,
 		Description: &nbPolicy.Spec.Description,
@@ -163,11 +164,10 @@ func (r *NBPolicyReconciler) updatePolicy(ctx context.Context, policyID *string,
 		policyID = nil
 		requeue = true
 		nbPolicy.Status.Conditions = netbirdiov1.NBConditionFalse("Gone", "Policy deleted from NetBird API")
+	} else if err != nil {
+		return nil, false, err
 	}
 
-	if err == nil && (policyID == nil || *policy.Id != *policyID) {
-		policyID = policy.Id
-	}
 	return policyID, requeue, nil
 }
 
@@ -192,6 +192,9 @@ func (r *NBPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 	originalPolicy := nbPolicy.DeepCopy()
 
 	defer func() {
+		if originalPolicy.DeletionTimestamp != nil && len(nbPolicy.Finalizers) == 0 {
+			return
+		}
 		if !originalPolicy.Status.Equal(nbPolicy.Status) {
 			updateErr := r.Client.Status().Update(ctx, &nbPolicy)
 			if updateErr != nil {
@@ -207,7 +210,7 @@ func (r *NBPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 		if len(nbPolicy.Finalizers) == 0 {
 			return ctrl.Result{}, nil
 		}
-		return ctrl.Result{}, r.handleDelete(ctx, nbPolicy, logger)
+		return ctrl.Result{}, r.handleDelete(ctx, &nbPolicy, logger)
 	}
 
 	resourceList, err := r.getResources(ctx, &nbPolicy, logger)
@@ -320,7 +323,7 @@ func (r *NBPolicyReconciler) syncPolicy(ctx context.Context, nbPolicy *netbirdio
 	return requeue, nil
 }
 
-func (r *NBPolicyReconciler) handleDelete(ctx context.Context, nbPolicy netbirdiov1.NBPolicy, logger logr.Logger) error {
+func (r *NBPolicyReconciler) handleDelete(ctx context.Context, nbPolicy *netbirdiov1.NBPolicy, logger logr.Logger) error {
 	if nbPolicy.Status.TCPPolicyID != nil {
 		err := r.netbird.Policies.Delete(ctx, *nbPolicy.Status.TCPPolicyID)
 		if err != nil && !strings.Contains("not found", err.Error()) {
@@ -337,7 +340,7 @@ func (r *NBPolicyReconciler) handleDelete(ctx context.Context, nbPolicy netbirdi
 	}
 	if util.Contains(nbPolicy.Finalizers, "netbird.io/cleanup") {
 		nbPolicy.Finalizers = util.Without(nbPolicy.Finalizers, "netbird.io/cleanup")
-		err := r.Client.Update(ctx, &nbPolicy)
+		err := r.Client.Update(ctx, nbPolicy)
 		if err != nil {
 			logger.Error(errKubernetesAPI, "Error updating NBPolicy", "err", err)
 			return err

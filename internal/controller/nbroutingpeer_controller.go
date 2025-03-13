@@ -51,6 +51,9 @@ func (r *NBRoutingPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	originalNBRP := nbrp.DeepCopy()
 	defer func() {
+		if originalNBRP.DeletionTimestamp != nil && len(nbrp.Finalizers) == 0 {
+			return
+		}
 		if originalNBRP.Status.NetworkID != nbrp.Status.NetworkID ||
 			originalNBRP.Status.RouterID != nbrp.Status.RouterID ||
 			originalNBRP.Status.SetupKeyID != nbrp.Status.SetupKeyID ||
@@ -128,8 +131,8 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 				Namespace: nbrp.Namespace,
 				OwnerReferences: []v1.OwnerReference{
 					{
-						APIVersion:         nbrp.APIVersion,
-						Kind:               nbrp.Kind,
+						APIVersion:         netbirdiov1.GroupVersion.Identifier(),
+						Kind:               "NBRoutingPeer",
 						Name:               nbrp.Name,
 						UID:                nbrp.UID,
 						BlockOwnerDeletion: util.Ptr(true),
@@ -199,8 +202,8 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 		updatedDeployment.ObjectMeta.Namespace = nbrp.Namespace
 		updatedDeployment.ObjectMeta.OwnerReferences = []v1.OwnerReference{
 			{
-				APIVersion:         nbrp.APIVersion,
-				Kind:               nbrp.Kind,
+				APIVersion:         netbirdiov1.GroupVersion.Identifier(),
+				Kind:               "NBRoutingPeer",
 				Name:               nbrp.Name,
 				UID:                nbrp.UID,
 				BlockOwnerDeletion: util.Ptr(true),
@@ -355,8 +358,8 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 				Namespace: nbrp.Namespace,
 				OwnerReferences: []v1.OwnerReference{
 					{
-						APIVersion:         nbrp.APIVersion,
-						Kind:               nbrp.Kind,
+						APIVersion:         netbirdiov1.GroupVersion.Identifier(),
+						Kind:               "NBRoutingPeer",
 						Name:               nbrp.Name,
 						UID:                nbrp.UID,
 						BlockOwnerDeletion: util.Ptr(true),
@@ -387,8 +390,17 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 		}
 
 		if (err != nil && strings.Contains(err.Error(), "not found")) || setupKey.Revoked {
-			nbrp.Status.SetupKeyID = nil
+			if setupKey != nil && setupKey.Revoked {
+				err = r.netbird.SetupKeys.Delete(ctx, *nbrp.Status.SetupKeyID)
 
+				if err != nil {
+					logger.Error(errNetBirdAPI, "error deleting setup key", "err", err)
+					nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("error deleting setup key: %v", err))
+					return &ctrl.Result{}, err
+				}
+			}
+
+			nbrp.Status.SetupKeyID = nil
 			// Requeue to avoid repeating code
 			return &ctrl.Result{Requeue: true}, nil
 		}
@@ -447,8 +459,8 @@ func (r *NBRoutingPeerReconciler) handleGroup(ctx context.Context, req ctrl.Requ
 				Namespace: nbrp.Namespace,
 				OwnerReferences: []v1.OwnerReference{
 					{
-						APIVersion:         nbrp.APIVersion,
-						Kind:               nbrp.Kind,
+						APIVersion:         netbirdiov1.GroupVersion.Identifier(),
+						Kind:               "NBRoutingPeer",
 						Name:               nbrp.Name,
 						UID:                nbrp.UID,
 						BlockOwnerDeletion: util.Ptr(true),

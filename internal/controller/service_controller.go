@@ -157,6 +157,7 @@ func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request,
 		return ctrl.Result{}, err
 	}
 
+	originalNBResource := nbResource.DeepCopy()
 	nbrsErr := r.reconcileNBResource(&nbResource, req, svc, routingPeer)
 	if nbrsErr != nil {
 		return ctrl.Result{}, nbrsErr
@@ -168,7 +169,7 @@ func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request,
 			logger.Error(errKubernetesAPI, "error creating NBResource", "err", err)
 			return ctrl.Result{}, err
 		}
-	} else {
+	} else if !originalNBResource.Spec.Equal(nbResource.Spec) {
 		err = r.Client.Update(ctx, &nbResource)
 		if err != nil {
 			logger.Error(errKubernetesAPI, "error updating NBResource", "err", err)
@@ -221,22 +222,34 @@ func (r *ServiceReconciler) reconcileNBResource(nbResource *netbirdiov1.NBResour
 		}
 
 		for _, p := range svc.Spec.Ports {
-			if len(filterProtocols) > 0 && !util.Contains(filterProtocols, string(p.Protocol)) {
-				continue
-			}
-			if len(filterPorts) > 0 && !util.Contains(filterPorts, p.Port) {
-				continue
-			}
 			switch p.Protocol {
 			case corev1.ProtocolSCTP:
+				if (len(filterPorts) > 0 && !util.Contains(filterPorts, p.Port)) || (len(filterProtocols) > 0 && !util.Contains(filterProtocols, "tcp")) {
+					if util.Contains(nbResource.Spec.TCPPorts, p.Port) {
+						nbResource.Spec.TCPPorts = util.Without(nbResource.Spec.TCPPorts, p.Port)
+					}
+					continue
+				}
 				if !util.Contains(nbResource.Spec.TCPPorts, p.Port) {
 					nbResource.Spec.TCPPorts = append(nbResource.Spec.TCPPorts, p.Port)
 				}
 			case corev1.ProtocolTCP:
+				if (len(filterPorts) > 0 && !util.Contains(filterPorts, p.Port)) || (len(filterProtocols) > 0 && !util.Contains(filterProtocols, "tcp")) {
+					if util.Contains(nbResource.Spec.TCPPorts, p.Port) {
+						nbResource.Spec.TCPPorts = util.Without(nbResource.Spec.TCPPorts, p.Port)
+					}
+					continue
+				}
 				if !util.Contains(nbResource.Spec.TCPPorts, p.Port) {
 					nbResource.Spec.TCPPorts = append(nbResource.Spec.TCPPorts, p.Port)
 				}
 			case corev1.ProtocolUDP:
+				if (len(filterPorts) > 0 && !util.Contains(filterPorts, p.Port)) || (len(filterProtocols) > 0 && !util.Contains(filterProtocols, "udp")) {
+					if util.Contains(nbResource.Spec.UDPPorts, p.Port) {
+						nbResource.Spec.UDPPorts = util.Without(nbResource.Spec.UDPPorts, p.Port)
+					}
+					continue
+				}
 				if !util.Contains(nbResource.Spec.UDPPorts, p.Port) {
 					nbResource.Spec.UDPPorts = append(nbResource.Spec.UDPPorts, p.Port)
 				}
@@ -244,8 +257,11 @@ func (r *ServiceReconciler) reconcileNBResource(nbResource *netbirdiov1.NBResour
 				return errUnknownProtocol
 			}
 		}
+	} else if nbResource.Spec.PolicyName != "" {
+		nbResource.Spec.PolicyName = ""
+		nbResource.Spec.TCPPorts = nil
+		nbResource.Spec.UDPPorts = nil
 	}
-	// TODO: Handle removed policy name
 
 	return nil
 }

@@ -263,17 +263,17 @@ func main() {
 		}
 
 		if enableWebhooks {
-			if err = webhooknetbirdiov1.SetupNBResourceWebhookWithManager(mgr, managementURL, netbirdAPIKey); err != nil {
+			if err = webhooknetbirdiov1.SetupNBResourceWebhookWithManager(mgr); err != nil {
 				setupLog.Error(err, "unable to create webhook", "webhook", "NBResource")
 				os.Exit(1)
 			}
 
-			if err = webhooknetbirdiov1.SetupNBRoutingPeerWebhookWithManager(mgr, managementURL, netbirdAPIKey); err != nil {
+			if err = webhooknetbirdiov1.SetupNBRoutingPeerWebhookWithManager(mgr); err != nil {
 				setupLog.Error(err, "unable to create webhook", "webhook", "NBRoutingPeer")
 				os.Exit(1)
 			}
 
-			if err = webhooknetbirdiov1.SetupNBGroupWebhookWithManager(mgr, managementURL, netbirdAPIKey); err != nil {
+			if err = webhooknetbirdiov1.SetupNBGroupWebhookWithManager(mgr); err != nil {
 				setupLog.Error(err, "unable to create webhook", "webhook", "NBGroup")
 				os.Exit(1)
 			}

@@ -124,13 +124,13 @@ var _ = BeforeSuite(func() {
 	err = SetupNBSetupKeyWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = SetupNBResourceWebhookWithManager(mgr, "", "")
+	err = SetupNBResourceWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = SetupNBRoutingPeerWebhookWithManager(mgr, "", "")
+	err = SetupNBRoutingPeerWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = SetupNBGroupWebhookWithManager(mgr, "", "")
+	err = SetupNBGroupWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
 	// +kubebuilder:scaffold:webhook

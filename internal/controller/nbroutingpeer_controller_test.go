@@ -33,7 +33,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 
 		typeNamespacedName := types.NamespacedName{
 			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
+			Namespace: "default",
 		}
 		nbroutingpeer := &netbirdiov1.NBRoutingPeer{}
 		var netbirdClient *netbird.Client

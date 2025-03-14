@@ -54,10 +54,7 @@ func (r *NBRoutingPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if originalNBRP.DeletionTimestamp != nil && len(nbrp.Finalizers) == 0 {
 			return
 		}
-		if originalNBRP.Status.NetworkID != nbrp.Status.NetworkID ||
-			originalNBRP.Status.RouterID != nbrp.Status.RouterID ||
-			originalNBRP.Status.SetupKeyID != nbrp.Status.SetupKeyID ||
-			!util.Equivalent(originalNBRP.Status.Conditions, nbrp.Status.Conditions) {
+		if !originalNBRP.Status.Equal(nbrp.Status) {
 			err = r.Client.Status().Update(ctx, nbrp)
 			if err != nil {
 				logger.Error(errKubernetesAPI, "error updating NBRoutingPeer Status", "err", err)

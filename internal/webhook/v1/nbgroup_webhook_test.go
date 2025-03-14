@@ -3,9 +3,11 @@ package v1
 import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/api/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
-	// TODO (user): Add any additional imports if needed
 )
 
 var _ = Describe("NBGroup Webhook", func() {
@@ -16,41 +18,154 @@ var _ = Describe("NBGroup Webhook", func() {
 	)
 
 	BeforeEach(func() {
-		Skip("Not implemented yet")
 		obj = &netbirdiov1.NBGroup{}
 		oldObj = &netbirdiov1.NBGroup{}
-		validator = NBGroupCustomValidator{}
+		validator = NBGroupCustomValidator{
+			client: k8sClient,
+		}
 		Expect(validator).NotTo(BeNil(), "Expected validator to be initialized")
 		Expect(oldObj).NotTo(BeNil(), "Expected oldObj to be initialized")
 		Expect(obj).NotTo(BeNil(), "Expected obj to be initialized")
-		// TODO (user): Add any setup logic common to all tests
 	})
 
 	AfterEach(func() {
-		// TODO (user): Add any teardown logic common to all tests
 	})
 
 	Context("When creating or updating NBGroup under Validating Webhook", func() {
-		// TODO (user): Add logic for validating webhooks
-		// Example:
-		// It("Should deny creation if a required field is missing", func() {
-		//     By("simulating an invalid creation scenario")
-		//     obj.SomeRequiredField = ""
-		//     Expect(validator.ValidateCreate(ctx, obj)).Error().To(HaveOccurred())
-		// })
-		//
-		// It("Should admit creation if all required fields are present", func() {
-		//     By("simulating an invalid creation scenario")
-		//     obj.SomeRequiredField = "valid_value"
-		//     Expect(validator.ValidateCreate(ctx, obj)).To(BeNil())
-		// })
-		//
-		// It("Should validate updates correctly", func() {
-		//     By("simulating a valid update scenario")
-		//     oldObj.SomeRequiredField = "updated_value"
-		//     obj.SomeRequiredField = "updated_value"
-		//     Expect(validator.ValidateUpdate(ctx, oldObj, obj)).To(BeNil())
-		// })
+		It("should allow creation", func() {
+			Expect(validator.ValidateCreate(ctx, obj)).Error().NotTo(HaveOccurred())
+		})
+		It("should allow update", func() {
+			Expect(validator.ValidateUpdate(ctx, oldObj, obj)).Error().NotTo(HaveOccurred())
+		})
+		When("There are no owners", func() {
+			It("should allow deletion", func() {
+				obj = &netbirdiov1.NBGroup{
+					ObjectMeta: v1.ObjectMeta{
+						Name:            "test",
+						Namespace:       "default",
+						OwnerReferences: nil,
+					},
+				}
+				Expect(validator.ValidateDelete(ctx, obj)).Error().NotTo(HaveOccurred())
+			})
+		})
+		When("There deleted owners", func() {
+			It("should allow deletion", func() {
+				obj = &netbirdiov1.NBGroup{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "test",
+						Namespace: "default",
+						OwnerReferences: []v1.OwnerReference{
+							{
+								APIVersion: netbirdiov1.GroupVersion.Identifier(),
+								Kind:       "NBResource",
+								Name:       "notexist",
+								UID:        obj.UID,
+							},
+						},
+					},
+				}
+				Expect(validator.ValidateDelete(ctx, obj)).Error().NotTo(HaveOccurred())
+			})
+		})
+		When("NBResource owner exists", func() {
+			BeforeEach(func() {
+				nbResource := &netbirdiov1.NBResource{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "isexist",
+						Namespace: "default",
+					},
+					Spec: netbirdiov1.NBResourceSpec{
+						Name:      "test1",
+						NetworkID: "test2",
+						Address:   "test3",
+						Groups:    []string{"test"},
+					},
+				}
+
+				Expect(k8sClient.Create(ctx, nbResource)).To(Succeed())
+
+				obj = &netbirdiov1.NBGroup{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "test",
+						Namespace: "default",
+						OwnerReferences: []v1.OwnerReference{
+							{
+								APIVersion: netbirdiov1.GroupVersion.Identifier(),
+								Kind:       nbResource.Kind,
+								Name:       nbResource.Name,
+								UID:        nbResource.UID,
+							},
+						},
+					},
+				}
+			})
+			AfterEach(func() {
+				nbResource := &netbirdiov1.NBResource{}
+				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "isexist"}, nbResource)
+				if !errors.IsNotFound(err) {
+					Expect(err).NotTo(HaveOccurred())
+					if len(nbResource.Finalizers) > 0 {
+						nbResource.Finalizers = nil
+						Expect(k8sClient.Update(ctx, nbResource)).To(Succeed())
+					}
+					err = k8sClient.Delete(ctx, nbResource)
+					if !errors.IsNotFound(err) {
+						Expect(err).NotTo(HaveOccurred())
+					}
+				}
+			})
+			It("should deny deletion", func() {
+				Expect(validator.ValidateDelete(ctx, obj)).Error().To(HaveOccurred())
+			})
+		})
+		When("NBRoutingPeer owner exists", func() {
+			BeforeEach(func() {
+				nbrp := &netbirdiov1.NBRoutingPeer{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "isexist",
+						Namespace: "default",
+					},
+					Spec: netbirdiov1.NBRoutingPeerSpec{},
+				}
+
+				Expect(k8sClient.Create(ctx, nbrp)).To(Succeed())
+
+				obj = &netbirdiov1.NBGroup{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "test",
+						Namespace: "default",
+						OwnerReferences: []v1.OwnerReference{
+							{
+								APIVersion: netbirdiov1.GroupVersion.Identifier(),
+								Kind:       nbrp.Kind,
+								Name:       nbrp.Name,
+								UID:        nbrp.UID,
+							},
+						},
+					},
+				}
+			})
+			AfterEach(func() {
+				nbrp := &netbirdiov1.NBRoutingPeer{}
+				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "isexist"}, nbrp)
+				if !errors.IsNotFound(err) {
+					Expect(err).NotTo(HaveOccurred())
+					if len(nbrp.Finalizers) > 0 {
+						nbrp.Finalizers = nil
+						Expect(k8sClient.Update(ctx, nbrp)).To(Succeed())
+					}
+					err = k8sClient.Delete(ctx, nbrp)
+					if !errors.IsNotFound(err) {
+						Expect(err).NotTo(HaveOccurred())
+					}
+				}
+			})
+			It("should deny deletion", func() {
+				Expect(validator.ValidateDelete(ctx, obj)).Error().To(HaveOccurred())
+			})
+		})
 	})
 
 })

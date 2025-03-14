@@ -14,7 +14,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
-	netbird "github.com/netbirdio/netbird/management/client/rest"
 )
 
 // nolint:unused
@@ -22,17 +21,16 @@ import (
 var nbgrouplog = logf.Log.WithName("nbgroup-resource")
 
 // SetupNBGroupWebhookWithManager registers the webhook for NBGroup in the manager.
-func SetupNBGroupWebhookWithManager(mgr ctrl.Manager, managementURL, apiKey string) error {
+func SetupNBGroupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).For(&netbirdiov1.NBGroup{}).
-		WithValidator(&NBGroupCustomValidator{netbird: netbird.New(managementURL, apiKey), client: mgr.GetClient()}).
+		WithValidator(&NBGroupCustomValidator{client: mgr.GetClient()}).
 		Complete()
 }
 
 // NBGroupCustomValidator struct is responsible for validating the NBGroup resource
 // when it is created, updated, or deleted.
 type NBGroupCustomValidator struct {
-	netbird *netbird.Client
-	client  client.Client
+	client client.Client
 }
 
 var _ webhook.CustomValidator = &NBGroupCustomValidator{}

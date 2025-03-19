@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -48,6 +49,9 @@ func (r *NBResourceReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	originalResource := nbResource.DeepCopy()
 
 	defer func() {
+		if originalResource.DeletionTimestamp != nil && len(nbResource.Finalizers) == 0 {
+			return
+		}
 		if !originalResource.Status.Equal(nbResource.Status) {
 			updateErr := r.Client.Status().Update(ctx, nbResource)
 			if updateErr != nil {
@@ -110,8 +114,8 @@ func (r *NBResourceReconciler) handlePolicy(ctx context.Context, req ctrl.Reques
 	var nbPolicy netbirdiov1.NBPolicy
 	if nbResource.Spec.PolicyName == "" && nbResource.Status.PolicyName != nil {
 		// Remove self reference from policy status
-		nbResource.Status.PolicyName = nil
 		err := r.Client.Get(ctx, types.NamespacedName{Name: *nbResource.Status.PolicyName}, &nbPolicy)
+		nbResource.Status.PolicyName = nil
 		if err != nil {
 			logger.Error(errKubernetesAPI, "error getting NBPolicy", "err", err, "policyName", nbResource.Spec.PolicyName)
 			return err
@@ -123,7 +127,24 @@ func (r *NBResourceReconciler) handlePolicy(ctx context.Context, req ctrl.Reques
 		}
 	} else {
 		// Update policy settings if any difference is found
-		// TODO: Handle updated policy name by removing reference from old policy name in status.policyName
+		if nbResource.Status.PolicyName != nil {
+			err := r.Client.Get(ctx, types.NamespacedName{Name: *nbResource.Status.PolicyName}, &nbPolicy)
+			if !errors.IsNotFound(err) {
+				if err != nil {
+					logger.Error(errKubernetesAPI, "error getting NBPolicy", "err", err, "policyName", nbResource.Spec.PolicyName)
+					return err
+				}
+
+				if util.Contains(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String()) {
+					nbPolicy.Status.ManagedServiceList = util.Without(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String())
+					err := r.Client.Status().Update(ctx, &nbPolicy)
+					if err != nil {
+						logger.Error(errKubernetesAPI, "error updating NBPolicy", "err", err, "policyName", nbResource.Spec.PolicyName)
+						return err
+					}
+				}
+			}
+		}
 		err := r.Client.Get(ctx, types.NamespacedName{Name: nbResource.Spec.PolicyName}, &nbPolicy)
 		if err != nil {
 			logger.Error(errKubernetesAPI, "error getting NBPolicy", "err", err, "policyName", nbResource.Spec.PolicyName)
@@ -231,8 +252,6 @@ func (r *NBResourceReconciler) handleNetBirdResource(ctx context.Context, nbReso
 		}
 
 		nbResource.Status.NetworkResourceID = &resource.Id
-	} else if nbResource.Status.NetworkResourceID == nil && resource != nil {
-		nbResource.Status.NetworkResourceID = &resource.Id
 	} else if resource == nil {
 		// Status remembers networkResourceID but resource was deleted elsewhere
 		// remove networkID from status and re-enqueue
@@ -265,6 +284,44 @@ func (r *NBResourceReconciler) handleNetBirdResource(ctx context.Context, nbReso
 
 // handleGroups create NBGroup objects for each group specified in NBResource
 func (r *NBResourceReconciler) handleGroups(ctx context.Context, req ctrl.Request, nbResource *netbirdiov1.NBResource, logger logr.Logger) ([]string, *ctrl.Result, error) {
+	nbGroupList := netbirdiov1.NBGroupList{}
+	err := r.Client.List(ctx, &nbGroupList, &client.ListOptions{Namespace: req.Namespace})
+	if err != nil {
+		logger.Error(errKubernetesAPI, "error listing NBGroup", "err", err)
+		return nil, nil, err
+	}
+
+	for _, g := range nbGroupList.Items {
+		ownerIndex := -1
+		for idx, o := range g.OwnerReferences {
+			if o.UID == nbResource.UID {
+				ownerIndex = idx
+				break
+			}
+		}
+		if ownerIndex == -1 {
+			continue
+		}
+		if util.Contains(nbResource.Spec.Groups, g.Spec.Name) {
+			continue
+		}
+		if len(g.OwnerReferences) > 1 {
+			g.OwnerReferences = slices.Delete(g.OwnerReferences, ownerIndex, ownerIndex+1)
+			err = r.Client.Update(ctx, &g)
+			if err != nil && !errors.IsNotFound(err) {
+				logger.Error(errKubernetesAPI, "error updating NBGroup", "err", err)
+				return nil, nil, err
+			}
+		} else if len(g.OwnerReferences) == 1 {
+			g.Finalizers = util.Without(g.Finalizers, "netbird.io/resource-cleanup")
+			err = r.Client.Update(ctx, &g)
+			if err != nil && !errors.IsNotFound(err) {
+				logger.Error(errKubernetesAPI, "error updating NBGroup", "err", err)
+				return nil, nil, err
+			}
+		}
+	}
+
 	var groupIDs []string
 
 	for _, groupName := range nbResource.Spec.Groups {
@@ -283,8 +340,8 @@ func (r *NBResourceReconciler) handleGroups(ctx context.Context, req ctrl.Reques
 					Namespace: nbResource.Namespace,
 					OwnerReferences: []v1.OwnerReference{
 						{
-							APIVersion:         nbResource.APIVersion,
-							Kind:               nbResource.Kind,
+							APIVersion:         netbirdiov1.GroupVersion.Identifier(),
+							Kind:               "NBResource",
 							Name:               nbResource.Name,
 							UID:                nbResource.UID,
 							BlockOwnerDeletion: util.Ptr(true),
@@ -315,8 +372,8 @@ func (r *NBResourceReconciler) handleGroups(ctx context.Context, req ctrl.Reques
 
 			if !ownerExists {
 				nbGroup.OwnerReferences = append(nbGroup.OwnerReferences, v1.OwnerReference{
-					APIVersion:         nbResource.APIVersion,
-					Kind:               nbResource.Kind,
+					APIVersion:         netbirdiov1.GroupVersion.Identifier(),
+					Kind:               "NBResource",
 					Name:               nbResource.Name,
 					UID:                nbResource.UID,
 					BlockOwnerDeletion: util.Ptr(true),
@@ -380,8 +437,24 @@ func (r *NBResourceReconciler) handleDelete(ctx context.Context, req ctrl.Reques
 	}
 
 	for _, g := range nbGroupList.Items {
-		// TODO: Handle multiple owners
-		if len(g.OwnerReferences) > 0 && g.OwnerReferences[0].UID == nbResource.UID {
+		ownerIndex := -1
+		for idx, o := range g.OwnerReferences {
+			if o.UID == nbResource.UID {
+				ownerIndex = idx
+				break
+			}
+		}
+		if ownerIndex == -1 {
+			continue
+		}
+		if len(g.OwnerReferences) > 1 {
+			g.OwnerReferences = slices.Delete(g.OwnerReferences, ownerIndex, ownerIndex+1)
+			err = r.Client.Update(ctx, &g)
+			if err != nil && !errors.IsNotFound(err) {
+				logger.Error(errKubernetesAPI, "error updating NBGroup", "err", err)
+				return err
+			}
+		} else if len(g.OwnerReferences) == 1 {
 			g.Finalizers = util.Without(g.Finalizers, "netbird.io/resource-cleanup")
 			err = r.Client.Update(ctx, &g)
 			if err != nil && !errors.IsNotFound(err) {

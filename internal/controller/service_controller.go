@@ -157,7 +157,8 @@ func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request,
 		return ctrl.Result{}, err
 	}
 
-	nbrsErr := r.reconcileNBResource(&nbResource, req, svc, routingPeer)
+	originalNBResource := nbResource.DeepCopy()
+	nbrsErr := r.reconcileNBResource(&nbResource, req, svc, routingPeer, logger)
 	if nbrsErr != nil {
 		return ctrl.Result{}, nbrsErr
 	}
@@ -168,7 +169,7 @@ func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request,
 			logger.Error(errKubernetesAPI, "error creating NBResource", "err", err)
 			return ctrl.Result{}, err
 		}
-	} else {
+	} else if !originalNBResource.Spec.Equal(nbResource.Spec) {
 		err = r.Client.Update(ctx, &nbResource)
 		if err != nil {
 			logger.Error(errKubernetesAPI, "error updating NBResource", "err", err)
@@ -180,7 +181,7 @@ func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request,
 }
 
 // reconcileNBResource ensures NBResource settings are in-line with Service definition and annotations
-func (r *ServiceReconciler) reconcileNBResource(nbResource *netbirdiov1.NBResource, req ctrl.Request, svc corev1.Service, routingPeer netbirdiov1.NBRoutingPeer) error {
+func (r *ServiceReconciler) reconcileNBResource(nbResource *netbirdiov1.NBResource, req ctrl.Request, svc corev1.Service, routingPeer netbirdiov1.NBRoutingPeer, logger logr.Logger) error {
 	groups := []string{fmt.Sprintf("%s-%s-%s", r.ClusterName, req.Namespace, req.Name)}
 	if v, ok := svc.Annotations[serviceGroupsAnnotation]; ok {
 		groups = nil
@@ -202,50 +203,65 @@ func (r *ServiceReconciler) reconcileNBResource(nbResource *netbirdiov1.NBResour
 	nbResource.Spec.Address = fmt.Sprintf("%s.%s.%s", svc.Name, svc.Namespace, r.ClusterDNS)
 	nbResource.Spec.Groups = groups
 
-	if v, ok := svc.Annotations[servicePolicyAnnotation]; ok {
-		nbResource.Spec.PolicyName = v
-		var filterProtocols []string
-		if v, ok := svc.Annotations[serviceProtocolAnnotation]; ok {
-			filterProtocols = []string{v}
+	if _, ok := svc.Annotations[servicePolicyAnnotation]; ok {
+		err := r.applyPolicy(nbResource, svc, logger)
+		if err != nil {
+			return err
 		}
-		var filterPorts []int32
-		if v, ok := svc.Annotations[servicePortsAnnotation]; ok {
-			for _, v := range strings.Split(v, ",") {
-				port, err := strconv.ParseInt(v, 10, 64)
-				if err != nil {
-					return err
-				}
+	} else if nbResource.Spec.PolicyName != "" {
+		nbResource.Spec.PolicyName = ""
+		nbResource.Spec.TCPPorts = nil
+		nbResource.Spec.UDPPorts = nil
+	}
 
-				filterPorts = append(filterPorts, int32(port))
-			}
-		}
+	return nil
+}
 
-		for _, p := range svc.Spec.Ports {
-			if len(filterProtocols) > 0 && !util.Contains(filterProtocols, string(p.Protocol)) {
-				continue
+func (r *ServiceReconciler) applyPolicy(nbResource *netbirdiov1.NBResource, svc corev1.Service, logger logr.Logger) error {
+	nbResource.Spec.PolicyName = svc.Annotations[servicePolicyAnnotation]
+	var filterProtocols []string
+	if v, ok := svc.Annotations[serviceProtocolAnnotation]; ok {
+		filterProtocols = []string{v}
+	}
+	var filterPorts []int32
+	if v, ok := svc.Annotations[servicePortsAnnotation]; ok {
+		for _, v := range strings.Split(v, ",") {
+			port, err := strconv.ParseInt(v, 10, 64)
+			if err != nil {
+				return err
 			}
-			if len(filterPorts) > 0 && !util.Contains(filterPorts, p.Port) {
-				continue
-			}
-			switch p.Protocol {
-			case corev1.ProtocolSCTP:
-				if !util.Contains(nbResource.Spec.TCPPorts, p.Port) {
-					nbResource.Spec.TCPPorts = append(nbResource.Spec.TCPPorts, p.Port)
-				}
-			case corev1.ProtocolTCP:
-				if !util.Contains(nbResource.Spec.TCPPorts, p.Port) {
-					nbResource.Spec.TCPPorts = append(nbResource.Spec.TCPPorts, p.Port)
-				}
-			case corev1.ProtocolUDP:
-				if !util.Contains(nbResource.Spec.UDPPorts, p.Port) {
-					nbResource.Spec.UDPPorts = append(nbResource.Spec.UDPPorts, p.Port)
-				}
-			default:
-				return errUnknownProtocol
-			}
+
+			filterPorts = append(filterPorts, int32(port))
 		}
 	}
-	// TODO: Handle removed policy name
+
+	for _, p := range svc.Spec.Ports {
+		switch p.Protocol {
+		case corev1.ProtocolTCP:
+			if (len(filterPorts) > 0 && !util.Contains(filterPorts, p.Port)) || (len(filterProtocols) > 0 && !util.Contains(filterProtocols, "tcp")) {
+				if util.Contains(nbResource.Spec.TCPPorts, p.Port) {
+					nbResource.Spec.TCPPorts = util.Without(nbResource.Spec.TCPPorts, p.Port)
+				}
+				continue
+			}
+			if !util.Contains(nbResource.Spec.TCPPorts, p.Port) {
+				nbResource.Spec.TCPPorts = append(nbResource.Spec.TCPPorts, p.Port)
+			}
+		case corev1.ProtocolUDP:
+			if (len(filterPorts) > 0 && !util.Contains(filterPorts, p.Port)) || (len(filterProtocols) > 0 && !util.Contains(filterProtocols, "udp")) {
+				if util.Contains(nbResource.Spec.UDPPorts, p.Port) {
+					nbResource.Spec.UDPPorts = util.Without(nbResource.Spec.UDPPorts, p.Port)
+				}
+				continue
+			}
+			if !util.Contains(nbResource.Spec.UDPPorts, p.Port) {
+				nbResource.Spec.UDPPorts = append(nbResource.Spec.UDPPorts, p.Port)
+			}
+		default:
+			logger.Info("Unsupported protocol %v", p.Protocol)
+			continue
+		}
+	}
 
 	return nil
 }

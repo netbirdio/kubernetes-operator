@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -15,7 +16,6 @@ import (
 
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
 	"github.com/netbirdio/kubernetes-operator/internal/controller"
-	netbird "github.com/netbirdio/netbird/management/client/rest"
 )
 
 // nolint:unused
@@ -23,17 +23,16 @@ import (
 var nbresourcelog = logf.Log.WithName("nbresource-resource")
 
 // SetupNBResourceWebhookWithManager registers the webhook for NBResource in the manager.
-func SetupNBResourceWebhookWithManager(mgr ctrl.Manager, managementURL, apiKey string) error {
+func SetupNBResourceWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).For(&netbirdiov1.NBResource{}).
-		WithValidator(&NBResourceCustomValidator{netbird: netbird.New(managementURL, apiKey), client: mgr.GetClient()}).
+		WithValidator(&NBResourceCustomValidator{client: mgr.GetClient()}).
 		Complete()
 }
 
 // NBResourceCustomValidator struct is responsible for validating the NBResource resource
 // when it is created, updated, or deleted.
 type NBResourceCustomValidator struct {
-	netbird *netbird.Client
-	client  client.Client
+	client client.Client
 }
 
 var _ webhook.CustomValidator = &NBResourceCustomValidator{}
@@ -58,6 +57,9 @@ func (v *NBResourceCustomValidator) ValidateDelete(ctx context.Context, obj runt
 
 	var svc corev1.Service
 	err := v.client.Get(ctx, types.NamespacedName{Namespace: nbresource.Namespace, Name: nbresource.Name}, &svc)
+	if errors.IsNotFound(err) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}

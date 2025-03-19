@@ -12,7 +12,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
-	netbird "github.com/netbirdio/netbird/management/client/rest"
 )
 
 // nolint:unused
@@ -20,17 +19,16 @@ import (
 var nbroutingpeerlog = logf.Log.WithName("nbroutingpeer-resource")
 
 // SetupNBRoutingPeerWebhookWithManager registers the webhook for NBRoutingPeer in the manager.
-func SetupNBRoutingPeerWebhookWithManager(mgr ctrl.Manager, managementURL, apiKey string) error {
+func SetupNBRoutingPeerWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).For(&netbirdiov1.NBRoutingPeer{}).
-		WithValidator(&NBRoutingPeerCustomValidator{netbird: netbird.New(managementURL, apiKey), client: mgr.GetClient()}).
+		WithValidator(&NBRoutingPeerCustomValidator{client: mgr.GetClient()}).
 		Complete()
 }
 
 // NBRoutingPeerCustomValidator struct is responsible for validating the NBRoutingPeer resource
 // when it is created, updated, or deleted.
 type NBRoutingPeerCustomValidator struct {
-	netbird *netbird.Client
-	client  client.Client
+	client client.Client
 }
 
 var _ webhook.CustomValidator = &NBRoutingPeerCustomValidator{}
@@ -63,11 +61,13 @@ func (v *NBRoutingPeerCustomValidator) ValidateDelete(ctx context.Context, obj r
 		return nil, err
 	}
 
+	resourceValidator := &NBResourceCustomValidator{client: v.client}
+
 	for _, r := range nbResources.Items {
 		if r.Spec.NetworkID == *nbroutingpeer.Status.NetworkID {
-			err = v.client.Delete(ctx, &r, client.DryRunAll)
+			_, err = resourceValidator.ValidateDelete(ctx, &r)
 			if err != nil {
-				return nil, fmt.Errorf("%s/%s: %w", r.Namespace, r.Name, err)
+				return nil, err
 			}
 		}
 	}

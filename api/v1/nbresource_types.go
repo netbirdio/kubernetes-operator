@@ -24,6 +24,17 @@ type NBResourceSpec struct {
 	UDPPorts []int32 `json:"udpPorts,omitempty"`
 }
 
+// Equal returns if NBResource is equal to this one
+func (a NBResourceSpec) Equal(b NBResourceSpec) bool {
+	return a.Name == b.Name &&
+		a.NetworkID == b.NetworkID &&
+		a.Address == b.Address &&
+		slices.Equal(a.Groups, b.Groups) &&
+		a.PolicyName == b.PolicyName &&
+		slices.Equal(a.TCPPorts, b.TCPPorts) &&
+		slices.Equal(a.UDPPorts, b.UDPPorts)
+}
+
 // NBResourceStatus defines the observed state of NBResource.
 type NBResourceStatus struct {
 	// +optional

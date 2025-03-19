@@ -56,12 +56,6 @@ var _ = Describe("Service Controller", func() {
 							Port:       443,
 							TargetPort: intstr.FromInt(443),
 						},
-						{
-							Name:       "e",
-							Protocol:   corev1.ProtocolSCTP,
-							Port:       443,
-							TargetPort: intstr.FromInt(443),
-						},
 					},
 				},
 			}

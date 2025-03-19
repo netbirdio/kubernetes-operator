@@ -158,7 +158,7 @@ func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request,
 	}
 
 	originalNBResource := nbResource.DeepCopy()
-	nbrsErr := r.reconcileNBResource(&nbResource, req, svc, routingPeer)
+	nbrsErr := r.reconcileNBResource(&nbResource, req, svc, routingPeer, logger)
 	if nbrsErr != nil {
 		return ctrl.Result{}, nbrsErr
 	}
@@ -181,7 +181,7 @@ func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request,
 }
 
 // reconcileNBResource ensures NBResource settings are in-line with Service definition and annotations
-func (r *ServiceReconciler) reconcileNBResource(nbResource *netbirdiov1.NBResource, req ctrl.Request, svc corev1.Service, routingPeer netbirdiov1.NBRoutingPeer) error {
+func (r *ServiceReconciler) reconcileNBResource(nbResource *netbirdiov1.NBResource, req ctrl.Request, svc corev1.Service, routingPeer netbirdiov1.NBRoutingPeer, logger logr.Logger) error {
 	groups := []string{fmt.Sprintf("%s-%s-%s", r.ClusterName, req.Namespace, req.Name)}
 	if v, ok := svc.Annotations[serviceGroupsAnnotation]; ok {
 		groups = nil
@@ -204,7 +204,7 @@ func (r *ServiceReconciler) reconcileNBResource(nbResource *netbirdiov1.NBResour
 	nbResource.Spec.Groups = groups
 
 	if _, ok := svc.Annotations[servicePolicyAnnotation]; ok {
-		err := r.applyPolicy(nbResource, svc)
+		err := r.applyPolicy(nbResource, svc, logger)
 		if err != nil {
 			return err
 		}
@@ -217,7 +217,7 @@ func (r *ServiceReconciler) reconcileNBResource(nbResource *netbirdiov1.NBResour
 	return nil
 }
 
-func (r *ServiceReconciler) applyPolicy(nbResource *netbirdiov1.NBResource, svc corev1.Service) error {
+func (r *ServiceReconciler) applyPolicy(nbResource *netbirdiov1.NBResource, svc corev1.Service, logger logr.Logger) error {
 	nbResource.Spec.PolicyName = svc.Annotations[servicePolicyAnnotation]
 	var filterProtocols []string
 	if v, ok := svc.Annotations[serviceProtocolAnnotation]; ok {
@@ -237,16 +237,6 @@ func (r *ServiceReconciler) applyPolicy(nbResource *netbirdiov1.NBResource, svc 
 
 	for _, p := range svc.Spec.Ports {
 		switch p.Protocol {
-		case corev1.ProtocolSCTP:
-			if (len(filterPorts) > 0 && !util.Contains(filterPorts, p.Port)) || (len(filterProtocols) > 0 && !util.Contains(filterProtocols, "tcp")) {
-				if util.Contains(nbResource.Spec.TCPPorts, p.Port) {
-					nbResource.Spec.TCPPorts = util.Without(nbResource.Spec.TCPPorts, p.Port)
-				}
-				continue
-			}
-			if !util.Contains(nbResource.Spec.TCPPorts, p.Port) {
-				nbResource.Spec.TCPPorts = append(nbResource.Spec.TCPPorts, p.Port)
-			}
 		case corev1.ProtocolTCP:
 			if (len(filterPorts) > 0 && !util.Contains(filterPorts, p.Port)) || (len(filterProtocols) > 0 && !util.Contains(filterProtocols, "tcp")) {
 				if util.Contains(nbResource.Spec.TCPPorts, p.Port) {
@@ -268,7 +258,8 @@ func (r *ServiceReconciler) applyPolicy(nbResource *netbirdiov1.NBResource, svc 
 				nbResource.Spec.UDPPorts = append(nbResource.Spec.UDPPorts, p.Port)
 			}
 		default:
-			return errUnknownProtocol
+			logger.Info("Unsupported protocol %v", p.Protocol)
+			continue
 		}
 	}
 

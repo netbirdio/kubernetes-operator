@@ -77,7 +77,7 @@ func (r *NBPolicyReconciler) mapResources(ctx context.Context, nbPolicy *netbird
 	}
 
 	for _, resource := range resources {
-		if resource.Status.PolicyName != nil && *resource.Status.PolicyName == nbPolicy.Name {
+		if resource.Status.PolicyName != nil && util.Contains(util.SplitTrim(*resource.Status.PolicyName, ","), nbPolicy.Name) {
 			// Groups
 			groups = append(groups, resource.Status.Groups...)
 

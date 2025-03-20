@@ -109,82 +109,108 @@ func (r *NBResourceReconciler) handlePolicy(ctx context.Context, req ctrl.Reques
 		return nil
 	}
 
-	updatePolicyStatus := false
-
 	var nbPolicy netbirdiov1.NBPolicy
 	if nbResource.Spec.PolicyName == "" && nbResource.Status.PolicyName != nil {
 		// Remove self reference from policy status
-		err := r.Client.Get(ctx, types.NamespacedName{Name: *nbResource.Status.PolicyName}, &nbPolicy)
-		nbResource.Status.PolicyName = nil
-		if err != nil {
-			logger.Error(errKubernetesAPI, "error getting NBPolicy", "err", err, "policyName", nbResource.Spec.PolicyName)
-			return err
-		}
-		if util.Contains(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String()) {
-			nbPolicy.Status.ManagedServiceList = util.Without(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String())
-			nbPolicy.Status.LastUpdatedAt = &v1.Time{Time: time.Now()}
-			updatePolicyStatus = true
-		}
-	} else {
-		// Update policy settings if any difference is found
-		if nbResource.Status.PolicyName != nil {
-			err := r.Client.Get(ctx, types.NamespacedName{Name: *nbResource.Status.PolicyName}, &nbPolicy)
-			if !errors.IsNotFound(err) {
+		policies := util.SplitTrim(*nbResource.Status.PolicyName, ",")
+		for _, policyName := range policies {
+			err := r.Client.Get(ctx, types.NamespacedName{Name: policyName}, &nbPolicy)
+			nbResource.Status.PolicyName = nil
+			if err != nil {
+				logger.Error(errKubernetesAPI, "error getting NBPolicy", "err", err, "policyName", policyName)
+				return err
+			}
+			if util.Contains(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String()) {
+				nbPolicy.Status.ManagedServiceList = util.Without(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String())
+				nbPolicy.Status.LastUpdatedAt = &v1.Time{Time: time.Now()}
+				err := r.Client.Status().Update(ctx, &nbPolicy)
 				if err != nil {
-					logger.Error(errKubernetesAPI, "error getting NBPolicy", "err", err, "policyName", nbResource.Spec.PolicyName)
+					logger.Error(errKubernetesAPI, "error updating NBPolicy", "err", err, "policyName", policyName)
 					return err
 				}
+			}
+		}
+	} else {
+		specPolicies := util.SplitTrim(nbResource.Spec.PolicyName, ",")
+		var statusPolicies []string
+		if nbResource.Status.PolicyName != nil {
+			statusPolicies = util.SplitTrim(*nbResource.Status.PolicyName, ",")
+		}
 
-				if util.Contains(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String()) {
-					nbPolicy.Status.ManagedServiceList = util.Without(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String())
-					err := r.Client.Status().Update(ctx, &nbPolicy)
+		for _, policy := range specPolicies {
+			updatePolicyStatus := false
+
+			err := r.Client.Get(ctx, types.NamespacedName{Name: policy}, &nbPolicy)
+			if err != nil {
+				logger.Error(errKubernetesAPI, "error getting NBPolicy", "err", err, "policyName", policy)
+				return err
+			}
+			if !util.Contains(statusPolicies, policy) {
+				// New
+				if !util.Contains(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String()) {
+					nbPolicy.Status.ManagedServiceList = append(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String())
+					updatePolicyStatus = true
+				}
+			} else {
+				// Check update
+				if !util.Contains(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String()) {
+					nbPolicy.Status.ManagedServiceList = append(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String())
+					nbPolicy.Status.LastUpdatedAt = &v1.Time{Time: time.Now()}
+					updatePolicyStatus = true
+				}
+
+				if !util.Equivalent(nbResource.Spec.TCPPorts, nbResource.Status.TCPPorts) {
+					nbResource.Status.TCPPorts = nbResource.Spec.TCPPorts
+					nbPolicy.Status.LastUpdatedAt = &v1.Time{Time: time.Now()}
+					updatePolicyStatus = true
+				}
+
+				if !util.Equivalent(nbResource.Spec.UDPPorts, nbResource.Status.UDPPorts) {
+					nbResource.Status.UDPPorts = nbResource.Spec.UDPPorts
+					nbPolicy.Status.LastUpdatedAt = &v1.Time{Time: time.Now()}
+					updatePolicyStatus = true
+				}
+
+				if !util.Equivalent(nbResource.Status.Groups, groupIDs) {
+					nbResource.Status.Groups = groupIDs
+					nbPolicy.Status.LastUpdatedAt = &v1.Time{Time: time.Now()}
+					updatePolicyStatus = true
+				}
+			}
+
+			if updatePolicyStatus {
+				err := r.Client.Status().Update(ctx, &nbPolicy)
+				if err != nil {
+					logger.Error(errKubernetesAPI, "error updating NBPolicy", "err", err, "policyName", policy)
+					return err
+				}
+			}
+		}
+
+		for _, policy := range statusPolicies {
+			// Delete
+			if !util.Contains(specPolicies, policy) {
+				err := r.Client.Get(ctx, types.NamespacedName{Name: policy}, &nbPolicy)
+				if !errors.IsNotFound(err) {
 					if err != nil {
-						logger.Error(errKubernetesAPI, "error updating NBPolicy", "err", err, "policyName", nbResource.Spec.PolicyName)
+						logger.Error(errKubernetesAPI, "error getting NBPolicy", "err", err, "policyName", policy)
 						return err
+					}
+
+					if util.Contains(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String()) {
+						nbPolicy.Status.ManagedServiceList = util.Without(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String())
+						err := r.Client.Status().Update(ctx, &nbPolicy)
+						if err != nil {
+							logger.Error(errKubernetesAPI, "error updating NBPolicy", "err", err, "policyName", policy)
+							return err
+						}
 					}
 				}
 			}
 		}
-		err := r.Client.Get(ctx, types.NamespacedName{Name: nbResource.Spec.PolicyName}, &nbPolicy)
-		if err != nil {
-			logger.Error(errKubernetesAPI, "error getting NBPolicy", "err", err, "policyName", nbResource.Spec.PolicyName)
-			return err
-		}
 
-		if nbResource.Status.PolicyName == nil || *nbResource.Status.PolicyName != nbPolicy.Name {
-			nbResource.Status.PolicyName = &nbPolicy.Name
-		}
-
-		if !util.Contains(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String()) {
-			nbPolicy.Status.ManagedServiceList = append(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String())
-			nbPolicy.Status.LastUpdatedAt = &v1.Time{Time: time.Now()}
-			updatePolicyStatus = true
-		}
-
-		if !util.Equivalent(nbResource.Spec.TCPPorts, nbResource.Status.TCPPorts) {
-			nbResource.Status.TCPPorts = nbResource.Spec.TCPPorts
-			nbPolicy.Status.LastUpdatedAt = &v1.Time{Time: time.Now()}
-			updatePolicyStatus = true
-		}
-
-		if !util.Equivalent(nbResource.Spec.UDPPorts, nbResource.Status.UDPPorts) {
-			nbResource.Status.UDPPorts = nbResource.Spec.UDPPorts
-			nbPolicy.Status.LastUpdatedAt = &v1.Time{Time: time.Now()}
-			updatePolicyStatus = true
-		}
-
-		if !util.Equivalent(nbResource.Status.Groups, groupIDs) {
-			nbResource.Status.Groups = groupIDs
-			nbPolicy.Status.LastUpdatedAt = &v1.Time{Time: time.Now()}
-			updatePolicyStatus = true
-		}
-	}
-
-	if updatePolicyStatus {
-		err := r.Client.Status().Update(ctx, &nbPolicy)
-		if err != nil {
-			logger.Error(errKubernetesAPI, "error updating NBPolicy", "err", err, "policyName", nbResource.Spec.PolicyName)
-			return err
+		if nbResource.Status.PolicyName == nil || *nbResource.Status.PolicyName != nbResource.Spec.PolicyName {
+			nbResource.Status.PolicyName = &nbResource.Spec.PolicyName
 		}
 	}
 
@@ -402,19 +428,21 @@ func (r *NBResourceReconciler) handleGroups(ctx context.Context, req ctrl.Reques
 
 func (r *NBResourceReconciler) handleDelete(ctx context.Context, req ctrl.Request, nbResource *netbirdiov1.NBResource, logger logr.Logger) error {
 	if nbResource.Status.PolicyName != nil {
-		var nbPolicy netbirdiov1.NBPolicy
-		err := r.Client.Get(ctx, types.NamespacedName{Name: *nbResource.Status.PolicyName}, &nbPolicy)
-		if err != nil && !errors.IsNotFound(err) {
-			logger.Error(errKubernetesAPI, "error getting NBPolicy", "err", err, "policyName", nbResource.Spec.PolicyName)
-			return err
-		}
-
-		if !errors.IsNotFound(err) && util.Contains(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String()) {
-			nbPolicy.Status.ManagedServiceList = util.Without(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String())
-			nbPolicy.Status.LastUpdatedAt = &v1.Time{Time: time.Now()}
-			err = r.Client.Status().Update(ctx, &nbPolicy)
-			if err != nil {
+		for _, policy := range util.SplitTrim(*nbResource.Status.PolicyName, ",") {
+			var nbPolicy netbirdiov1.NBPolicy
+			err := r.Client.Get(ctx, types.NamespacedName{Name: policy}, &nbPolicy)
+			if err != nil && !errors.IsNotFound(err) {
+				logger.Error(errKubernetesAPI, "error getting NBPolicy", "err", err, "policyName", policy)
 				return err
+			}
+
+			if !errors.IsNotFound(err) && util.Contains(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String()) {
+				nbPolicy.Status.ManagedServiceList = util.Without(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String())
+				nbPolicy.Status.LastUpdatedAt = &v1.Time{Time: time.Now()}
+				err = r.Client.Status().Update(ctx, &nbPolicy)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}

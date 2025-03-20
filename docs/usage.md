@@ -86,7 +86,7 @@ cluster:
 |`netbird.io/expose`| Expose service using NetBird Network Resource ||(`null`, `true`)|
 |`netbird.io/groups`| Comma-separated list of group names to assign to Network Resource |`{ClusterName}-{Namespace}-{Service}`|Any comma-separated list of strings.|
 |`netbird.io/resource-name`| Network Resource name |`{Namespace}-{Service}`|Any valid network resource name, make sure they're unique!|
-|`netbird.io/policy`| Name of NBPolicy to propagate service ports as destination. ||Name of any NBPolicy resource|
+|`netbird.io/policy`| Name(s) of NBPolicy to propagate service ports as destination. ||Comma-separated list of names of any NBPolicy resource|
 |`netbird.io/policy-ports`| Narrow down exposed ports in a policy. Leave empty for all ports. ||Comma-separated integer list, integers must be between 0-65535|
 |`netbird.io/policy-protocol`| Narrow down protocol for use in a policy. Leave empty for all protocols. ||(`tcp`,`udp`)|
 
@@ -158,7 +158,7 @@ ingress:
       - udp
       bidirectional: true # Optional, defaults to true
 ```
-2. Reference policy in Services using `netbird.io/policy=default`, this will add relevant ports and destination groups to policy.
+2. Reference policies in Services using `netbird.io/policy=default,otherpolicy,...`, this will add relevant ports and destination groups to policies.
 3. (Optional) Limit specific ports in exposed service by adding `netbird.io/policy-ports=443`.
 4. (Optional) Limit specific protocol in exposed service by adding `netbird.io/policy-protocol=tcp`.
 
@@ -166,3 +166,4 @@ ingress:
 * Each NBPolicy will only create policies in the NetBird console when the information provided is enough to create one. If no services act as a destination or specified services do not conform to the protocol(s) defined, the policy will not be created.
 * Each NBPolicy will create one policy in the NetBird console per protocol specified as long as the protocol has destinations; this ensures better-secured policies by separating ports for TCP and UDP.
 * Policies currently do not support ICMP protocol, as ICMP is not supported in Kubernetes services, and there are [no current plans to support it](https://discuss.kubernetes.io/t/icmp-support-for-kubernetes-service/21738).
+* NetBird currently does not support SCTP protocol.

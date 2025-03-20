@@ -1,0 +1,85 @@
+services:
+  mock-jwt-provider:
+    image: nginx:alpine
+    configs:
+      - source: nginx_conf
+        target: /etc/nginx/nginx.conf
+    networks:
+      transfer_net:
+        ipv4_address: 192.168.1.11
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/.well-known/jwks.json" ]
+      interval: 3s
+      timeout: 1s
+      retries: 15
+
+  netbird-mgmt:
+    image: netbirdio/management:0.38.0
+    environment:
+      - NB_LOG_LEVEL=debug
+      - NETBIRD_STORE_ENGINE=sqlite
+    volumes:
+      - ./seed_database.sql:/app/seed_database.sql
+      - ./management.json:/etc/netbird/management.json
+      - ./setup_mgmt.sh:/etc/netbird/setup_mgmt.sh
+      - /tmp/empty:/var/lib/netbird/GeoLite2-City_20240101.mmdb
+      - /tmp/empty:/var/lib/netbird/geonames_20240101.db
+      - netbird_data:/var/lib/netbird
+    entrypoint: []
+    command:
+    - /bin/bash
+    - -c
+    - /etc/netbird/setup_mgmt.sh & /go/bin/netbird-mgmt management --log-file console
+    networks:
+      transfer_net:
+        ipv4_address: 192.168.1.10
+    depends_on:
+      mock-jwt-provider:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "sh", "-c", "grep -q '0:0050' /proc/net/tcp*" ]
+      interval: 3s
+      timeout: 1s
+      retries: 10
+    ports:
+      # local debugging only
+      - "8080:80"
+
+networks:
+  transfer_net:
+    ipam:
+      config:
+        - subnet: 192.168.1.0/24
+
+volumes:
+  netbird_data:
+    name: "netbird_data_${COMPOSE_PROJECT_NAME:-default}_tmp"
+    external: false
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+
+configs:
+  nginx_conf:
+    content: |
+      user  nginx;
+      worker_processes  auto;
+      pid        /var/run/nginx.pid;
+      events {}
+      http {
+          include       /etc/nginx/mime.types;
+          default_type  application/octet-stream;
+
+          sendfile        on;
+
+          server {
+              listen       8080;
+              listen  [::]:8080;
+              server_name  localhost;
+
+              location /.well-known/jwks.json {
+                  return 200 '{"keys":[{"kid":"mockKid","kty":"RSA","alg":"RS256","use":"sig","n":"mockModulus","e":"AQAB"}]}';
+              }
+          }
+      }

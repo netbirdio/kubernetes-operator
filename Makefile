@@ -133,9 +133,26 @@ endif
 deploy: manifests ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	$(HELM) install -n netbird --create-namespace kubernetes-operator --set operator.image.tag=$(word 2,$(subst :, ,${IMG})) --repo https://netbirdio.github.io/helms kubernetes-operator
 
+.PHONY: deploy-e2e
+deploy-e2e: manifests ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	$(HELM) install -n netbird --create-namespace kubernetes-operator -f ./test/utils/values.yaml --set operator.image.tag=$(word 2,$(subst :, ,${IMG})) --set managementURL=${MGMT_HOST} --repo https://netbirdio.github.io/helms kubernetes-operator
+
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(HELM) uninstall -n netbird kubernetes-operator --no-hooks
+
+.PHONY: undeploy-e2e
+undeploy-e2e: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+	$(HELM) uninstall -n netbird kubernetes-operator --no-hooks || true
+	kubectl get NBResource -n default -o "custom-columns=NAME:.metadata.name" --no-headers | xargs -r -n 1 kubectl patch NBResource -n default -p '{"metadata":{"finalizers":null}}' --type=merge
+	kubectl get NBGroup -n default -o "custom-columns=NAME:.metadata.name" --no-headers | xargs -r -n 1 kubectl patch NBGroup -n default -p '{"metadata":{"finalizers":null}}' --type=merge
+	kubectl get NBGroup -n netbird -o "custom-columns=NAME:.metadata.name" --no-headers | xargs -r -n 1 kubectl patch NBGroup -n netbird -p '{"metadata":{"finalizers":null}}' --type=merge
+	kubectl get NBRoutingPeer -n netbird -o "custom-columns=NAME:.metadata.name" --no-headers | xargs -r -n 1 kubectl patch NBRoutingPeer -n netbird -p '{"metadata":{"finalizers":null}}' --type=merge
+	kubectl get NBPolicy -o "custom-columns=NAME:.metadata.name" --no-headers | xargs -r -n 1 kubectl patch NBPolicy -p '{"metadata":{"finalizers":null}}' --type=merge
+	kubectl delete NBGroup -A --all
+	kubectl delete NBResource -A --all
+	kubectl delete NBRoutingPeer -A --all
+	kubectl delete NBPolicy --all
 
 ##@ Dependencies
 

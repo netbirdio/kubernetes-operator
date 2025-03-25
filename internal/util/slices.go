@@ -44,6 +44,9 @@ func Equivalent[T comparable](x, y []T) bool {
 
 // SplitTrim split string and trim whitespace
 func SplitTrim(str, sep string) []string {
+	if len(str) == 0 {
+		return nil
+	}
 	sp := strings.Split(str, sep)
 	ret := make([]string, 0, len(sp))
 	for _, v := range sp {

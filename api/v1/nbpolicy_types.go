@@ -1,8 +1,7 @@
 package v1
 
 import (
-	"slices"
-
+	"github.com/netbirdio/kubernetes-operator/internal/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -50,8 +49,8 @@ func (a NBPolicyStatus) Equal(b NBPolicyStatus) bool {
 	return a.TCPPolicyID == b.TCPPolicyID &&
 		a.UDPPolicyID == b.UDPPolicyID &&
 		a.LastUpdatedAt == b.LastUpdatedAt &&
-		slices.Equal(a.ManagedServiceList, b.ManagedServiceList) &&
-		slices.Equal(a.Conditions, b.Conditions)
+		util.Equivalent(a.ManagedServiceList, b.ManagedServiceList) &&
+		util.Equivalent(a.Conditions, b.Conditions)
 }
 
 // +kubebuilder:object:root=true

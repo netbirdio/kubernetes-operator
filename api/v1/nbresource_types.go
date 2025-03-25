@@ -1,8 +1,7 @@
 package v1
 
 import (
-	"slices"
-
+	"github.com/netbirdio/kubernetes-operator/internal/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -29,10 +28,10 @@ func (a NBResourceSpec) Equal(b NBResourceSpec) bool {
 	return a.Name == b.Name &&
 		a.NetworkID == b.NetworkID &&
 		a.Address == b.Address &&
-		slices.Equal(a.Groups, b.Groups) &&
+		util.Equivalent(a.Groups, b.Groups) &&
 		a.PolicyName == b.PolicyName &&
-		slices.Equal(a.TCPPorts, b.TCPPorts) &&
-		slices.Equal(a.UDPPorts, b.UDPPorts)
+		util.Equivalent(a.TCPPorts, b.TCPPorts) &&
+		util.Equivalent(a.UDPPorts, b.UDPPorts)
 }
 
 // NBResourceStatus defines the observed state of NBResource.
@@ -55,10 +54,10 @@ type NBResourceStatus struct {
 func (a NBResourceStatus) Equal(b NBResourceStatus) bool {
 	return a.NetworkResourceID == b.NetworkResourceID &&
 		a.PolicyName == b.PolicyName &&
-		slices.Equal(a.TCPPorts, b.TCPPorts) &&
-		slices.Equal(a.UDPPorts, b.UDPPorts) &&
-		slices.Equal(a.Groups, b.Groups) &&
-		slices.Equal(a.Conditions, b.Conditions)
+		util.Equivalent(a.TCPPorts, b.TCPPorts) &&
+		util.Equivalent(a.UDPPorts, b.UDPPorts) &&
+		util.Equivalent(a.Groups, b.Groups) &&
+		util.Equivalent(a.Conditions, b.Conditions)
 }
 
 // +kubebuilder:object:root=true

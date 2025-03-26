@@ -1,0 +1,71 @@
+{{- if and .Values.ingress.enabled .Values.ingress.kubernetesAPI.enabled }}
+{{- $routerNS := .Release.Namespace }}
+{{- if .Values.ingress.namespacedNetworks }}
+{{- $routerNS = "default" }}
+{{- end }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "kubernetes-operator.fullname" . }}-kubernetes-service-expose
+  labels:
+    app.kubernetes.io/component: operator
+    {{- include "kubernetes-operator.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-upgrade,post-install
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backOffLimit: 3
+  template:
+    metadata:
+      name: {{ include "kubernetes-operator.fullname" . }}
+      labels:
+        app.kubernetes.io/component: operator
+        {{- include "kubernetes-operator.labels" . | nindent 8 }}
+        {{- with .Values.operator.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      initContainers:
+      - name: wait-network-ready
+        image: "bitnami/kubectl:latest"
+        command:
+        - bash
+        - -c
+        args:
+        - kubectl wait --for 'jsonpath={.status.networkID}' -n {{ $routerNS }} nbroutingpeer router; 
+      containers:
+      - name: apply-nbresource
+        image: "bitnami/kubectl:latest"
+        env:
+        - name: NBRESOURCE_VALUE
+          value: |
+            apiVersion: netbird.io/v1
+            kind: NBResource
+            metadata:
+              finalizers:
+              - netbird.io/cleanup
+              name: kubernetes
+              namespace: default
+            spec:
+              address: kubernetes.default.{{.Values.cluster.dns}}
+              groups:
+              {{- if .Values.ingress.kubernetesAPI.groups }}
+              {{ toYaml .Values.ingress.kubernetesAPI.groups | nindent 2 }}
+              {{- else }}
+              - {{ .Values.cluster.name }}-default-kubernetes
+              {{- end }}
+              name: {{ .Values.ingress.kubernetesAPI.resourceName | default "default-kubernetes" }}
+              networkID: ${NETWORK_ID}
+              {{- if .Values.ingress.kubernetesAPI.policies }}
+              policyName: "{{ join "," .Values.ingress.kubernetesAPI.policies }}"
+              {{- end }}
+              tcpPorts:
+              - 443
+        command:
+        - bash
+        - -c
+        args:
+        - kubectl delete NBResource --ignore-not-found -n default kubernetes; export NETWORK_ID=$(kubectl get NBRoutingPeer -n {{ $routerNS }} router -o 'jsonpath={.status.networkID}'); echo "$NBRESOURCE_VALUE" | envsubst | kubectl apply -f -
+      serviceAccountName: {{ include "kubernetes-operator.serviceAccountName" . }}
+      restartPolicy: Never
+{{- end }}

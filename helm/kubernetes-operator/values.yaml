@@ -135,6 +135,13 @@ ingress:
   enabled: false
   # Create router per namespace, useful for strict networking requirements
   namespacedNetworks: false
+  kubernetesAPI:
+    enabled: false
+    groups: []
+    # - group1
+    # - group2
+    policies: []
+    # - default
   router:
     # Deploy routing peer(s)
     enabled: false
@@ -176,7 +183,7 @@ cluster:
   # Cluster DNS name (used for webhooks certificates and for network resource DNS names)
   dns: svc.cluster.local
   # Cluster name (used for generating network and network resource names in NetBird)
-  # name: kubernetes
+  name: kubernetes
 
 netbirdAPI: {}
   # NetBird Service Account Token

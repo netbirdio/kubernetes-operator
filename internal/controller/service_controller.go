@@ -58,6 +58,12 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 
+	// Special case for kubernetes API Service
+	// Handled by Helm chart
+	if svc.Namespace == "default" && svc.Name == "kubernetes" {
+		return ctrl.Result{}, nil
+	}
+
 	_, shouldExpose := svc.Annotations[ServiceExposeAnnotation]
 
 	// If Service is being deleted, un-expose

@@ -1,8 +1,7 @@
 package v1
 
 import (
-	"slices"
-
+	"github.com/netbirdio/kubernetes-operator/internal/util"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -40,7 +39,7 @@ func (a NBRoutingPeerStatus) Equal(b NBRoutingPeerStatus) bool {
 	return a.NetworkID == b.NetworkID &&
 		a.SetupKeyID == b.SetupKeyID &&
 		a.RouterID == b.RouterID &&
-		slices.Equal(a.Conditions, b.Conditions)
+		util.Equivalent(a.Conditions, b.Conditions)
 }
 
 // +kubebuilder:object:root=true

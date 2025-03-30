@@ -1,8 +1,7 @@
 package v1
 
 import (
-	"slices"
-
+	"github.com/netbirdio/kubernetes-operator/internal/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -23,7 +22,7 @@ type NBGroupStatus struct {
 
 // Equal returns if NBGroupStatus is equal to this one
 func (a NBGroupStatus) Equal(b NBGroupStatus) bool {
-	return (a.GroupID == b.GroupID || (a.GroupID != nil && b.GroupID != nil && *a.GroupID == *b.GroupID)) && slices.Equal(a.Conditions, b.Conditions)
+	return (a.GroupID == b.GroupID || (a.GroupID != nil && b.GroupID != nil && *a.GroupID == *b.GroupID)) && util.Equivalent(a.Conditions, b.Conditions)
 }
 
 // +kubebuilder:object:root=true

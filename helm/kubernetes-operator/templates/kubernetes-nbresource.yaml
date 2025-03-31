@@ -50,11 +50,11 @@ spec:
               address: kubernetes.default.{{.Values.cluster.dns}}
               groups:
               {{- if .Values.ingress.kubernetesAPI.groups }}
-              {{ toYaml .Values.ingress.kubernetesAPI.groups | nindent 2 }}
+              {{ toYaml .Values.ingress.kubernetesAPI.groups }}
               {{- else }}
-              - {{ .Values.cluster.name }}-default-kubernetes
+              - {{ .Values.cluster.name }}-default-api-access
               {{- end }}
-              name: {{ .Values.ingress.kubernetesAPI.resourceName | default "default-kubernetes" }}
+              name: {{ .Values.ingress.kubernetesAPI.resourceName | default "default-kubernetes-api" }}
               networkID: ${NETWORK_ID}
               {{- if .Values.ingress.kubernetesAPI.policies }}
               policyName: "{{ join "," .Values.ingress.kubernetesAPI.policies }}"

@@ -76,6 +76,24 @@ cluster:
   name: kubernetes
 ```
 > Learn more about the values.yaml options [here](../helm/kubernetes-operator/values.yaml).
+
+### Exposing Kubernetes API
+
+1. Ensure Ingress functionality is enabled.
+1. Set `ingress.kubernetesAPI.enabled` to true.
+1. Set `ingress.kubernetesAPI.groups` to a list of groups to assign to the Network Resource to be created for kubernetes API.
+1. Set `ingress.kubernetesAPI.policies` to a list of policy names to connect to the resource (See #managing-policies for more details).
+1. Apply Helm changes through `helm upgrade`.
+1. Replace the server URL in your kubeconfig file with `https://kubernetes.default.<cluster DNS>` (by default `https://kubernetes.default.svc.cluster.local`), for example:
+```yaml
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority: /home/user/.minikube/ca.crt
+    server: https://kubernetes.default.svc.cluster.local
+  name: minikube
+```
+
 ### Exposing a Service
 
 > [!IMPORTANT]  

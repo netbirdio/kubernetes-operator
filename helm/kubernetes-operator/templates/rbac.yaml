@@ -27,7 +27,7 @@ rules:
   - get
   - patch
   - update
-{{- if .Values.ingress.enabled }}
+{{- if or .Values.netbirdAPI.key .Values.netbirdAPI.keyFromSecret }}
 - apiGroups:
   - netbird.io
   resources:
@@ -108,7 +108,7 @@ rules:
   - get
   - list
   - watch
-{{- if or .Values.ingress.enabled .Values.clusterSecretsPermissions.allowAllSecrets }}
+{{- if or (or .Values.netbirdAPI.key .Values.netbirdAPI.keyFromSecret) .Values.clusterSecretsPermissions.allowAllSecrets }}
 - apiGroups:
   - ""
   resources:
@@ -117,7 +117,7 @@ rules:
   - get
   - list
   - watch
-{{- if .Values.ingress.enabled }}
+{{- if or .Values.netbirdAPI.key .Values.netbirdAPI.keyFromSecret }}
   - patch
   - update
   - create

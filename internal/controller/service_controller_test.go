@@ -440,6 +440,48 @@ var _ = Describe("Service Controller", func() {
 					Expect(nbResource.Spec.UDPPorts).To(BeEmpty())
 				})
 			})
+			When("policy friendly name changes", func() {
+				It("should update policy friendly name in NBResource spec", func() {
+					nbResource := &netbirdiov1.NBResource{}
+					Expect(k8sClient.Get(ctx, typeNamespacedName, nbResource)).To(Succeed())
+					nbResource.Spec.PolicyName = policyName
+					Expect(k8sClient.Update(ctx, nbResource)).To(Succeed())
+
+					service.Annotations[servicePolicyAnnotation] = policyName
+					service.Annotations[servicePolicyNameAnnotation] = "test:toast,meow:meow"
+					Expect(k8sClient.Update(ctx, service)).To(Succeed())
+
+					_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+						NamespacedName: typeNamespacedName,
+					})
+					Expect(err).NotTo(HaveOccurred())
+
+					nbResource = &netbirdiov1.NBResource{}
+					Expect(k8sClient.Get(ctx, typeNamespacedName, nbResource)).To(Succeed())
+					Expect(nbResource.Spec.PolicyFriendlyName).To(BeEquivalentTo(map[string]string{"test": "toast", "meow": "meow"}))
+				})
+			})
+			When("policy source groups changes", func() {
+				It("should update policy source groups in NBResource spec", func() {
+					nbResource := &netbirdiov1.NBResource{}
+					Expect(k8sClient.Get(ctx, typeNamespacedName, nbResource)).To(Succeed())
+					nbResource.Spec.PolicyName = policyName
+					Expect(k8sClient.Update(ctx, nbResource)).To(Succeed())
+
+					service.Annotations[servicePolicyAnnotation] = policyName
+					service.Annotations[servicePolicySourceGroupsAnnotation] = "test"
+					Expect(k8sClient.Update(ctx, service)).To(Succeed())
+
+					_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+						NamespacedName: typeNamespacedName,
+					})
+					Expect(err).NotTo(HaveOccurred())
+
+					nbResource = &netbirdiov1.NBResource{}
+					Expect(k8sClient.Get(ctx, typeNamespacedName, nbResource)).To(Succeed())
+					Expect(nbResource.Spec.PolicySourceGroups).To(BeEquivalentTo([]string{"test"}))
+				})
+			})
 			When("resource name changes", func() {
 				It("should update name in NBResource spec", func() {
 					service.Annotations[serviceResourceAnnotation] = "meow"

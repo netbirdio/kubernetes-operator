@@ -329,6 +329,18 @@ func (in *NBResourceSpec) DeepCopyInto(out *NBResourceSpec) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.PolicySourceGroups != nil {
+		in, out := &in.PolicySourceGroups, &out.PolicySourceGroups
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+	if in.PolicyFriendlyName != nil {
+		in, out := &in.PolicyFriendlyName, &out.PolicyFriendlyName
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
 	if in.TCPPorts != nil {
 		in, out := &in.TCPPorts, &out.TCPPorts
 		*out = make([]int32, len(*in))
@@ -379,11 +391,30 @@ func (in *NBResourceStatus) DeepCopyInto(out *NBResourceStatus) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.PolicySourceGroups != nil {
+		in, out := &in.PolicySourceGroups, &out.PolicySourceGroups
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+	if in.PolicyFriendlyName != nil {
+		in, out := &in.PolicyFriendlyName, &out.PolicyFriendlyName
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
 		*out = make([]NBCondition, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
+	if in.PolicyNameMapping != nil {
+		in, out := &in.PolicyNameMapping, &out.PolicyNameMapping
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
 		}
 	}
 }

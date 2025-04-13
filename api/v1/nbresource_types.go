@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"maps"
+
 	"github.com/netbirdio/kubernetes-operator/internal/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -18,6 +20,10 @@ type NBResourceSpec struct {
 	// +optional
 	PolicyName string `json:"policyName,omitempty"`
 	// +optional
+	PolicySourceGroups []string `json:"policySourceGroups,omitempty"`
+	// +optional
+	PolicyFriendlyName map[string]string `json:"policyFriendlyName,omitempty"`
+	// +optional
 	TCPPorts []int32 `json:"tcpPorts,omitempty"`
 	// +optional
 	UDPPorts []int32 `json:"udpPorts,omitempty"`
@@ -31,7 +37,8 @@ func (a NBResourceSpec) Equal(b NBResourceSpec) bool {
 		util.Equivalent(a.Groups, b.Groups) &&
 		a.PolicyName == b.PolicyName &&
 		util.Equivalent(a.TCPPorts, b.TCPPorts) &&
-		util.Equivalent(a.UDPPorts, b.UDPPorts)
+		util.Equivalent(a.UDPPorts, b.UDPPorts) &&
+		util.Equivalent(a.PolicySourceGroups, b.PolicySourceGroups)
 }
 
 // NBResourceStatus defines the observed state of NBResource.
@@ -47,7 +54,13 @@ type NBResourceStatus struct {
 	// +optional
 	Groups []string `json:"groups,omitempty"`
 	// +optional
+	PolicySourceGroups []string `json:"policySourceGroups,omitempty"`
+	// +optional
+	PolicyFriendlyName map[string]string `json:"policyFriendlyName,omitempty"`
+	// +optional
 	Conditions []NBCondition `json:"conditions,omitempty"`
+	// +optional
+	PolicyNameMapping map[string]string `json:"policyNameMapping"`
 }
 
 // Equal returns if NBResourceStatus is equal to this one
@@ -57,7 +70,10 @@ func (a NBResourceStatus) Equal(b NBResourceStatus) bool {
 		util.Equivalent(a.TCPPorts, b.TCPPorts) &&
 		util.Equivalent(a.UDPPorts, b.UDPPorts) &&
 		util.Equivalent(a.Groups, b.Groups) &&
-		util.Equivalent(a.Conditions, b.Conditions)
+		util.Equivalent(a.Conditions, b.Conditions) &&
+		util.Equivalent(a.PolicySourceGroups, b.PolicySourceGroups) &&
+		maps.Equal(a.PolicyFriendlyName, b.PolicyFriendlyName) &&
+		maps.Equal(a.PolicyNameMapping, b.PolicyNameMapping)
 }
 
 // +kubebuilder:object:root=true

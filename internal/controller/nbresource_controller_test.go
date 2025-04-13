@@ -26,6 +26,7 @@ import (
 var _ = Describe("NBResource Controller", func() {
 	Context("When reconciling a resource", func() {
 		const resourceName = "test-resource"
+		const policyGenName = "test-gen"
 
 		ctx := context.Background()
 
@@ -45,9 +46,10 @@ var _ = Describe("NBResource Controller", func() {
 			server = httptest.NewServer(mux)
 			netbirdClient = netbird.New(server.URL, "ABC")
 			controllerReconciler = &NBResourceReconciler{
-				Client:  k8sClient,
-				Scheme:  k8sClient.Scheme(),
-				netbird: netbirdClient,
+				Client:      k8sClient,
+				Scheme:      k8sClient.Scheme(),
+				netbird:     netbirdClient,
+				ClusterName: "kubernetes",
 			}
 
 			By("creating the custom resource for the Kind NBResource")
@@ -315,64 +317,47 @@ var _ = Describe("NBResource Controller", func() {
 				})
 
 				When("Policy is specified", Ordered, func() {
-					BeforeAll(func() {
-						nbPolicy := &netbirdiov1.NBPolicy{
-							ObjectMeta: metav1.ObjectMeta{
-								Name: "test-a",
-							},
-							Spec: netbirdiov1.NBPolicySpec{
-								Name:         "Test A",
-								SourceGroups: []string{"All"},
-							},
-						}
-						Expect(k8sClient.Create(ctx, nbPolicy)).To(Succeed())
+					When("Policy Exists", func() {
+						BeforeAll(func() {
+							nbPolicy := &netbirdiov1.NBPolicy{
+								ObjectMeta: metav1.ObjectMeta{
+									Name: "test-a",
+								},
+								Spec: netbirdiov1.NBPolicySpec{
+									Name:         "Test A",
+									SourceGroups: []string{"All"},
+								},
+							}
+							Expect(k8sClient.Create(ctx, nbPolicy)).To(Succeed())
 
-						nbPolicy = &netbirdiov1.NBPolicy{
-							ObjectMeta: metav1.ObjectMeta{
-								Name: "test-b",
-							},
-							Spec: netbirdiov1.NBPolicySpec{
-								Name:         "Test B",
-								SourceGroups: []string{"All"},
-							},
-						}
-						Expect(k8sClient.Create(ctx, nbPolicy)).To(Succeed())
-					})
-
-					AfterAll(func() {
-						nbPolicy := &netbirdiov1.NBPolicy{}
-						err := k8sClient.Get(ctx, types.NamespacedName{Name: "test-a"}, nbPolicy)
-						if !errors.IsNotFound(err) {
-							Expect(k8sClient.Delete(ctx, nbPolicy)).To(Succeed())
-						}
-
-						nbPolicy = &netbirdiov1.NBPolicy{}
-						err = k8sClient.Get(ctx, types.NamespacedName{Name: "test-b"}, nbPolicy)
-						if !errors.IsNotFound(err) {
-							Expect(k8sClient.Delete(ctx, nbPolicy)).To(Succeed())
-						}
-					})
-					It("should update policy status", func() {
-						nbresource.Spec.PolicyName = "test-a"
-						Expect(k8sClient.Update(ctx, nbresource)).To(Succeed())
-
-						_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
-							NamespacedName: typeNamespacedName,
+							nbPolicy = &netbirdiov1.NBPolicy{
+								ObjectMeta: metav1.ObjectMeta{
+									Name: "test-b",
+								},
+								Spec: netbirdiov1.NBPolicySpec{
+									Name:         "Test B",
+									SourceGroups: []string{"All"},
+								},
+							}
+							Expect(k8sClient.Create(ctx, nbPolicy)).To(Succeed())
 						})
-						Expect(err).NotTo(HaveOccurred())
 
-						nbPolicy := &netbirdiov1.NBPolicy{}
-						Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "test-a"}, nbPolicy)).To(Succeed())
-						Expect(nbPolicy.Status.ManagedServiceList).To(ContainElement("default/test-resource"))
-					})
+						AfterAll(func() {
+							nbPolicy := &netbirdiov1.NBPolicy{}
+							err := k8sClient.Get(ctx, types.NamespacedName{Name: "test-a"}, nbPolicy)
+							if !errors.IsNotFound(err) {
+								Expect(k8sClient.Delete(ctx, nbPolicy)).To(Succeed())
+							}
 
-					When("Policy is updated", func() {
-						It("should remove old reference and add new reference", func() {
-							nbresource.Spec.PolicyName = "test-b"
+							nbPolicy = &netbirdiov1.NBPolicy{}
+							err = k8sClient.Get(ctx, types.NamespacedName{Name: "test-b"}, nbPolicy)
+							if !errors.IsNotFound(err) {
+								Expect(k8sClient.Delete(ctx, nbPolicy)).To(Succeed())
+							}
+						})
+						It("should update policy status", func() {
+							nbresource.Spec.PolicyName = "test-a"
 							Expect(k8sClient.Update(ctx, nbresource)).To(Succeed())
-
-							nbresource.Status.PolicyName = util.Ptr("test-a")
-							Expect(k8sClient.Status().Update(ctx, nbresource)).To(Succeed())
 
 							_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
 								NamespacedName: typeNamespacedName,
@@ -381,35 +366,257 @@ var _ = Describe("NBResource Controller", func() {
 
 							nbPolicy := &netbirdiov1.NBPolicy{}
 							Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "test-a"}, nbPolicy)).To(Succeed())
-							Expect(nbPolicy.Status.ManagedServiceList).NotTo(ContainElement("default/test-resource"))
-
-							nbPolicy = &netbirdiov1.NBPolicy{}
-							Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "test-b"}, nbPolicy)).To(Succeed())
 							Expect(nbPolicy.Status.ManagedServiceList).To(ContainElement("default/test-resource"))
 						})
+
+						When("Policy is updated", func() {
+							It("should remove old reference and add new reference", func() {
+								nbresource.Spec.PolicyName = "test-b"
+								Expect(k8sClient.Update(ctx, nbresource)).To(Succeed())
+
+								nbresource.Status.PolicyName = util.Ptr("test-a")
+								Expect(k8sClient.Status().Update(ctx, nbresource)).To(Succeed())
+
+								_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+									NamespacedName: typeNamespacedName,
+								})
+								Expect(err).NotTo(HaveOccurred())
+
+								nbPolicy := &netbirdiov1.NBPolicy{}
+								Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "test-a"}, nbPolicy)).To(Succeed())
+								Expect(nbPolicy.Status.ManagedServiceList).NotTo(ContainElement("default/test-resource"))
+
+								nbPolicy = &netbirdiov1.NBPolicy{}
+								Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "test-b"}, nbPolicy)).To(Succeed())
+								Expect(nbPolicy.Status.ManagedServiceList).To(ContainElement("default/test-resource"))
+							})
+						})
+
+						When("Policy is removed", func() {
+							It("should remove old reference", func() {
+								nbPolicy := &netbirdiov1.NBPolicy{}
+								Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "test-a"}, nbPolicy)).To(Succeed())
+								nbPolicy.Status.ManagedServiceList = []string{"default/test-resource"}
+								Expect(k8sClient.Status().Update(ctx, nbPolicy)).To(Succeed())
+
+								nbresource.Spec.PolicyName = ""
+								Expect(k8sClient.Update(ctx, nbresource)).To(Succeed())
+
+								nbresource.Status.PolicyName = util.Ptr("test-a")
+								Expect(k8sClient.Status().Update(ctx, nbresource)).To(Succeed())
+
+								_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+									NamespacedName: typeNamespacedName,
+								})
+								Expect(err).NotTo(HaveOccurred())
+
+								nbPolicy = &netbirdiov1.NBPolicy{}
+								Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "test-a"}, nbPolicy)).To(Succeed())
+								Expect(nbPolicy.Status.ManagedServiceList).NotTo(ContainElement("default/test-resource"))
+							})
+						})
 					})
 
-					When("Policy is removed", func() {
-						It("should remove old reference", func() {
-							nbPolicy := &netbirdiov1.NBPolicy{}
-							Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "test-a"}, nbPolicy)).To(Succeed())
-							nbPolicy.Status.ManagedServiceList = []string{"default/test-resource"}
-							Expect(k8sClient.Status().Update(ctx, nbPolicy)).To(Succeed())
-
-							nbresource.Spec.PolicyName = ""
-							Expect(k8sClient.Update(ctx, nbresource)).To(Succeed())
-
-							nbresource.Status.PolicyName = util.Ptr("test-a")
-							Expect(k8sClient.Status().Update(ctx, nbresource)).To(Succeed())
-
-							_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
-								NamespacedName: typeNamespacedName,
+					When("Policy doesn't exist", func() {
+						When("Policy auto-creation is enabled", func() {
+							BeforeEach(func() {
+								controllerReconciler.AllowAutomaticPolicyCreation = true
 							})
-							Expect(err).NotTo(HaveOccurred())
+							AfterEach(func() {
+								nbPolicy := &netbirdiov1.NBPolicy{}
+								err := k8sClient.Get(ctx, types.NamespacedName{Name: "test-gen-" + nbresource.Namespace + "-" + nbresource.Name}, nbPolicy)
+								if !errors.IsNotFound(err) {
+									if len(nbPolicy.Finalizers) > 0 {
+										nbPolicy.Finalizers = nil
+										Expect(k8sClient.Update(ctx, nbPolicy)).To(Succeed())
+									}
+									err = k8sClient.Delete(ctx, nbPolicy)
+									if !errors.IsNotFound(err) {
+										Expect(err).NotTo(HaveOccurred())
+									}
+								}
+							})
 
-							nbPolicy = &netbirdiov1.NBPolicy{}
-							Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "test-a"}, nbPolicy)).To(Succeed())
-							Expect(nbPolicy.Status.ManagedServiceList).NotTo(ContainElement("default/test-resource"))
+							It("should create policy", func() {
+								nbresource.Spec.PolicyName = policyGenName
+								nbresource.Spec.PolicySourceGroups = []string{"test"}
+								Expect(k8sClient.Update(ctx, nbresource)).To(Succeed())
+
+								_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+									NamespacedName: typeNamespacedName,
+								})
+								Expect(err).NotTo(HaveOccurred())
+
+								Expect(k8sClient.Get(ctx, typeNamespacedName, nbresource)).To(Succeed())
+								Expect(nbresource.Status.PolicyNameMapping).To(HaveKey(policyGenName))
+
+								nbPolicy := &netbirdiov1.NBPolicy{}
+								Expect(k8sClient.Get(ctx, types.NamespacedName{Name: nbresource.Status.PolicyNameMapping[policyGenName]}, nbPolicy)).To(Succeed())
+								Expect(nbPolicy.Status.ManagedServiceList).To(ContainElement("default/test-resource"))
+							})
+
+							When("Source groups is not defined", func() {
+								It("should return error", func() {
+									nbresource.Spec.PolicyName = policyGenName
+									nbresource.Spec.PolicySourceGroups = nil
+									Expect(k8sClient.Update(ctx, nbresource)).To(Succeed())
+
+									_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+										NamespacedName: typeNamespacedName,
+									})
+									Expect(err).To(HaveOccurred())
+								})
+							})
+
+							When("Friendly name is specified", func() {
+								It("should override policy name", func() {
+									nbresource.Spec.PolicyName = policyGenName
+									nbresource.Spec.PolicySourceGroups = []string{"test"}
+									nbresource.Spec.PolicyFriendlyName = map[string]string{policyGenName: "UnitTest"}
+									Expect(k8sClient.Update(ctx, nbresource)).To(Succeed())
+
+									_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+										NamespacedName: typeNamespacedName,
+									})
+									Expect(err).NotTo(HaveOccurred())
+
+									Expect(k8sClient.Get(ctx, typeNamespacedName, nbresource)).To(Succeed())
+									Expect(nbresource.Status.PolicyNameMapping).To(HaveKey(policyGenName))
+
+									nbPolicy := &netbirdiov1.NBPolicy{}
+									Expect(k8sClient.Get(ctx, types.NamespacedName{Name: nbresource.Status.PolicyNameMapping[policyGenName]}, nbPolicy)).To(Succeed())
+									Expect(nbPolicy.Status.ManagedServiceList).To(ContainElement("default/test-resource"))
+									Expect(nbPolicy.Spec.Name).To(Equal("UnitTest"))
+								})
+							})
+
+							When("Policy already exists", func() {
+								It("should update it", func() {
+									nbPolicy := &netbirdiov1.NBPolicy{
+										ObjectMeta: metav1.ObjectMeta{
+											Name: "test-gen-default-test-resource",
+										},
+										Spec: netbirdiov1.NBPolicySpec{
+											Name:          "Test",
+											Description:   "Test",
+											SourceGroups:  []string{"toast"},
+											Bidirectional: false,
+										},
+									}
+									Expect(k8sClient.Create(ctx, nbPolicy)).To(Succeed())
+
+									nbresource.Spec.PolicyName = policyGenName
+									nbresource.Spec.PolicySourceGroups = []string{"test"}
+									Expect(k8sClient.Update(ctx, nbresource)).To(Succeed())
+
+									_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+										NamespacedName: typeNamespacedName,
+									})
+									Expect(err).NotTo(HaveOccurred())
+
+									Expect(k8sClient.Get(ctx, typeNamespacedName, nbresource)).To(Succeed())
+									Expect(nbresource.Status.PolicyNameMapping).To(HaveKey(policyGenName))
+
+									nbPolicy = &netbirdiov1.NBPolicy{}
+									Expect(k8sClient.Get(ctx, types.NamespacedName{Name: nbresource.Status.PolicyNameMapping[policyGenName]}, nbPolicy)).To(Succeed())
+									Expect(nbPolicy.Status.ManagedServiceList).To(ContainElement("default/test-resource"))
+									Expect(nbPolicy.Spec.Name).To(Equal("Autogenerated policy for resource default/test-resource in cluster kubernetes"))
+									Expect(nbPolicy.Spec.Bidirectional).To(BeTrue())
+								})
+							})
+
+							When("Policy settings are updated", func() {
+								It("should update it", func() {
+									nbresource.Spec.PolicyName = policyGenName
+									nbresource.Spec.PolicySourceGroups = []string{"test"}
+									Expect(k8sClient.Update(ctx, nbresource)).To(Succeed())
+
+									_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+										NamespacedName: typeNamespacedName,
+									})
+									Expect(err).NotTo(HaveOccurred())
+
+									Expect(k8sClient.Get(ctx, typeNamespacedName, nbresource)).To(Succeed())
+									nbresource.Spec.PolicyFriendlyName = map[string]string{policyGenName: "UnitTest"}
+
+									Expect(k8sClient.Update(ctx, nbresource)).To(Succeed())
+
+									_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
+										NamespacedName: typeNamespacedName,
+									})
+									Expect(err).NotTo(HaveOccurred())
+
+									Expect(k8sClient.Get(ctx, typeNamespacedName, nbresource)).To(Succeed())
+									Expect(nbresource.Status.PolicyNameMapping).To(HaveKey(policyGenName))
+
+									nbPolicy := &netbirdiov1.NBPolicy{}
+									Expect(k8sClient.Get(ctx, types.NamespacedName{Name: nbresource.Status.PolicyNameMapping[policyGenName]}, nbPolicy)).To(Succeed())
+									Expect(nbPolicy.Status.ManagedServiceList).To(ContainElement("default/test-resource"))
+									Expect(nbPolicy.Spec.Name).To(Equal("UnitTest"))
+								})
+							})
+
+							When("Policy is changed outside controller", func() {
+								It("should update it", func() {
+									nbresource.Spec.PolicyName = policyGenName
+									nbresource.Spec.PolicySourceGroups = []string{"test"}
+									Expect(k8sClient.Update(ctx, nbresource)).To(Succeed())
+
+									_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+										NamespacedName: typeNamespacedName,
+									})
+									Expect(err).NotTo(HaveOccurred())
+
+									Expect(k8sClient.Get(ctx, typeNamespacedName, nbresource)).To(Succeed())
+									Expect(nbresource.Status.PolicyNameMapping).To(HaveKey(policyGenName))
+
+									nbPolicy := &netbirdiov1.NBPolicy{}
+									Expect(k8sClient.Get(ctx, types.NamespacedName{Name: nbresource.Status.PolicyNameMapping[policyGenName]}, nbPolicy)).To(Succeed())
+									nbPolicy.Spec.Name = "Meow"
+									nbPolicy.Annotations = nil
+									nbPolicy.Spec.Description = "woeM"
+									nbPolicy.Spec.SourceGroups = []string{"est"}
+									Expect(k8sClient.Update(ctx, nbPolicy)).To(Succeed())
+
+									_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
+										NamespacedName: typeNamespacedName,
+									})
+									Expect(err).NotTo(HaveOccurred())
+									Expect(k8sClient.Get(ctx, types.NamespacedName{Name: nbresource.Status.PolicyNameMapping[policyGenName]}, nbPolicy)).To(Succeed())
+									Expect(nbPolicy.Spec.Name).To(Equal("Autogenerated policy for resource default/test-resource in cluster kubernetes"))
+									Expect(nbPolicy.Annotations["netbird.io/generated-by"]).To(Equal("default/test-resource"))
+									Expect(nbPolicy.Spec.Description).To(Equal("Generated by default/test-resource"))
+									Expect(nbPolicy.Spec.SourceGroups).To(BeEquivalentTo([]string{"test"}))
+								})
+							})
+
+							When("Policy is removed", func() {
+								It("should delete NBPolicy", func() {
+									nbresource.Spec.PolicyName = policyGenName
+									nbresource.Spec.PolicySourceGroups = []string{"test"}
+									Expect(k8sClient.Update(ctx, nbresource)).To(Succeed())
+
+									_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+										NamespacedName: typeNamespacedName,
+									})
+									Expect(err).NotTo(HaveOccurred())
+
+									Expect(k8sClient.Get(ctx, typeNamespacedName, nbresource)).To(Succeed())
+									Expect(nbresource.Status.PolicyNameMapping).To(HaveKey(policyGenName))
+
+									nbPolicy := &netbirdiov1.NBPolicy{}
+									Expect(k8sClient.Get(ctx, types.NamespacedName{Name: nbresource.Status.PolicyNameMapping[policyGenName]}, nbPolicy)).To(Succeed())
+									nbresource.Spec.PolicyName = ""
+									Expect(k8sClient.Update(ctx, nbresource)).To(Succeed())
+
+									_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
+										NamespacedName: typeNamespacedName,
+									})
+									Expect(err).NotTo(HaveOccurred())
+									Expect(k8sClient.Get(ctx, types.NamespacedName{Name: nbresource.Status.PolicyNameMapping[policyGenName]}, nbPolicy)).To(Succeed())
+									Expect(nbPolicy.DeletionTimestamp).NotTo(BeNil())
+								})
+							})
 						})
 					})
 				})

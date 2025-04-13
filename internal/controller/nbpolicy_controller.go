@@ -33,6 +33,7 @@ var (
 	errUnknownProtocol = fmt.Errorf("Unknown protocol")
 	errKubernetesAPI   = fmt.Errorf("kubernetes API error")
 	errNetBirdAPI      = fmt.Errorf("netbird API error")
+	errInvalidValue    = fmt.Errorf("invalid value")
 )
 
 const (
@@ -77,16 +78,28 @@ func (r *NBPolicyReconciler) mapResources(ctx context.Context, nbPolicy *netbird
 	}
 
 	for _, resource := range resources {
-		if resource.Status.PolicyName != nil && util.Contains(util.SplitTrim(*resource.Status.PolicyName, ","), nbPolicy.Name) {
-			// Groups
-			groups = append(groups, resource.Status.Groups...)
+		generatedBy := nbPolicy.Annotations["netbird.io/generated-by"]
+		generatedBy = strings.ReplaceAll(generatedBy, "/", "-")
+		if resource.Status.PolicyName == nil {
+			continue
+		}
+		resourcePolicies := util.SplitTrim(*resource.Status.PolicyName, ",")
 
-			for _, p := range resource.Spec.TCPPorts {
-				portMapping[protocolTCP][p] = nil
-			}
-			for _, p := range resource.Spec.UDPPorts {
-				portMapping[protocolUDP][p] = nil
-			}
+		if generatedBy == "" && !util.Contains(resourcePolicies, nbPolicy.Name) {
+			continue
+		}
+
+		if generatedBy != "" && !util.Contains(resourcePolicies, strings.ReplaceAll(nbPolicy.Name, "-"+generatedBy, "")) {
+			continue
+		}
+		// Groups
+		groups = append(groups, resource.Status.Groups...)
+
+		for _, p := range resource.Spec.TCPPorts {
+			portMapping[protocolTCP][p] = nil
+		}
+		for _, p := range resource.Spec.UDPPorts {
+			portMapping[protocolUDP][p] = nil
 		}
 	}
 

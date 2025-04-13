@@ -60,6 +60,9 @@ spec:
           {{- if or .Values.netbirdAPI.key .Values.netbirdAPI.keyFromSecret }}
           - --netbird-api-key=$(NB_API_KEY)
           {{- end }}
+          {{- if .Values.ingress.allowAutomaticPolicyCreation }}
+          - --allow-automatic-policy-creation
+          {{- end }}
           ports:
             - name: webhook-server
               containerPort: {{ .Values.webhook.service.port }}

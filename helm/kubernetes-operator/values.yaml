@@ -135,6 +135,8 @@ ingress:
   enabled: false
   # Create router per namespace, useful for strict networking requirements
   namespacedNetworks: false
+  # Allow creating policies through Service annotations
+  allowAutomaticPolicyCreation: false
   kubernetesAPI:
     enabled: false
     groups: []

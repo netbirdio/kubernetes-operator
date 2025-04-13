@@ -31,12 +31,14 @@ type ServiceReconciler struct {
 
 const (
 	// ServiceExposeAnnotation Service annotation for exposing
-	ServiceExposeAnnotation   = "netbird.io/expose"
-	serviceGroupsAnnotation   = "netbird.io/groups"
-	serviceResourceAnnotation = "netbird.io/resource-name"
-	servicePolicyAnnotation   = "netbird.io/policy"
-	servicePortsAnnotation    = "netbird.io/policy-ports"
-	serviceProtocolAnnotation = "netbird.io/policy-protocol"
+	ServiceExposeAnnotation             = "netbird.io/expose"
+	serviceGroupsAnnotation             = "netbird.io/groups"
+	serviceResourceAnnotation           = "netbird.io/resource-name"
+	servicePolicyAnnotation             = "netbird.io/policy"
+	servicePortsAnnotation              = "netbird.io/policy-ports"
+	serviceProtocolAnnotation           = "netbird.io/policy-protocol"
+	servicePolicySourceGroupsAnnotation = "netbird.io/policy-source-groups"
+	servicePolicyNameAnnotation         = "netbird.io/policy-name"
 )
 
 var (
@@ -239,6 +241,23 @@ func (r *ServiceReconciler) applyPolicy(nbResource *netbirdiov1.NBResource, svc 
 
 			filterPorts = append(filterPorts, int32(port))
 		}
+	}
+
+	if v, ok := svc.Annotations[servicePolicySourceGroupsAnnotation]; ok {
+		nbResource.Spec.PolicySourceGroups = util.SplitTrim(v, ",")
+	} else {
+		nbResource.Spec.PolicySourceGroups = nil
+	}
+
+	policyFriendlyNameList := util.SplitTrim(svc.Annotations[servicePolicyNameAnnotation], ",")
+	nbResource.Spec.PolicyFriendlyName = make(map[string]string)
+	for _, v := range policyFriendlyNameList {
+		friendlyNameMap := util.SplitTrim(v, ":")
+		if len(friendlyNameMap) != 2 {
+			logger.Info("Invalid number of : found in annotation", "annotation", servicePolicyNameAnnotation, "value", v)
+			continue
+		}
+		nbResource.Spec.PolicyFriendlyName[friendlyNameMap[0]] = friendlyNameMap[1]
 	}
 
 	for _, p := range svc.Spec.Ports {

@@ -67,12 +67,13 @@ func init() {
 func main() {
 	// NB Specific flags
 	var (
-		managementURL      string
-		clientImage        string
-		clusterName        string
-		namespacedNetworks bool
-		clusterDNS         string
-		netbirdAPIKey      string
+		managementURL                string
+		clientImage                  string
+		clusterName                  string
+		namespacedNetworks           bool
+		clusterDNS                   string
+		netbirdAPIKey                string
+		allowAutomaticPolicyCreation bool
 	)
 	flag.StringVar(&managementURL, "netbird-management-url", "https://api.netbird.io", "Management service URL")
 	flag.StringVar(&clientImage, "netbird-client-image", "netbirdio/netbird:latest", "Image for netbird client container")
@@ -90,6 +91,12 @@ func main() {
 	)
 	flag.StringVar(&clusterDNS, "cluster-dns", "svc.cluster.local", "Cluster DNS name")
 	flag.StringVar(&netbirdAPIKey, "netbird-api-key", "", "API key for NetBird API operations")
+	flag.BoolVar(
+		&allowAutomaticPolicyCreation,
+		"allow-automatic-policy-creation",
+		false,
+		"Allow creating NBPolicy resources from annotations on Services",
+	)
 
 	// Controller generic flags
 	var (
@@ -233,10 +240,12 @@ func main() {
 		}
 
 		if err = (&controller.NBResourceReconciler{
-			Client:        mgr.GetClient(),
-			Scheme:        mgr.GetScheme(),
-			APIKey:        netbirdAPIKey,
-			ManagementURL: managementURL,
+			Client:                       mgr.GetClient(),
+			Scheme:                       mgr.GetScheme(),
+			APIKey:                       netbirdAPIKey,
+			ManagementURL:                managementURL,
+			AllowAutomaticPolicyCreation: allowAutomaticPolicyCreation,
+			ClusterName:                  clusterName,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "NBResource")
 			os.Exit(1)

@@ -107,6 +107,8 @@ clusters:
 |`netbird.io/policy`| Name(s) of NBPolicy to propagate service ports as destination. ||Comma-separated list of names of any NBPolicy resource|
 |`netbird.io/policy-ports`| Narrow down exposed ports in a policy. Leave empty for all ports. ||Comma-separated integer list, integers must be between 0-65535|
 |`netbird.io/policy-protocol`| Narrow down protocol for use in a policy. Leave empty for all protocols. ||(`tcp`,`udp`)|
+|`netbird.io/policy-source-groups`| Specify source groups for auto-generated policies. Required for auto-generating policies||Any comma-separated list of strings.|
+|`netbird.io/policy-name`| Specify human-friendly names for auto-generated policies. ||comma-separated list of `policy:friendly-name`, where policy is the name of the kubernetes object.|
 
 Example service:
 ```yaml
@@ -159,6 +161,10 @@ spec:
 
 ### Managing Policies
 
+Policies can be either created through the Helm chart or they can be auto-generated from Service annotation definitions.
+
+#### Helm
+
 Simply add policies under `ingress.policies`, for example:
 1. Add the following configuration in your `values.yaml` file.
 ```yaml
@@ -180,7 +186,14 @@ ingress:
 3. (Optional) Limit specific ports in exposed service by adding `netbird.io/policy-ports=443`.
 4. (Optional) Limit specific protocol in exposed service by adding `netbird.io/policy-protocol=tcp`.
 
-#### Notes
+#### Auto-Generated Policies
+
+1. Ensure `ingress.allowAutomaticPolicyCreation` is set to true in the Helm chart and apply.
+2. Annotate a service with `netbird.io/policy` with the name of the policy as a kubernetes object, for example `netbird.io/policy: default`. This will create an NBPolicy with the name `default-<Service Namespace>-<Service Name>`.
+3. Annotate the same service with `netbird.io/policy-source-groups` with a comma-separated list of group names to allow as a source, for example `netbird.io/policy-source-groups: dev`.
+4. (Optional) Annotate the service with `netbird.io/policy-name` for a human-friendly name, for example `netbird.io/policy-name: "default:Default policy for kubernetes cluster"`.
+
+#### Notes on Policies
 * Each NBPolicy will only create policies in the NetBird console when the information provided is enough to create one. If no services act as a destination or specified services do not conform to the protocol(s) defined, the policy will not be created.
 * Each NBPolicy will create one policy in the NetBird console per protocol specified as long as the protocol has destinations; this ensures better-secured policies by separating ports for TCP and UDP.
 * Policies currently do not support ICMP protocol, as ICMP is not supported in Kubernetes services, and there are [no current plans to support it](https://discuss.kubernetes.io/t/icmp-support-for-kubernetes-service/21738).

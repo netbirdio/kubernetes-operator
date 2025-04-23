@@ -17,11 +17,15 @@ limitations under the License.
 package e2e
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strings"
 	"time"
 
+	netbird "github.com/netbirdio/netbird/management/client/rest"
+	"github.com/netbirdio/netbird/management/server/http/api"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -36,6 +40,7 @@ const metricsServiceName = "kubernetes-operator-metrics"
 
 var _ = Describe("Manager", Ordered, func() {
 	var controllerPodName string
+	var netbirdClient *netbird.Client
 
 	// Before running the tests, set up the environment by creating the namespace,
 	// enforce the restricted security policy to the namespace, installing CRDs,
@@ -53,12 +58,37 @@ var _ = Describe("Manager", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred(), "Failed to label namespace with restricted policy")
 
 		By("deploying the kubernetes-operator")
-		cmd = exec.Command("make", "deploy", fmt.Sprintf("IMG=%s", projectImage))
-		out, err := utils.Run(cmd)
+		out, err := utils.Run(exec.Command("kubectl", "get", "node", "-o", "json"))
+		Expect(err).NotTo(HaveOccurred(), "Failed to get nodes")
+		nodesGetOutput := make(map[string]any)
+		err = json.Unmarshal([]byte(out), &nodesGetOutput)
+		Expect(err).NotTo(HaveOccurred(), "Failed to get nodes")
+		nodeIPs := (nodesGetOutput["items"].([]any))[0].(map[string]any)["status"].(map[string]any)["addresses"].([]any)
+		managementIP := ""
+		for _, v := range nodeIPs {
+			addrType := v.(map[string]any)["type"]
+			if addrType == "InternalIP" {
+				managementIP = v.(map[string]any)["address"].(string)
+				break
+			}
+		}
+
+		Expect(managementIP).NotTo(BeEmpty())
+		managementIPParts := strings.Split(managementIP, ".")
+		managementIP = fmt.Sprintf("http://%s.%s.0.1:8080", managementIPParts[0], managementIPParts[1])
+		cmd = exec.Command(
+			"make",
+			"deploy-e2e",
+			fmt.Sprintf("IMG=%s", projectImage),
+			fmt.Sprintf("MGMT_HOST=%s", managementIP),
+		)
+		out, err = utils.Run(cmd)
 		if err != nil {
 			fmt.Println(out)
 		}
 		Expect(err).NotTo(HaveOccurred(), "Failed to deploy the kubernetes-operator")
+
+		netbirdClient = netbird.New("http://127.0.0.1:8080", apiToken)
 	})
 
 	// After all tests have been executed, clean up by undeploying the controller, uninstalling CRDs,
@@ -69,7 +99,7 @@ var _ = Describe("Manager", Ordered, func() {
 		_, _ = utils.Run(cmd)
 
 		By("undeploying the kubernetes-operator")
-		cmd = exec.Command("make", "undeploy")
+		cmd = exec.Command("make", "undeploy-e2e")
 		_, _ = utils.Run(cmd)
 
 		By("removing manager namespace")
@@ -449,6 +479,181 @@ var _ = Describe("Manager", Ordered, func() {
 			})
 		})
 
+		Context("Ingress", Ordered, func() {
+			BeforeAll(func() {
+				_, err := utils.Run(exec.Command("kubectl", "create", "deployment", "--image=nginx", "exposable"))
+				Expect(err).NotTo(HaveOccurred())
+				_, err = utils.Run(exec.Command("kubectl", "expose", "deployment", "--port=80", "exposable"))
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			AfterAll(func() {
+				_, err := utils.Run(exec.Command("kubectl", "delete", "deployment", "--ignore-not-found", "exposable"))
+				Expect(err).NotTo(HaveOccurred())
+				_, err = utils.Run(exec.Command("kubectl", "delete", "service", "--ignore-not-found", "exposable"))
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			It("should create Network", func() {
+				Eventually(func(g Gomega) {
+					networks, err := netbirdClient.Networks.List(context.Background())
+					g.Expect(err).NotTo(HaveOccurred())
+					g.Expect(networks).To(HaveLen(1))
+				}).Should(Succeed())
+			})
+
+			networkID := func() string {
+				defer GinkgoHelper()
+				networks, err := netbirdClient.Networks.List(context.Background())
+				Expect(err).NotTo(HaveOccurred())
+				Expect(networks).To(HaveLen(1))
+				return networks[0].Id
+			}
+
+			It("should create NetworkRouter", func() {
+				Eventually(func(g Gomega) {
+					routers, err := netbirdClient.Networks.Routers(networkID()).List(context.Background())
+					g.Expect(err).NotTo(HaveOccurred())
+					g.Expect(routers).To(HaveLen(1))
+				}).Should(Succeed())
+			})
+
+			It("should create router deployment", func() {
+				Eventually(func(g Gomega) {
+					_, err := utils.Run(exec.Command("kubectl", "get", "deployment", "router", "-n", "netbird"))
+					Expect(err).NotTo(HaveOccurred())
+				}).Should(Succeed())
+			})
+
+			groupsToNames := func(i []api.Group) []string {
+				ret := make([]string, len(i))
+				for j, k := range i {
+					ret[j] = k.Name
+				}
+				return ret
+			}
+
+			It("should create router group", func() {
+				Eventually(func(g Gomega) {
+					groups, err := netbirdClient.Groups.List(context.Background())
+					g.Expect(err).NotTo(HaveOccurred())
+					g.Expect(groups).To(WithTransform(groupsToNames, ContainElement("kubernetes")))
+				}).Should(Succeed())
+			})
+
+			It("should not expose service by default", func() {
+				_, err := utils.Run(exec.Command("kubectl", "get", "NBResource", "exposable"))
+				Expect(err).To(HaveOccurred())
+			})
+
+			When("Service is annotated with expose", Ordered, func() {
+				BeforeAll(func() {
+					_, err := utils.Run(exec.Command("kubectl", "annotate", "service", "exposable", "netbird.io/expose=true"))
+					Expect(err).NotTo(HaveOccurred())
+				})
+
+				It("should create NBResource", func() {
+					Eventually(func(g Gomega) {
+						_, err := utils.Run(exec.Command("kubectl", "get", "NBResource", "exposable"))
+						g.Expect(err).NotTo(HaveOccurred())
+					}).Should(Succeed())
+				})
+
+				It("should create Network Resource", func() {
+					Eventually(func(g Gomega) {
+						resources, err := netbirdClient.Networks.Resources(networkID()).List(context.Background())
+						Expect(err).NotTo(HaveOccurred())
+						resourcesToNames := func(r []api.NetworkResource) []string {
+							ret := make([]string, len(r))
+							for i, j := range r {
+								ret[i] = j.Name
+							}
+							return ret
+						}
+						Expect(resources).To(WithTransform(resourcesToNames, ContainElement("default-exposable")))
+					}).Should(Succeed())
+				})
+
+				It("should create Group", func() {
+					Eventually(func(g Gomega) {
+						groups, err := netbirdClient.Groups.List(context.Background())
+						Expect(err).NotTo(HaveOccurred())
+						Expect(groups).To(WithTransform(groupsToNames, ContainElement("kubernetes-default-exposable")))
+					}).Should(Succeed())
+				})
+			})
+
+			When("Service is annotated with policy", Ordered, func() {
+				BeforeAll(func() {
+					_, err := utils.Run(exec.Command("kubectl", "annotate", "service", "exposable", "netbird.io/policy=default"))
+					Expect(err).NotTo(HaveOccurred())
+				})
+
+				It("should add service to policy status", func() {
+					Eventually(func(g Gomega) {
+						out, err := utils.Run(exec.Command(
+							"kubectl", "get", "NBPolicy", "default", "-o", "jsonpath={.status.managedServiceList}",
+						))
+						g.Expect(err).NotTo(HaveOccurred())
+						g.Expect(out).To(ContainSubstring("default/exposable"))
+					}).Should(Succeed())
+				})
+
+				It("should create policy on NetBird", func() {
+					Eventually(func(g Gomega) {
+						out, err := utils.Run(exec.Command(
+							"kubectl", "get", "NBPolicy", "default", "-o", "jsonpath={.status.tcpPolicyID}",
+						))
+						g.Expect(err).NotTo(HaveOccurred())
+						g.Expect(out).NotTo(BeEmpty())
+					}).Should(Succeed())
+
+					Eventually(func(g Gomega) {
+						policies, err := netbirdClient.Policies.List(context.Background())
+						g.Expect(err).NotTo(HaveOccurred())
+						g.Expect(policies).To(HaveLen(1))
+						g.Expect(policies[0].Name).To(ContainSubstring("Kubernetes Default Group"))
+					}).Should(Succeed())
+				})
+			})
+
+			When("Service is annotated with a non-existent policy", Ordered, func() {
+				BeforeAll(func() {
+					_, err := utils.Run(exec.Command(
+						"kubectl", "annotate", "service", "exposable", "--overwrite",
+						"netbird.io/policy=custom", "netbird.io/policy-source-groups=All", "netbird.io/policy-name=custom:E2E",
+					))
+					Expect(err).NotTo(HaveOccurred())
+				})
+
+				It("should create NBPolicy", func() {
+					Eventually(func(g Gomega) {
+						out, err := utils.Run(exec.Command(
+							"kubectl", "get", "NBPolicy", "custom-default-exposable", "-o", "jsonpath={.status.managedServiceList}",
+						))
+						g.Expect(err).NotTo(HaveOccurred())
+						g.Expect(out).To(ContainSubstring("default/exposable"))
+					}).Should(Succeed())
+				})
+
+				It("should create policy on NetBird", func() {
+					Eventually(func(g Gomega) {
+						out, err := utils.Run(exec.Command(
+							"kubectl", "get", "NBPolicy", "custom-default-exposable", "-o", "jsonpath={.status.tcpPolicyID}",
+						))
+						g.Expect(err).NotTo(HaveOccurred())
+						g.Expect(out).NotTo(BeEmpty())
+					}).Should(Succeed())
+
+					Eventually(func(g Gomega) {
+						policies, err := netbirdClient.Policies.List(context.Background())
+						g.Expect(err).NotTo(HaveOccurred())
+						g.Expect(policies).To(HaveLen(1))
+						g.Expect(policies[0].Name).To(ContainSubstring("E2E"))
+					}).Should(Succeed())
+				})
+			})
+		})
 	})
 })
 

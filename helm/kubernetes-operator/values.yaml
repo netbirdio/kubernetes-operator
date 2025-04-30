@@ -17,7 +17,8 @@ webhook:
   enableCertManager: true
 
   # Narrow down validation and mutation webhooks namespaces
-  namespaceSelectors: []
+  namespaceSelectors:
+    []
     # - key: foo
     #   operator: In
     #   values:
@@ -25,7 +26,8 @@ webhook:
 
   # Narrow down validation and mutation webhooks objects
   objectSelector:
-    matchExpressions: []
+    matchExpressions:
+      []
       # - key: app.kubernetes.io/name
       #   operator: NotIn
       #   values:
@@ -70,7 +72,7 @@ operator:
     name: ""
 
   # This is for setting Kubernetes Annotations to a Pod.
-  # For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/ 
+  # For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
   podAnnotations: {}
   # This is for setting Kubernetes Labels to a Pod.
   # For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
@@ -80,13 +82,12 @@ operator:
     allowPrivilegeEscalation: false
     capabilities:
       drop:
-      - ALL
+        - ALL
 
   podSecurityContext:
     runAsNonRoot: true
     seccompProfile:
       type: RuntimeDefault
-
 
   # This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
   service:
@@ -95,7 +96,8 @@ operator:
     # This sets the ports more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#field-spec-ports
     port: 9443
 
-  resources: {}
+  resources:
+    {}
     # limits:
     #   cpu: 100m
     #   memory: 128Mi
@@ -160,22 +162,24 @@ ingress:
     # nodeSelector: {}
     # tolerations: []
     # Only needed if namespacedNetworks is set to true
-    namespaces: {}
+    namespaces:
+      {}
       # default:
-        # replicas: 3
-        # resources:
-        #   requests:
-        #     cpu: 100m
-        #     memory: 100Mi
-        #   limits:
-        #     cpu: 100m
-        #     memory: 100Mi
-        # labels: {}
-        # annotations: {}
-        # nodeSelector: {}
-        # tolerations: []
+      # replicas: 3
+      # resources:
+      #   requests:
+      #     cpu: 100m
+      #     memory: 100Mi
+      #   limits:
+      #     cpu: 100m
+      #     memory: 100Mi
+      # labels: {}
+      # annotations: {}
+      # nodeSelector: {}
+      # tolerations: []
   # NetBird Policies for use with exposed services
-  policies: {}
+  policies:
+    {}
     # default:
     #   name: Kubernetes Default Policy
     #   sourceGroups:
@@ -187,7 +191,9 @@ cluster:
   # Cluster name (used for generating network and network resource names in NetBird)
   name: kubernetes
 
-netbirdAPI: {}
+netbirdAPI:
+  {}
   # NetBird Service Account Token
   # key: "nbp_m0LM9ZZvDUzFO0pY50iChDOTxJgKFM3DIqmZ"
-  # keyFromSecret: "Secret name with NB_API_KEY=Service Account Token"
+  # keyFromSecretName: "Secret name"
+  # keyFromSecretKey: "NB_API_KEY"

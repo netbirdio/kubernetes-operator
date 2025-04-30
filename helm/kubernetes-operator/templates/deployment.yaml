@@ -78,13 +78,16 @@ spec:
             successThreshold: {{ .Values.operator.livenessProbe.successThreshold }}
             timeoutSeconds: {{ .Values.operator.livenessProbe.timeoutSeconds }}
           {{- if or .Values.netbirdAPI.key .Values.netbirdAPI.keyFromSecret }}
-          envFrom:
-            - secretRef:
-                {{- if .Values.netbirdAPI.keyFromSecret }}
-                name: {{.Values.netbirdAPI.keyFromSecret}}
-                {{- else }}
-                name: {{ include "kubernetes-operator.fullname" . }}
-                {{- end }}
+          env:
+            - name: NB_API_KEY
+                valueFrom:
+                  {{- if .Values.netbirdAPI.keyFromSecret }}
+                  name: {{.Values.netbirdAPI.keyFromSecretName}}
+                  key: {{.Values.netbirdAPI.keyFromSecretKey}}
+                  {{- else }}
+                  name: {{ include "kubernetes-operator.fullname" . }}
+                  key: NB_API_KEY
+                  {{- end }}
           {{- end }}
           readinessProbe:
             failureThreshold: 3

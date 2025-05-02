@@ -190,5 +190,6 @@ cluster:
 netbirdAPI: {}
   # NetBird Service Account Token
   # key: "nbp_m0LM9ZZvDUzFO0pY50iChDOTxJgKFM3DIqmZ"
-  # keyFromSecretName: "Secret name"
-  # keyFromSecretKey: "NB_API_KEY"
+  #keyFromSecret:
+  #  name: "Secret name"
+  #  key: "NB_API_KEY"

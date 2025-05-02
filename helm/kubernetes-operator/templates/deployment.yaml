@@ -80,10 +80,11 @@ spec:
           {{- if or .Values.netbirdAPI.key .Values.netbirdAPI.keyFromSecret }}
           env:
             - name: NB_API_KEY
-                valueFrom:
+              valueFrom:
+                secretKeyRef:
                   {{- if .Values.netbirdAPI.keyFromSecret }}
-                  name: {{.Values.netbirdAPI.keyFromSecretName}}
-                  key: {{.Values.netbirdAPI.keyFromSecretKey}}
+                  name: {{ .Values.netbirdAPI.keyFromSecret.name }}
+                  key: {{ .Values.netbirdAPI.keyFromSecret.key }}
                   {{- else }}
                   name: {{ include "kubernetes-operator.fullname" . }}
                   key: NB_API_KEY

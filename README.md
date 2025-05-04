@@ -24,7 +24,7 @@ This operator easily provides NetBird access on Kubernetes clusters, allowing us
 
 1. Add helm repository.
 ```sh
-helm repo add netbirdio https://netbirdio.github.io/kubernetes-operator
+helm repo add netbirdio https://netbirdio.github.io/helms
 ```
 2. (Recommended) Install [cert-manager](https://cert-manager.io/docs/installation/#default-static-install) for k8s API to communicate with the NetBird operator.
 ```sh
@@ -36,7 +36,7 @@ kubectl create namespace netbird
 kubectl -n netbird create secret generic netbird-mgmt-api-key --from-literal=NB_API_KEY=$(cat ~/nb-pat.secret)
 ```
 4. (Recommended) Create a [`values.yaml`](examples/ingress/values.yaml) file, check `helm show values netbirdio/kubernetes-operator` for more info.
-5. Install using `helm install --create-namespace -f values.yaml -n netbird netbird-operator netbirdio/kubernetes-operator`.
+5. Install using `helm install --create-namespace -f values.yaml -n netbird kubernetes-operator netbirdio/kubernetes-operator`.
 6. (Recommended) Check pod status using `kubectl get pods -n netbird`.
 6. (Optional) Create an [`exposed-nginx.yaml`](examples/ingress/exposed-nginx.yaml) file to create a Nginx service for testing.
 7. (Optional) Apply the Nginx service:
@@ -45,16 +45,6 @@ kubectl apply -f exposed-nginx.yaml
 ```
 
 > Learn more about the values.yaml options [here](helm/kubernetes-operator/values.yaml) and  [Granting controller access to NetBird Management](docs/usage.md#granting-controller-access-to-netbird-management).
-#### Using install.yaml
-
-> [!IMPORTANT]
-> install.yaml only includes a very basic template for deploying a stripped-down version of Kubernetes-operator.
-> This excludes any and all configurations for ingress capabilities and requires the cert-manager to be installed.
-
-```sh
-kubectl create namespace netbird
-kubectl apply -n netbird -f https://raw.githubusercontent.com/netbirdio/kubernetes-operator/refs/heads/main/manifests/install.yaml
-```
 
 ### Version
 We have developed and executed tests against Kubernetes v1.31, but it should work with most recent Kubernetes version.

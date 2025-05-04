@@ -1,0 +1,15 @@
+netbirdAPI:
+  key: "nbp_apTmlmUXHSC4PKmHwtIZNaGr8eqcVI2gMURp"
+
+ingress:
+  enabled: true
+  allowAutomaticPolicyCreation: true
+  kubernetesAPI:
+    enabled: false
+  router:
+    enabled: true
+  policies:
+    default:
+      name: Kubernetes Default Group
+      sourceGroups:
+      - All

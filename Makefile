@@ -43,7 +43,7 @@ help: ## Display this help.
 
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) crd paths="./..." output:crd:artifacts:config=helm/kubernetes-operator/crds
+	$(CONTROLLER_GEN) crd paths="./..." output:crd:artifacts:config=crds
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -123,32 +123,36 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 	- $(CONTAINER_TOOL) buildx rm operator-builder
 	rm Dockerfile.cross
 
-.PHONY: build-installer
-build-installer: manifests ## Generate a consolidated YAML with CRDs and deployment.
-	mkdir -p manifests
-	$(HELM) template --include-crds kubernetes-operator helm/kubernetes-operator > manifests/install.yaml
-
 ##@ Deployment
 
 ifndef ignore-not-found
   ignore-not-found = false
 endif
 
-.PHONY: install
-install: manifests ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	$(KUBECTL) apply -f helm/kubernetes-operator/crds
-
-.PHONY: uninstall
-uninstall: manifests ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUBECTL) delete -f helm/kubernetes-operator/crds
-
 .PHONY: deploy
 deploy: manifests ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	$(HELM) install -n netbird --create-namespace kubernetes-operator --set operator.image.tag=$(word 2,$(subst :, ,${IMG})) helm/kubernetes-operator
+	$(HELM) install -n netbird --create-namespace kubernetes-operator --set operator.image.tag=$(word 2,$(subst :, ,${IMG})) --repo https://netbirdio.github.io/helms kubernetes-operator
+
+.PHONY: deploy-e2e
+deploy-e2e: manifests ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	$(HELM) install -n netbird --create-namespace kubernetes-operator -f ./test/utils/values.yaml --set operator.image.tag=$(word 2,$(subst :, ,${IMG})) --set managementURL=${MGMT_HOST} --repo https://netbirdio.github.io/helms kubernetes-operator
 
 .PHONY: undeploy
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(HELM) uninstall -n netbird kubernetes-operator
+	$(HELM) uninstall -n netbird kubernetes-operator --no-hooks
+
+.PHONY: undeploy-e2e
+undeploy-e2e: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+	$(HELM) uninstall -n netbird kubernetes-operator --no-hooks || true
+	kubectl get NBResource -n default -o "custom-columns=NAME:.metadata.name" --no-headers | xargs -r -n 1 kubectl patch NBResource -n default -p '{"metadata":{"finalizers":null}}' --type=merge
+	kubectl get NBGroup -n default -o "custom-columns=NAME:.metadata.name" --no-headers | xargs -r -n 1 kubectl patch NBGroup -n default -p '{"metadata":{"finalizers":null}}' --type=merge
+	kubectl get NBGroup -n netbird -o "custom-columns=NAME:.metadata.name" --no-headers | xargs -r -n 1 kubectl patch NBGroup -n netbird -p '{"metadata":{"finalizers":null}}' --type=merge
+	kubectl get NBRoutingPeer -n netbird -o "custom-columns=NAME:.metadata.name" --no-headers | xargs -r -n 1 kubectl patch NBRoutingPeer -n netbird -p '{"metadata":{"finalizers":null}}' --type=merge
+	kubectl get NBPolicy -o "custom-columns=NAME:.metadata.name" --no-headers | xargs -r -n 1 kubectl patch NBPolicy -p '{"metadata":{"finalizers":null}}' --type=merge
+	kubectl delete NBGroup -A --all
+	kubectl delete NBResource -A --all
+	kubectl delete NBRoutingPeer -A --all
+	kubectl delete NBPolicy --all
 
 ##@ Dependencies
 

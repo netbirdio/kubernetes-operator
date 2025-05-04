@@ -17,16 +17,21 @@ limitations under the License.
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"testing"
 
+	netbird "github.com/netbirdio/netbird/management/client/rest"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/netbirdio/kubernetes-operator/test/utils"
 )
+
+const apiToken = "nbp_apTmlmUXHSC4PKmHwtIZNaGr8eqcVI2gMURp"
 
 var (
 	// Optional Environment Variables:
@@ -72,6 +77,20 @@ var _ = BeforeSuite(func() {
 			_, _ = fmt.Fprintf(GinkgoWriter, "WARNING: CertManager is already installed. Skipping installation...\n")
 		}
 	}
+
+	By("starting up the test management")
+	cmd = exec.Command("docker", "compose", "up", "-d")
+	curDir, err := utils.GetProjectDir()
+	Expect(err).NotTo(HaveOccurred())
+	cmd.Dir = path.Join(curDir, "test", "utils", "management")
+	out, err := cmd.CombinedOutput()
+	Expect(err).NotTo(HaveOccurred(), string(out))
+
+	Eventually(func() error {
+		client := netbird.New("http://127.0.0.1:8080", apiToken)
+		_, err = client.Accounts.List(context.Background())
+		return err
+	}).Should(Succeed())
 })
 
 var _ = AfterSuite(func() {
@@ -80,4 +99,11 @@ var _ = AfterSuite(func() {
 		_, _ = fmt.Fprintf(GinkgoWriter, "Uninstalling CertManager...\n")
 		utils.UninstallCertManager()
 	}
+
+	cmd := exec.Command("docker", "compose", "down")
+	curDir, err := utils.GetProjectDir()
+	Expect(err).NotTo(HaveOccurred())
+	cmd.Dir = path.Join(curDir, "test", "utils", "management")
+	out, err := cmd.CombinedOutput()
+	Expect(err).NotTo(HaveOccurred(), string(out))
 })

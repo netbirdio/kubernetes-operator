@@ -62,7 +62,7 @@ With this setup, all peers with the same extra label would be used in a DNS roun
     1. Set `netbirdAPI.keyFromSecret` to the name of the secret created.
 1. Set `ingress.enabled` to `true`.
     1. Optionally, to provision the network immediately, set `ingress.router.enabled` to `true`.
-    1. Optionally, to provision 1 network per > The NetBird Kubernetes operator generates configurations using NetBird API; editing or deleting these configurations in the NetBird console may cause temporary network disconnection until the operator reconciles the configuration. namespace, set `ingress.namespacedNetworks` to `true`.
+    1. Optionally, to provision 1 network per namespace, set `ingress.namespacedNetworks` to `true`.
 1. Run `helm install` or `helm upgrade`.
 
 Minimum values.yaml example:

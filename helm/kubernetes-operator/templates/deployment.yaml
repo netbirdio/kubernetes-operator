@@ -48,6 +48,9 @@ spec:
           {{- if .Values.managementURL }}
           - --netbird-management-url={{.Values.managementURL}}
           {{- end }}
+          {{- if .Values.clientImage }}
+          - --netbird-client-image={{.Values.clientImage}}
+          {{- end }}
           {{- if .Values.cluster.name }}
           - --cluster-name={{.Values.cluster.name}}
           {{- end }}

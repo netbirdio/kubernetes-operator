@@ -1,0 +1,67 @@
+{
+  "Stuns": [
+  ],
+  "TURNConfig": {
+    "TimeBasedCredentials": true,
+    "CredentialsTTL": "12h0m0s",
+    "Secret": "",
+    "Turns": [
+    ]
+  },
+  "Signal": {
+    "Proto": "http",
+    "URI": "192.168.1.12:80",
+    "Username": "",
+    "Password": ""
+  },
+  "Datadir": "/var/lib/netbird",
+  "DataStoreEncryptionKey": "0DStg6EdSwXQDOnr7uZHNBfJmzDsoqmR",
+  "HttpConfig": {
+    "AuthIssuer": "http://192.168.1.11:8080",
+    "AuthAudience": "mock-audience",
+    "AuthUserIDClaim": "sub",
+    "AuthKeysLocation": "http://192.168.1.11:8080/.well-known/jwks.json",
+    "IdpSignKeyRefreshEnabled": false
+  },
+  "IdpManagerConfig": {
+    "ManagerType": "",
+    "ClientConfig": {
+      "Issuer": "",
+      "TokenEndpoint": "",
+      "ClientID": "",
+      "ClientSecret": "",
+      "GrantType": ""
+    },
+    "ExtraConfig": {
+      "Audience": ""
+    },
+    "Auth0ClientCredentials": null,
+    "AzureClientCredentials": null,
+    "KeycloakClientCredentials": null,
+    "ZitadelClientCredentials": null
+  },
+  "DeviceAuthorizationFlow": {
+    "Provider": "",
+    "ProviderConfig": {
+      "ClientID": "",
+      "ClientSecret": "",
+      "Domain": "",
+      "Audience": "",
+      "TokenEndpoint": "",
+      "DeviceAuthEndpoint": "",
+      "AuthorizationEndpoint": "",
+      "Scope": "",
+      "UseIDToken": false,
+      "RedirectURLs": null
+    }
+  },
+  "PKCEAuthorizationFlow": null,
+  "StoreConfig": {
+    "Engine": ""
+  },
+  "ReverseProxy": {
+    "TrustedHTTPProxies": null,
+    "TrustedHTTPProxiesCount": 0,
+    "TrustedPeers": null
+  }
+}

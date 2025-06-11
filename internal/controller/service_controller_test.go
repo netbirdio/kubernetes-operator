@@ -23,7 +23,7 @@ var _ = Describe("Service Controller", func() {
 		var service *corev1.Service
 
 		var controllerReconciler *ServiceReconciler
-		routerName := "router-" + controllerReconciler.ClusterName
+		routerName := "router-kubernetes"
 		BeforeEach(func() {
 			service = &corev1.Service{
 				ObjectMeta: v1.ObjectMeta{

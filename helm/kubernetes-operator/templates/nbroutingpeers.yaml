@@ -10,7 +10,7 @@ metadata:
   labels:
     app.kubernetes.io/component: operator
     {{- include "kubernetes-operator.labels" $ | nindent 4 }}
-  name: router
+   name: router-{{ .Values.cluster.name }}
   namespace: {{ $k }}
 {{ $spec := merge $defaults $v }}
 {{- if or (or (or $spec.replicas $spec.resources) (or $spec.labels $spec.annotations)) (or $spec.nodeSelector $spec.tolerations) }}
@@ -46,7 +46,7 @@ metadata:
   labels:
     app.kubernetes.io/component: operator
     {{- include "kubernetes-operator.labels" $ | nindent 4 }}
-  name: router
+   name: router-{{ .Values.cluster.name }}
 {{- if or (or (or .replicas .resources) (or .labels .annotations)) (or .nodeSelector .tolerations) }}
 spec:
   {{- if .replicas }}

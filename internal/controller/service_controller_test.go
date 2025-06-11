@@ -23,7 +23,7 @@ var _ = Describe("Service Controller", func() {
 		var service *corev1.Service
 
 		var controllerReconciler *ServiceReconciler
-
+		routerName := "router-" + controllerReconciler.ClusterName
 		BeforeEach(func() {
 			service = &corev1.Service{
 				ObjectMeta: v1.ObjectMeta{
@@ -86,7 +86,7 @@ var _ = Describe("Service Controller", func() {
 			}
 
 			nbrp := &netbirdiov1.NBRoutingPeer{}
-			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "router"}, nbrp)
+			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: routerName}, nbrp)
 			if !errors.IsNotFound(err) {
 				if len(nbrp.Finalizers) > 0 {
 					nbrp.Finalizers = nil
@@ -143,7 +143,7 @@ var _ = Describe("Service Controller", func() {
 					Expect(err).NotTo(HaveOccurred())
 					Expect(res.RequeueAfter).NotTo(BeZero())
 					nbrp := &netbirdiov1.NBRoutingPeer{}
-					Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: typeNamespacedName.Namespace, Name: "router"}, nbrp)).To(Succeed())
+					Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: typeNamespacedName.Namespace, Name: routerName}, nbrp)).To(Succeed())
 					res, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
 						NamespacedName: typeNamespacedName,
 					})
@@ -163,7 +163,7 @@ var _ = Describe("Service Controller", func() {
 					nbrp := &netbirdiov1.NBRoutingPeer{
 						ObjectMeta: v1.ObjectMeta{
 							Namespace: typeNamespacedName.Namespace,
-							Name:      "router",
+							Name:      routerName,
 						},
 						Spec: netbirdiov1.NBRoutingPeerSpec{},
 					}
@@ -310,7 +310,7 @@ var _ = Describe("Service Controller", func() {
 				nbrp := &netbirdiov1.NBRoutingPeer{
 					ObjectMeta: v1.ObjectMeta{
 						Namespace: typeNamespacedName.Namespace,
-						Name:      "router",
+						Name:      routerName,
 					},
 					Spec: netbirdiov1.NBRoutingPeerSpec{},
 				}

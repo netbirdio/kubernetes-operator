@@ -125,7 +125,8 @@ func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request,
 
 	var routingPeer netbirdiov1.NBRoutingPeer
 	// Check if NBRoutingPeer exists
-	err := r.Client.Get(ctx, types.NamespacedName{Namespace: routerNamespace, Name: "router"}, &routingPeer)
+	routerName := fmt.Sprintf("router-%s", r.ClusterName)
+	err := r.Client.Get(ctx, types.NamespacedName{Namespace: routerNamespace, Name: routerName}, &routingPeer)
 	if err != nil && !errors.IsNotFound(err) {
 		logger.Error(errKubernetesAPI, "error getting NBRoutingPeer", "err", err)
 		return ctrl.Result{}, err
@@ -135,7 +136,7 @@ func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request,
 	if errors.IsNotFound(err) {
 		routingPeer = netbirdiov1.NBRoutingPeer{
 			ObjectMeta: v1.ObjectMeta{
-				Name:       "router",
+				Name:       routerName,
 				Namespace:  routerNamespace,
 				Finalizers: []string{"netbird.io/cleanup"},
 			},

@@ -193,3 +193,5 @@ netbirdAPI: {}
   #keyFromSecret:
   #  name: "Secret name"
   #  key: "NB_API_KEY"
+  
+#routingClientImage: "netbirdio/netbird:latest"  

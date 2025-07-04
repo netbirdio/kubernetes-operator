@@ -63,6 +63,9 @@ spec:
           {{- if .Values.ingress.allowAutomaticPolicyCreation }}
           - --allow-automatic-policy-creation
           {{- end }}
+          {{- if .Values.routingClientImage }}
+          - --netbird-client-image={{.Values.routingClientImage}}
+          {{- end }}
           ports:
             - name: webhook-server
               containerPort: {{ .Values.webhook.service.port }}

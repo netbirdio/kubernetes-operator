@@ -51,6 +51,12 @@ func (r *NBRoutingPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	originalNBRP := nbrp.DeepCopy()
 	defer func() {
+		if err != nil {
+			// double check result is nil, otherwise error is not printed
+			// and exponential backoff doesn't work properly
+			res = ctrl.Result{}
+			return
+		}
 		if originalNBRP.DeletionTimestamp != nil && len(nbrp.Finalizers) == 0 {
 			return
 		}

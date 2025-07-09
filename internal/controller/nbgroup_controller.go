@@ -53,6 +53,12 @@ func (r *NBGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 
 	originalGroup := nbGroup.DeepCopy()
 	defer func() {
+		if err != nil {
+			// double check result is nil, otherwise error is not printed
+			// and exponential backoff doesn't work properly
+			res = ctrl.Result{}
+			return
+		}
 		if !originalGroup.Status.Equal(nbGroup.Status) {
 			updateErr := r.Client.Status().Update(ctx, &nbGroup)
 			if updateErr != nil {

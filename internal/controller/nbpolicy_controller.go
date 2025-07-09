@@ -210,6 +210,12 @@ func (r *NBPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 	originalPolicy := nbPolicy.DeepCopy()
 
 	defer func() {
+		if err != nil {
+			// double check result is nil, otherwise error is not printed
+			// and exponential backoff doesn't work properly
+			res = ctrl.Result{}
+			return
+		}
 		if originalPolicy.DeletionTimestamp != nil && len(nbPolicy.Finalizers) == 0 {
 			return
 		}

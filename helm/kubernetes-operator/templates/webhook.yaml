@@ -19,7 +19,7 @@ webhooks:
       name: {{ template "kubernetes-operator.webhookService" . }}
       namespace: {{ $.Release.Namespace }}
       path: /mutate--v1-pod
-  failurePolicy: Fail
+  failurePolicy: {{ .Values.webhook.failurePolicy }}
   name: mpod-v1.netbird.io
   admissionReviewVersions:
   - v1
@@ -71,7 +71,7 @@ webhooks:
       name: {{ template "kubernetes-operator.webhookService" . }}
       namespace: {{ $.Release.Namespace }}
       path: /validate-netbird-io-v1-nbsetupkey
-  failurePolicy: Fail
+  failurePolicy: {{ .Values.webhook.failurePolicy }}
   name: vnbsetupkey-v1.netbird.io
   admissionReviewVersions:
   - v1
@@ -112,7 +112,7 @@ webhooks:
       name: {{ template "kubernetes-operator.webhookService" . }}
       namespace: {{ $.Release.Namespace }}
       path: /validate-netbird-io-v1-nbresource
-  failurePolicy: Fail
+  failurePolicy: {{ .Values.webhook.failurePolicy }}
   name: vnbresource-v1.netbird.io
   admissionReviewVersions:
   - v1
@@ -151,7 +151,7 @@ webhooks:
       name: {{ template "kubernetes-operator.webhookService" . }}
       namespace: {{ $.Release.Namespace }}
       path: /validate-netbird-io-v1-nbroutingpeer
-  failurePolicy: Fail
+  failurePolicy: {{ .Values.webhook.failurePolicy }}
   name: vnbroutingpeer-v1.netbird.io
   admissionReviewVersions:
   - v1
@@ -190,7 +190,7 @@ webhooks:
       name: {{ template "kubernetes-operator.webhookService" . }}
       namespace: {{ $.Release.Namespace }}
       path: /validate-netbird-io-v1-nbgroup
-  failurePolicy: Fail
+  failurePolicy: {{ .Values.webhook.failurePolicy }}
   name: vnbgroup-v1.netbird.io
   admissionReviewVersions:
   - v1

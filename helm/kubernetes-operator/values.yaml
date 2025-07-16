@@ -30,6 +30,9 @@ webhook:
       #   operator: NotIn
       #   values:
       #   - foo
+   
+   # Failure Policy for webhook
+  failurePolicy: Fail
 
 operator:
   # This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/

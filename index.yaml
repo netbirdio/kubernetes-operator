@@ -3,6 +3,16 @@ entries:
   kubernetes-operator:
   - apiVersion: v2
     appVersion: 0.1.3
+    created: "2025-07-17T13:10:56.242468169Z"
+    description: NetBird Kubernetes Operator
+    digest: 51a2bc1bff0783d381959cafcb85b8a3f0f7aa574815999a44746c1e96996679
+    name: kubernetes-operator
+    type: application
+    urls:
+    - https://github.com/netbirdio/kubernetes-operator/releases/download/helm-v0.1.12/kubernetes-operator-0.1.12.tgz
+    version: 0.1.12
+  - apiVersion: v2
+    appVersion: 0.1.3
     created: "2025-05-02T17:38:01.839833303Z"
     description: NetBird Kubernetes Operator
     digest: e9bf835b364db2e40066773bdd86f35380832c5c9ca958ca0b816edd27a0e77e
@@ -112,4 +122,4 @@ entries:
     urls:
     - https://github.com/netbirdio/kubernetes-operator/releases/download/helm-v0.1.0/netbird-operator-0.1.0.tgz
     version: 0.1.0
-generated: "2025-05-02T17:38:01.839886613Z"
+generated: "2025-07-17T13:10:56.242514356Z"

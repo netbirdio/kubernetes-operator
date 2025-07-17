@@ -34,6 +34,12 @@ webhook:
    # Failure Policy for webhook
   failurePolicy: Fail
 
+general:
+  # General labels, applied to all created K8s resources
+  labels: {} 
+    # acme_com_managed_by: platform-engineering
+    # acme_com_owned_by: release-engineering
+
 operator:
   # This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
   replicaCount: 1

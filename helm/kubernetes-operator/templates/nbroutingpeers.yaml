@@ -19,19 +19,24 @@ spec:
   replicas: {{ $spec.replicas }}
   {{- end }}
   {{- if $spec.resources }}
-  resources: {{ $spec.resources }}
+  resources:
+    {{- toYaml $spec.resources | nindent 4 }}
   {{- end }}
   {{- if $spec.labels }}
-  labels: {{ $spec.labels }}
+  labels:
+    {{- toYaml $spec.labels | nindent 4 }}
   {{- end }}
   {{- if $spec.annotations }}
-  annotations: {{ $spec.annotations }}
+  annotations:
+    {{- toYaml $spec.annotations | nindent 4 }}
   {{- end }}
   {{- if $spec.nodeSelector }}
-  nodeSelector: {{ $spec.nodeSelector }}
+  nodeSelector:
+    {{- toYaml $spec.nodeSelector | nindent 4  }}
   {{- end }}
   {{- if $spec.tolerations }}
-  tolerations: {{ $spec.tolerations }}
+  tolerations:
+    {{- toYaml $spec.tolerations | nindent 4 }}
   {{- end }}
 {{- end }}
 ---
@@ -53,19 +58,24 @@ spec:
   replicas: {{ .replicas }}
   {{- end }}
   {{- if .resources }}
-  resources: {{ .resources }}
+  resources:
+    {{- toYaml .resources | nindent 4 }}
   {{- end }}
   {{- if .labels }}
-  labels: {{ .labels }}
+  labels:
+    {{- toYaml .labels | nindent 4 }}
   {{- end }}
   {{- if .annotations }}
-  annotations: {{ .annotations }}
+  annotations:
+    {{- toYaml .annotations | nindent 4 }}
   {{- end }}
   {{- if .nodeSelector }}
-  nodeSelector: {{ .nodeSelector }}
+  nodeSelector:
+    {{- toYaml .nodeSelector | nindent 4 }}
   {{- end }}
   {{- if .tolerations }}
-  tolerations: {{ .tolerations }}
+  tolerations:
+    {{- toYaml .tolerations | nindent 4 }}
   {{- end }}
 {{- else }}
 spec: {}

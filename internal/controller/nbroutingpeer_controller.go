@@ -158,6 +158,8 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 						},
 					},
 					Spec: corev1.PodSpec{
+						NodeSelector: nbrp.Spec.NodeSelector,
+						Tolerations:  nbrp.Spec.Tolerations,
 						Containers: []corev1.Container{
 							{
 								Name:  "netbird",
@@ -186,6 +188,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 										},
 									},
 								},
+								Resources: nbrp.Spec.Resources,
 							},
 						},
 					},
@@ -226,6 +229,8 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 				"app.kubernetes.io/name": "netbird-router",
 			},
 		}
+		updatedDeployment.Spec.Template.Spec.Tolerations = nbrp.Spec.Tolerations
+		updatedDeployment.Spec.Template.Spec.NodeSelector = nbrp.Spec.NodeSelector
 		updatedDeployment.Spec.Template.ObjectMeta.Labels = map[string]string{
 			"app.kubernetes.io/name": "netbird-router",
 		}
@@ -258,6 +263,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 				},
 			},
 		}
+		updatedDeployment.Spec.Template.Spec.Containers[0].Resources = nbrp.Spec.Resources
 
 		patch := client.StrategicMergeFrom(&routingPeerDeployment)
 		bs, _ := patch.Data(updatedDeployment)

@@ -14,7 +14,7 @@ metadata:
     helm.sh/hook: post-upgrade,post-install
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
 spec:
-  backOffLimit: 3
+  backoffLimit: 3
   template:
     metadata:
       name: {{ include "kubernetes-operator.fullname" . }}

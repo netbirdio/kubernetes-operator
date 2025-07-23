@@ -25,3 +25,6 @@ go.work
 *.swp
 *.swo
 *~
+
+# CRDs generated for testing
+crds/

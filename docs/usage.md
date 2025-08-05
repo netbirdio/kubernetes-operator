@@ -3,11 +3,12 @@
 ## Provision pods with NetBird access using side-cars
 
 1. Create a Setup Key in your [NetBird console](https://docs.netbird.io/how-to/register-machines-using-setup-keys#using-setup-keys).
-1. Create a Secret object in the namespace where you need to provision NetBird access (secret name and field can be anything).
+2. Create a Secret object in the namespace where you need to provision NetBird access (secret name and field can be anything).
+
 ```yaml
 apiVersion: v1
 stringData:
-  setupkey: EEEEEEEE-EEEE-EEEE-EEEE-EEEEEEEEEEEE
+  setupkey: "EEEEEEEE-EEEE-EEEE-EEEE-EEEEEEEEEEEE"
 kind: Secret
 metadata:
   name: test
@@ -56,14 +57,14 @@ With this setup, all peers with the same extra label would be used in a DNS roun
 > The NetBird Kubernetes operator generates configurations using NetBird API; editing or deleting these configurations in the NetBird console may cause temporary network disconnection until the operator reconciles the configuration.
 
 1. Create a Service User on your NetBird dashboard (Must be Admin). [Doc](https://docs.netbird.io/how-to/access-netbird-public-api#creating-a-service-user).
-1. Create an access token for the Service User (Must be Admin). [Doc](https://docs.netbird.io/how-to/access-netbird-public-api#creating-a-service-user).
-1. Add access token to your helm values file under `netbirdAPI.key`.
+2. Create an access token for the Service User (Must be Admin). [Doc](https://docs.netbird.io/how-to/access-netbird-public-api#creating-a-service-user).
+3. Add access token to your helm values file under `netbirdAPI.key`.
     1. Alternatively, provision secret in the same namespace as the operator and set the key `NB_API_KEY` to the access token generated.
-    1. Set `netbirdAPI.keyFromSecret` to the name of the secret created.
-1. Set `ingress.enabled` to `true`.
+    2. Set `netbirdAPI.keyFromSecret` to the name of the secret created.
+4. Set `ingress.enabled` to `true`.
     1. Optionally, to provision the network immediately, set `ingress.router.enabled` to `true`.
-    1. Optionally, to provision 1 network per namespace, set `ingress.namespacedNetworks` to `true`.
-1. Run `helm install` or `helm upgrade`.
+    2. Optionally, to provision 1 network per namespace, set `ingress.namespacedNetworks` to `true`.
+5. Run `helm install` or `helm upgrade`.
 
 Minimum values.yaml example:
 ```yaml
@@ -80,11 +81,11 @@ cluster:
 ### Exposing Kubernetes API
 
 1. Ensure Ingress functionality is enabled.
-1. Set `ingress.kubernetesAPI.enabled` to true.
-1. Set `ingress.kubernetesAPI.groups` to a list of groups to assign to the Network Resource to be created for kubernetes API.
-1. Set `ingress.kubernetesAPI.policies` to a list of policy names to connect to the resource (See #managing-policies for more details).
-1. Apply Helm changes through `helm upgrade`.
-1. Replace the server URL in your kubeconfig file with `https://kubernetes.default.<cluster DNS>` (by default `https://kubernetes.default.svc.cluster.local`), for example:
+2. Set `ingress.kubernetesAPI.enabled` to true.
+3. Set `ingress.kubernetesAPI.groups` to a list of groups to assign to the Network Resource to be created for kubernetes API.
+4. Set `ingress.kubernetesAPI.policies` to a list of policy names to connect to the resource (See #managing-policies for more details).
+5. Apply Helm changes through `helm upgrade`.
+6. Replace the server URL in your kubeconfig file with `https://kubernetes.default.<cluster DNS>` (by default `https://kubernetes.default.svc.cluster.local`), for example:
 ```yaml
 apiVersion: v1
 clusters:

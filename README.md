@@ -17,10 +17,6 @@ This operator easily provides NetBird access on Kubernetes clusters, allowing us
 
 
 ### Deployment
-> [!NOTE]
-> Helm Installation method is recommended due to the automation of multiple settings within the deployment.
-
-#### Using Helm
 
 1. Add helm repository.
 ```sh
@@ -45,16 +41,15 @@ kubectl apply -f exposed-nginx.yaml
 ```
 
 > Learn more about the values.yaml options [here](helm/kubernetes-operator/values.yaml) and  [Granting controller access to NetBird Management](docs/usage.md#granting-controller-access-to-netbird-management).
-#### Using install.yaml
+
+### Uninstallation
 
 > [!IMPORTANT]
-> install.yaml only includes a very basic template for deploying a stripped-down version of Kubernetes-operator.
-> This excludes any and all configurations for ingress capabilities and requires the cert-manager to be installed.
+> Most operator resources are annotated with finalizers, attempting to delete the namespace will result in hanged deletion.
 
-```sh
-kubectl create namespace netbird
-kubectl apply -n netbird -f https://raw.githubusercontent.com/netbirdio/kubernetes-operator/refs/heads/main/manifests/install.yaml
-```
+1. (If ingress mode is enabled) Remove all instances of `netbird.io/expose` annotation on Services.
+2. Run `helm uninstall -n netbird netbird-operator`.
+3. Wait for all deletion jobs to finish. 
 
 ### Version
 We have developed and executed tests against Kubernetes v1.31, but it should work with most recent Kubernetes version.

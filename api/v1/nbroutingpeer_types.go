@@ -20,6 +20,10 @@ type NBRoutingPeerSpec struct {
 	NodeSelector map[string]string `json:"nodeSelector"`
 	// +optional
 	Tolerations []corev1.Toleration `json:"tolerations"`
+	// +optional
+	Volumes []corev1.Volume `json:"volumes"`
+	// +optional
+	VolumeMounts []corev1.VolumeMount `json:"volumeMounts"`
 }
 
 // NBRoutingPeerStatus defines the observed state of NBRoutingPeer.

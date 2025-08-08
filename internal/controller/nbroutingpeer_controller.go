@@ -31,6 +31,7 @@ type NBRoutingPeerReconciler struct {
 	APIKey             string
 	ManagementURL      string
 	NamespacedNetworks bool
+	DefaultLabels      map[string]string
 	netbird            *netbird.Client
 }
 
@@ -122,6 +123,13 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 		return err
 	}
 
+	labels := r.DefaultLabels
+	for k, v := range nbrp.Spec.Labels {
+		labels[k] = v
+	}
+	podLabels := labels
+	podLabels["app.kubernetes.io/name"] = "netbird-router"
+
 	// Create deployment
 	if errors.IsNotFound(err) {
 		var replicas int32 = 3
@@ -141,7 +149,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 						BlockOwnerDeletion: util.Ptr(true),
 					},
 				},
-				Labels:      nbrp.Spec.Labels,
+				Labels:      labels,
 				Annotations: nbrp.Spec.Annotations,
 			},
 			Spec: appsv1.DeploymentSpec{
@@ -153,9 +161,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 				},
 				Template: corev1.PodTemplateSpec{
 					ObjectMeta: v1.ObjectMeta{
-						Labels: map[string]string{
-							"app.kubernetes.io/name": "netbird-router",
-						},
+						Labels: podLabels,
 					},
 					Spec: corev1.PodSpec{
 						NodeSelector: nbrp.Spec.NodeSelector,
@@ -215,7 +221,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 				BlockOwnerDeletion: util.Ptr(true),
 			},
 		}
-		updatedDeployment.ObjectMeta.Labels = nbrp.Spec.Labels
+		updatedDeployment.ObjectMeta.Labels = labels
 		for k, v := range nbrp.Spec.Annotations {
 			updatedDeployment.ObjectMeta.Annotations[k] = nbrp.Spec.Annotations[v]
 		}
@@ -231,9 +237,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 		}
 		updatedDeployment.Spec.Template.Spec.Tolerations = nbrp.Spec.Tolerations
 		updatedDeployment.Spec.Template.Spec.NodeSelector = nbrp.Spec.NodeSelector
-		updatedDeployment.Spec.Template.ObjectMeta.Labels = map[string]string{
-			"app.kubernetes.io/name": "netbird-router",
-		}
+		updatedDeployment.Spec.Template.ObjectMeta.Labels = podLabels
 		if len(updatedDeployment.Spec.Template.Spec.Containers) != 1 {
 			updatedDeployment.Spec.Template.Spec.Containers = []corev1.Container{}
 		}
@@ -374,6 +378,7 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 						BlockOwnerDeletion: util.Ptr(true),
 					},
 				},
+				Labels: r.DefaultLabels,
 			},
 			StringData: map[string]string{
 				"setupKey": setupKey.Key,
@@ -398,7 +403,7 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 			return &ctrl.Result{}, err
 		}
 
-		if (err != nil && strings.Contains(err.Error(), "not found")) || setupKey.Revoked {
+		if err != nil || setupKey.Revoked {
 			if setupKey != nil && setupKey.Revoked {
 				err = r.netbird.SetupKeys.Delete(ctx, *nbrp.Status.SetupKeyID)
 
@@ -476,6 +481,7 @@ func (r *NBRoutingPeerReconciler) handleGroup(ctx context.Context, req ctrl.Requ
 					},
 				},
 				Finalizers: []string{"netbird.io/group-cleanup", "netbird.io/routing-peer-cleanup"},
+				Labels:     r.DefaultLabels,
 			},
 			Spec: netbirdiov1.NBGroupSpec{
 				Name: networkName,

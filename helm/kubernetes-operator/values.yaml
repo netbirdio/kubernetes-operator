@@ -198,3 +198,9 @@ netbirdAPI: {}
   #  key: "NB_API_KEY"
   
 #routingClientImage: "netbirdio/netbird:latest"  
+
+general:
+  # General labels, applied to all created K8s resources
+  labels: {}
+    # acme_com_managed_by: platform-engineering
+    # acme_com_owned_by: release-engineering

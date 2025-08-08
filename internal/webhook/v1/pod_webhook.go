@@ -133,7 +133,10 @@ func (d *PodNetbirdInjector) Default(ctx context.Context, obj runtime.Object) er
 				Add: []corev1.Capability{"NET_ADMIN"},
 			},
 		},
+		VolumeMounts: nbSetupKey.Spec.VolumeMounts,
 	})
+
+	pod.Spec.Volumes = append(pod.Spec.Volumes, nbSetupKey.Spec.Volumes...)
 
 	return nil
 }

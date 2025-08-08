@@ -27,6 +27,7 @@ type ServiceReconciler struct {
 	ClusterDNS          string
 	NamespacedNetworks  bool
 	ControllerNamespace string
+	DefaultLabels       map[string]string
 }
 
 const (
@@ -138,6 +139,7 @@ func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request,
 				Name:       "router",
 				Namespace:  routerNamespace,
 				Finalizers: []string{"netbird.io/cleanup"},
+				Labels:     r.DefaultLabels,
 			},
 			Spec: netbirdiov1.NBRoutingPeerSpec{},
 		}
@@ -205,6 +207,7 @@ func (r *ServiceReconciler) reconcileNBResource(nbResource *netbirdiov1.NBResour
 
 	nbResource.ObjectMeta.Name = req.Name
 	nbResource.ObjectMeta.Namespace = req.Namespace
+	nbResource.ObjectMeta.Labels = r.DefaultLabels
 	nbResource.Finalizers = []string{"netbird.io/cleanup"}
 	nbResource.Spec.Name = resourceName
 	nbResource.Spec.NetworkID = *routingPeer.Status.NetworkID

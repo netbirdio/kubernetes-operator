@@ -46,10 +46,11 @@ var _ = Describe("NBResource Controller", func() {
 			server = httptest.NewServer(mux)
 			netbirdClient = netbird.New(server.URL, "ABC")
 			controllerReconciler = &NBResourceReconciler{
-				Client:      k8sClient,
-				Scheme:      k8sClient.Scheme(),
-				netbird:     netbirdClient,
-				ClusterName: "kubernetes",
+				Client:        k8sClient,
+				Scheme:        k8sClient.Scheme(),
+				netbird:       netbirdClient,
+				ClusterName:   "kubernetes",
+				DefaultLabels: map[string]string{"dog": "bark"},
 			}
 
 			By("creating the custom resource for the Kind NBResource")
@@ -125,6 +126,7 @@ var _ = Describe("NBResource Controller", func() {
 				Expect(err).NotTo(HaveOccurred())
 				nbGroup := &netbirdiov1.NBGroup{}
 				Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "meow"}, nbGroup)).To(Succeed())
+				Expect(nbGroup.Labels).To(HaveKeyWithValue("dog", "bark"))
 				nbGroup.Status.GroupID = util.Ptr("test")
 				Expect(k8sClient.Status().Update(ctx, nbGroup)).To(Succeed())
 			})
@@ -453,6 +455,7 @@ var _ = Describe("NBResource Controller", func() {
 								nbPolicy := &netbirdiov1.NBPolicy{}
 								Expect(k8sClient.Get(ctx, types.NamespacedName{Name: nbresource.Status.PolicyNameMapping[policyGenName]}, nbPolicy)).To(Succeed())
 								Expect(nbPolicy.Status.ManagedServiceList).To(ContainElement("default/test-resource"))
+								Expect(nbPolicy.Labels).To(HaveKeyWithValue("dog", "bark"))
 							})
 
 							When("Source groups is not defined", func() {

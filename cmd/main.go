@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -74,6 +75,7 @@ func main() {
 		clusterDNS                   string
 		netbirdAPIKey                string
 		allowAutomaticPolicyCreation bool
+		defaultLabels                string
 	)
 	flag.StringVar(&managementURL, "netbird-management-url", "https://api.netbird.io", "Management service URL")
 	flag.StringVar(&clientImage, "netbird-client-image", "netbirdio/netbird:latest", "Image for netbird client container")
@@ -96,6 +98,12 @@ func main() {
 		"allow-automatic-policy-creation",
 		false,
 		"Allow creating NBPolicy resources from annotations on Services",
+	)
+	flag.StringVar(
+		&defaultLabels,
+		"default-labels",
+		"",
+		"Default labels used for all resources, in format key=value,key=value",
 	)
 
 	// Controller generic flags
@@ -128,6 +136,17 @@ func main() {
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
+
+	defaultLabelsMap := make(map[string]string)
+	if defaultLabels != "" {
+		for _, s := range strings.Split(defaultLabels, ",") {
+			kv := strings.Split(s, "=")
+			if len(kv) != 2 {
+				panic(fmt.Errorf("invalid label format: %s", s))
+			}
+			defaultLabelsMap[kv[0]] = kv[1]
+		}
+	}
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
@@ -216,6 +235,7 @@ func main() {
 			APIKey:             netbirdAPIKey,
 			ManagementURL:      managementURL,
 			NamespacedNetworks: namespacedNetworks,
+			DefaultLabels:      defaultLabelsMap,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "NBRoutingPeer")
 			os.Exit(1)
@@ -234,6 +254,7 @@ func main() {
 			ClusterDNS:          clusterDNS,
 			NamespacedNetworks:  namespacedNetworks,
 			ControllerNamespace: controllerNamespace,
+			DefaultLabels:       defaultLabelsMap,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "Service")
 			os.Exit(1)
@@ -246,6 +267,7 @@ func main() {
 			ManagementURL:                managementURL,
 			AllowAutomaticPolicyCreation: allowAutomaticPolicyCreation,
 			ClusterName:                  clusterName,
+			DefaultLabels:                defaultLabelsMap,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "NBResource")
 			os.Exit(1)

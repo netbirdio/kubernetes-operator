@@ -67,6 +67,7 @@ var _ = Describe("Service Controller", func() {
 				NamespacedNetworks:  false,
 				ClusterDNS:          "svc.cluster.local",
 				ControllerNamespace: "default",
+				DefaultLabels:       map[string]string{"dog": "bark"},
 			}
 		})
 
@@ -144,6 +145,7 @@ var _ = Describe("Service Controller", func() {
 					Expect(res.RequeueAfter).NotTo(BeZero())
 					nbrp := &netbirdiov1.NBRoutingPeer{}
 					Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: typeNamespacedName.Namespace, Name: "router"}, nbrp)).To(Succeed())
+					Expect(nbrp.Labels).To(HaveKeyWithValue("dog", "bark"))
 					res, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
 						NamespacedName: typeNamespacedName,
 					})
@@ -203,6 +205,7 @@ var _ = Describe("Service Controller", func() {
 							Expect(nbResource.Spec.PolicyName).To(BeEmpty())
 							Expect(nbResource.Spec.TCPPorts).To(BeEmpty())
 							Expect(nbResource.Spec.UDPPorts).To(BeEmpty())
+							Expect(nbResource.Labels).To(HaveKeyWithValue("dog", "bark"))
 						})
 					})
 					When("policy is specified", func() {

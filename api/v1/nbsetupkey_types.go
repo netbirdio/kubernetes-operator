@@ -36,6 +36,12 @@ type NBSetupKeySpec struct {
 	SecretKeyRef corev1.SecretKeySelector `json:"secretKeyRef"`
 	// ManagementURL optional, override operator management URL
 	ManagementURL string `json:"managementURL,omitempty"`
+	// Volumes optional, additional volumes for NetBird container
+	// +optional
+	Volumes []corev1.Volume `json:"volumes,omitempty"`
+	// VolumeMounts optional, additional volumeMounts for NetBird container
+	// +optional
+	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
 }
 
 // NBSetupKeyStatus defines the observed state of NBSetupKey.

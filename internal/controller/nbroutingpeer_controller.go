@@ -194,9 +194,11 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 										},
 									},
 								},
-								Resources: nbrp.Spec.Resources,
+								Resources:    nbrp.Spec.Resources,
+								VolumeMounts: nbrp.Spec.VolumeMounts,
 							},
 						},
+						Volumes: nbrp.Spec.Volumes,
 					},
 				},
 			},
@@ -238,6 +240,10 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 		updatedDeployment.Spec.Template.Spec.Tolerations = nbrp.Spec.Tolerations
 		updatedDeployment.Spec.Template.Spec.NodeSelector = nbrp.Spec.NodeSelector
 		updatedDeployment.Spec.Template.ObjectMeta.Labels = podLabels
+		updatedDeployment.Spec.Template.Spec.Volumes = nbrp.Spec.Volumes
+		updatedDeployment.Spec.Template.ObjectMeta.Labels = map[string]string{
+			"app.kubernetes.io/name": "netbird-router",
+		}
 		if len(updatedDeployment.Spec.Template.Spec.Containers) != 1 {
 			updatedDeployment.Spec.Template.Spec.Containers = []corev1.Container{}
 		}
@@ -268,6 +274,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 			},
 		}
 		updatedDeployment.Spec.Template.Spec.Containers[0].Resources = nbrp.Spec.Resources
+		updatedDeployment.Spec.Template.Spec.Containers[0].VolumeMounts = nbrp.Spec.VolumeMounts
 
 		patch := client.StrategicMergeFrom(&routingPeerDeployment)
 		bs, _ := patch.Data(updatedDeployment)

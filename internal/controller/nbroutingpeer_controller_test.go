@@ -52,6 +52,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 				netbird:            netbirdClient,
 				ClientImage:        "netbirdio/netbird:latest",
 				ClusterName:        "kubernetes",
+				DefaultLabels:      make(map[string]string),
 				NamespacedNetworks: false,
 			}
 
@@ -436,6 +437,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 						Expect(k8sClient.Create(ctx, secret)).To(Succeed())
 					})
 					It("should create group and requeue to get its ID", func() {
+						controllerReconciler.DefaultLabels = map[string]string{"dog": "bark"}
 						res, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
 							NamespacedName: typeNamespacedName,
 						})
@@ -445,6 +447,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 						group := &netbirdiov1.NBGroup{}
 						Expect(k8sClient.Get(ctx, typeNamespacedName, group)).To(Succeed())
 						Expect(group.Spec.Name).To(Equal(controllerReconciler.ClusterName))
+						Expect(group.Labels).To(HaveKeyWithValue("dog", "bark"))
 
 						group.Status.GroupID = util.Ptr("test")
 						Expect(k8sClient.Status().Update(ctx, group)).To(Succeed())
@@ -846,6 +849,25 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								Expect(deployment.Spec.Template.Spec.Containers[0].Image).To(Equal(controllerReconciler.ClientImage))
 							})
 						})
+
+						When("Default labels exist", func() {
+							It("should add labels to Deployment and Pod metadata", func() {
+								controllerReconciler.DefaultLabels = map[string]string{
+									"cat": "meow",
+									"dog": "bark",
+								}
+								_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+									NamespacedName: typeNamespacedName,
+								})
+								Expect(err).NotTo(HaveOccurred())
+
+								deployment := &appsv1.Deployment{}
+								Expect(k8sClient.Get(ctx, typeNamespacedName, deployment)).To(Succeed())
+								Expect(deployment.Labels).To(HaveKeyWithValue("cat", "meow"))
+								Expect(deployment.Labels).To(HaveKeyWithValue("dog", "bark"))
+							})
+						})
+
 						When("Deployment is out-of-date", func() {
 							It("should update deployment", func() {
 								_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{

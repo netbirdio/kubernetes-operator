@@ -147,6 +147,7 @@ ingress:
     # - group2
     policies: []
     # - default
+    customKubectlImage: "registry.suse.com/suse/kubectl:latest"
   router:
     # Deploy routing peer(s)
     enabled: false

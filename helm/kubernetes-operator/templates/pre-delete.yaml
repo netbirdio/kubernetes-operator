@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
       - name: pre-delete
-        image: "bitnami/kubectl:latest"
+        image: {{ .Values.ingress.kubernetesAPI.customKubectlImage | default "registry.suse.com/suse/kubectl:latest"}}
         args:
         - delete
         - --all
@@ -57,7 +57,7 @@ spec:
     spec:
       containers:
       - name: pre-delete
-        image: "bitnami/kubectl:latest"
+        image: {{ .Values.ingress.kubernetesAPI.customKubectlImage | default "registry.suse.com/suse/kubectl:latest"}}
         args:
         - delete
         - --all

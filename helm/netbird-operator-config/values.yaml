@@ -1,3 +1,7 @@
+cluster:
+  name: "kubernetes"
+  dns: "svc.cluster.local"
+
 # Create router per namespace, useful for strict networking requirements
 namespacedNetworks: false
 
@@ -37,3 +41,17 @@ policies: {}
   #   name: Kubernetes Default Policy
   #   sourceGroups:
 #   - All
+
+kubernetesAPI:
+  enabled: false
+  groups: []
+  # - group1
+  # - group2
+  policies: []
+  # - default
+  # resourceName: "my-cluster-kubernetes"
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}

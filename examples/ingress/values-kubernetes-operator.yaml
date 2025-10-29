@@ -3,13 +3,6 @@
 #    tag: "0.1.0"
 ingress:
   enabled: true
-  router:
-    enabled: true
-#  policies:
-#    default:
-#      name: Kubernetes Default Policy
-#      sourceGroups:
-#        - All
 
 netbirdAPI:
   # Replace with valid NetBird Service Account token (PAT)

@@ -1,0 +1,45 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "netbird-operator-config.fullname" . }}
+  labels:
+    {{- include "netbird-operator-config.labels" . | nindent 4 }}
+rules:
+- apiGroups:
+  - netbird.io
+  resources:
+  - nbresources
+  verbs:
+  - patch
+  - update
+  - list
+  - watch
+  - create
+  - delete
+- apiGroups:
+  - netbird.io
+  resources:
+  - nbroutingpeers
+  verbs:
+  - get
+- apiGroups:
+  - netbird.io
+  resources:
+  - nbresources/finalizers
+  verbs:
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "netbird-operator-config.fullname" . }}
+  labels:
+    {{- include "netbird-operator-config.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "netbird-operator-config.fullname" . }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "netbird-operator-config.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}

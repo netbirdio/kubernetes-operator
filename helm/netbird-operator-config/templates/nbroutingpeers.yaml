@@ -1,7 +1,7 @@
-{{- if and .Values.ingress.enabled .Values.ingress.router.enabled }}
-{{- if .Values.ingress.namespacedNetworks }}
-{{ $defaults := .Values.ingress.router }}
-{{ range $k, $v := .Values.ingress.router.namespaces }}
+{{- if .Values.router.enabled }}
+{{- if .Values.namespacedNetworks }}
+{{ $defaults := .Values.router }}
+{{ range $k, $v := .Values.router.namespaces }}
 apiVersion: netbird.io/v1
 kind: NBRoutingPeer
 metadata:
@@ -9,9 +9,7 @@ metadata:
     - netbird.io/cleanup
   labels:
     app.kubernetes.io/component: operator
-    {{- include "kubernetes-operator.labels" $ | nindent 4 }}
-  annotations:
-    helm.sh/resource-policy: keep
+    {{- include "netbird-operator-config.labels" $ | nindent 4 }}
   name: router
   namespace: {{ $k }}
 {{ $spec := merge $defaults $v }}
@@ -44,7 +42,7 @@ spec:
 ---
 {{- end }}
 {{- else }}
-{{- with .Values.ingress.router }}
+{{- with .Values.router }}
 apiVersion: netbird.io/v1
 kind: NBRoutingPeer
 metadata:
@@ -52,9 +50,7 @@ metadata:
     - netbird.io/cleanup
   labels:
     app.kubernetes.io/component: operator
-    {{- include "kubernetes-operator.labels" $ | nindent 4 }}
-  annotations:
-    helm.sh/resource-policy: keep
+    {{- include "netbird-operator-config.labels" $ | nindent 4 }}
   name: router
 {{- if or (or (or .replicas .resources) (or .labels .annotations)) (or .nodeSelector .tolerations) }}
 spec:
@@ -81,8 +77,6 @@ spec:
   tolerations:
     {{- toYaml .tolerations | nindent 4 }}
   {{- end }}
-{{- else }}
-spec: {}
 {{- end }}
 {{- end }}
 {{- end }}

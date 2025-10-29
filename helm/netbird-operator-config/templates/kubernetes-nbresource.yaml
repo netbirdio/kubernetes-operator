@@ -6,10 +6,10 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "kubernetes-operator.fullname" . }}-kubernetes-service-expose
+  name: {{ include "netbird-operator-config.fullname" . }}-kubernetes-service-expose
   labels:
     app.kubernetes.io/component: operator
-    {{- include "kubernetes-operator.labels" . | nindent 4 }}
+    {{- include "netbird-operator-config.labels" . | nindent 4 }}
   annotations:
     helm.sh/hook: post-upgrade,post-install
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
@@ -17,10 +17,10 @@ spec:
   backoffLimit: 3
   template:
     metadata:
-      name: {{ include "kubernetes-operator.fullname" . }}
+      name: {{ include "netbird-operator-config.fullname" . }}
       labels:
         app.kubernetes.io/component: operator
-        {{- include "kubernetes-operator.labels" . | nindent 8 }}
+        {{- include "netbird-operator-config.labels" . | nindent 8 }}
         {{- with .Values.operator.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -49,15 +49,15 @@ spec:
             spec:
               address: kubernetes.default.{{.Values.cluster.dns}}
               groups:
-              {{- if .Values.ingress.kubernetesAPI.groups }}
-              {{ toYaml .Values.ingress.kubernetesAPI.groups }}
+              {{- if .Values.kubernetesAPI.groups }}
+              {{ toYaml .Values.kubernetesAPI.groups }}
               {{- else }}
               - {{ .Values.cluster.name }}-default-api-access
               {{- end }}
-              name: {{ .Values.ingress.kubernetesAPI.resourceName | default "default-kubernetes-api" }}
+              name: {{ .Values.kubernetesAPI.resourceName | default "default-kubernetes-api" }}
               networkID: ${NETWORK_ID}
-              {{- if .Values.ingress.kubernetesAPI.policies }}
-              policyName: "{{ join "," .Values.ingress.kubernetesAPI.policies }}"
+              {{- if .Values.kubernetesAPI.policies }}
+              policyName: "{{ join "," .Values.kubernetesAPI.policies }}"
               {{- end }}
               tcpPorts:
               - 443
@@ -66,6 +66,6 @@ spec:
         - -c
         args:
         - kubectl delete NBResource --ignore-not-found -n default kubernetes; export NETWORK_ID=$(kubectl get NBRoutingPeer -n {{ $routerNS }} router -o 'jsonpath={.status.networkID}'); echo "$NBRESOURCE_VALUE" | envsubst | kubectl apply -f -
-      serviceAccountName: {{ include "kubernetes-operator.serviceAccountName" . }}
+      serviceAccountName: {{ include "netbird-operator-config.serviceAccountName" . }}
       restartPolicy: Never
 {{- end }}

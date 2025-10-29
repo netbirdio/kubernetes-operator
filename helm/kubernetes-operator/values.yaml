@@ -140,14 +140,14 @@ ingress:
   namespacedNetworks: false
   # Allow creating policies through Service annotations
   allowAutomaticPolicyCreation: false
-  kubernetesAPI:
+  kubernetesAPI: # DEPRECATED: Use netbirdio/netbird-operator-configs Chart instead
     enabled: false
     groups: []
     # - group1
     # - group2
     policies: []
     # - default
-  router:
+  router: # DEPRECATED: Use netbirdio/netbird-operator-configs Chart instead
     # Deploy routing peer(s)
     enabled: false
     # replicas: 3
@@ -178,7 +178,7 @@ ingress:
         # nodeSelector: {}
         # tolerations: []
   # NetBird Policies for use with exposed services
-  policies: {}
+  policies: {} # DEPRECATED: Use netbirdio/netbird-operator-configs Chart instead
     # default:
     #   name: Kubernetes Default Policy
     #   sourceGroups:

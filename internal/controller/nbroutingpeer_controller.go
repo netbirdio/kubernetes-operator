@@ -52,12 +52,6 @@ func (r *NBRoutingPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	originalNBRP := nbrp.DeepCopy()
 	defer func() {
-		if err != nil {
-			// double check result is nil, otherwise error is not printed
-			// and exponential backoff doesn't work properly
-			res = ctrl.Result{}
-			return
-		}
 		if originalNBRP.DeletionTimestamp != nil && len(nbrp.Finalizers) == 0 {
 			return
 		}
@@ -66,6 +60,12 @@ func (r *NBRoutingPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			if err != nil {
 				logger.Error(errKubernetesAPI, "error updating NBRoutingPeer Status", "err", err)
 			}
+		}
+		if err != nil {
+			// double check result is nil, otherwise error is not printed
+			// and exponential backoff doesn't work properly
+			res = ctrl.Result{}
+			return
 		}
 		if !res.Requeue && res.RequeueAfter == 0 {
 			res.RequeueAfter = defaultRequeueAfter
@@ -210,7 +210,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 			nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("error creating Deployment: %v", err))
 			return err
 		}
-	} else {
+	} else if err == nil {
 		updatedDeployment := routingPeerDeployment.DeepCopy()
 		updatedDeployment.ObjectMeta.Name = nbrp.Name
 		updatedDeployment.ObjectMeta.Namespace = nbrp.Namespace
@@ -291,7 +291,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 		}
 	}
 
-	return nil
+	return err
 }
 
 // handleRouter reconcile network routing peer in NetBird management API
@@ -393,6 +393,14 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 		}
 		err = r.Client.Create(ctx, &skSecret)
 		if errors.IsAlreadyExists(err) {
+			err = r.Client.Get(ctx, req.NamespacedName, &skSecret)
+			if err != nil {
+				logger.Error(errNetBirdAPI, "error getting secret", "err", err)
+				return &ctrl.Result{}, err
+			}
+			skSecret.Data = map[string][]byte{
+				"setupKey": []byte(setupKey.Key),
+			}
 			err = r.Client.Update(ctx, &skSecret)
 		}
 
@@ -410,7 +418,7 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 			return &ctrl.Result{}, err
 		}
 
-		if err != nil || setupKey.Revoked {
+		if (err != nil && strings.Contains(err.Error(), "not found")) || setupKey == nil || setupKey.Revoked {
 			if setupKey != nil && setupKey.Revoked {
 				err = r.netbird.SetupKeys.Delete(ctx, *nbrp.Status.SetupKeyID)
 
@@ -586,16 +594,6 @@ func (r *NBRoutingPeerReconciler) handleDelete(ctx context.Context, req ctrl.Req
 		logger.Info("Setup key deleted", "id", setupKeyID)
 	}
 
-	if nbrp.Status.RouterID != nil {
-		err = r.netbird.Networks.Routers(*nbrp.Status.NetworkID).Delete(ctx, *nbrp.Status.RouterID)
-		if err != nil && !strings.Contains(err.Error(), "not found") {
-			logger.Error(errNetBirdAPI, "error deleting Network Router", "err", err)
-			return ctrl.Result{}, err
-		}
-
-		nbrp.Status.RouterID = nil
-	}
-
 	nbGroup := netbirdiov1.NBGroup{}
 	err = r.Client.Get(ctx, req.NamespacedName, &nbGroup)
 	if err != nil && !errors.IsNotFound(err) {
@@ -631,6 +629,7 @@ func (r *NBRoutingPeerReconciler) handleDelete(ctx context.Context, req ctrl.Req
 			}
 
 			nbrp.Status.NetworkID = nil
+			nbrp.Status.RouterID = nil
 		}
 	}
 

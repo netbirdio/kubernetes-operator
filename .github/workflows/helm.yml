@@ -5,6 +5,7 @@ on:
     paths:
       # update this file to trigger helm chart release
       - 'helm/kubernetes-operator/Chart.yaml'
+      - 'helm/netbird-operator-config/Chart.yaml'
     branches:
       - main
 

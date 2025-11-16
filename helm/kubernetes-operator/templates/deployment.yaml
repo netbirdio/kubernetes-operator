@@ -87,8 +87,9 @@ spec:
             periodSeconds: {{ .Values.operator.livenessProbe.periodSeconds }}
             successThreshold: {{ .Values.operator.livenessProbe.successThreshold }}
             timeoutSeconds: {{ .Values.operator.livenessProbe.timeoutSeconds }}
-          {{- if or .Values.netbirdAPI.key .Values.netbirdAPI.keyFromSecret }}
+          {{- if or .Values.netbirdAPI.key .Values.netbirdAPI.keyFromSecret .Values.operator.logLevel }}
           env:
+            {{- if or .Values.netbirdAPI.key .Values.netbirdAPI.keyFromSecret }}
             - name: NB_API_KEY
               valueFrom:
                 secretKeyRef:
@@ -99,6 +100,11 @@ spec:
                   name: {{ include "kubernetes-operator.fullname" . }}
                   key: NB_API_KEY
                   {{- end }}
+            {{- end }}
+            {{- if .Values.operator.logLevel }}
+            - name: NB_LOG_LEVEL
+              value: {{ .Values.operator.logLevel | quote }}
+            {{- end }}
           {{- end }}
           readinessProbe:
             failureThreshold: 3

@@ -90,7 +90,6 @@ operator:
     seccompProfile:
       type: RuntimeDefault
 
-
   # This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
   service:
     # This sets the service type more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types
@@ -120,6 +119,9 @@ operator:
     periodSeconds: 10
     successThreshold: 1
     timeoutSeconds: 1
+
+  # Log level for NetBird operator (e.g., debug, info, warn, error)
+  logLevel: ""
 
   # Additional volumes on the output Deployment definition.
   volumes: []

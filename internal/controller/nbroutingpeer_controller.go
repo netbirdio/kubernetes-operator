@@ -62,7 +62,16 @@ func (r *NBRoutingPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			return
 		}
 		if !originalNBRP.Status.Equal(nbrp.Status) {
-			err = r.Client.Status().Update(ctx, nbrp)
+			// Re-fetch the object to get the latest resource version
+			latestNBRP := &netbirdiov1.NBRoutingPeer{}
+			if getErr := r.Get(ctx, req.NamespacedName, latestNBRP); getErr != nil {
+				logger.Error(errKubernetesAPI, "error getting NBRoutingPeer for status update", "err", getErr)
+				err = getErr
+				return
+			}
+			// Copy the desired status to the latest object
+			latestNBRP.Status = nbrp.Status
+			err = r.Client.Status().Update(ctx, latestNBRP)
 			if err != nil {
 				logger.Error(errKubernetesAPI, "error updating NBRoutingPeer Status", "err", err)
 			}

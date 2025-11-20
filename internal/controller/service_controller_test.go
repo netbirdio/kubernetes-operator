@@ -86,9 +86,13 @@ var _ = Describe("Service Controller", func() {
 				}
 			}
 
-			nbrp := &netbirdiov1.NBRoutingPeer{}
-			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "router"}, nbrp)
-			if !errors.IsNotFound(err) {
+			nbrpList := &netbirdiov1.NBRoutingPeerList{}
+			Expect(k8sClient.List(ctx, nbrpList)).To(Succeed())
+			for i := range nbrpList.Items {
+				nbrp := &nbrpList.Items[i]
+				if nbrp.Namespace != typeNamespacedName.Namespace {
+					continue
+				}
 				if len(nbrp.Finalizers) > 0 {
 					nbrp.Finalizers = nil
 					Expect(k8sClient.Update(ctx, nbrp)).To(Succeed())
@@ -144,7 +148,7 @@ var _ = Describe("Service Controller", func() {
 					Expect(err).NotTo(HaveOccurred())
 					Expect(res.RequeueAfter).NotTo(BeZero())
 					nbrp := &netbirdiov1.NBRoutingPeer{}
-					Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: typeNamespacedName.Namespace, Name: "router"}, nbrp)).To(Succeed())
+					Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: typeNamespacedName.Namespace, Name: controllerReconciler.routingPeerName()}, nbrp)).To(Succeed())
 					Expect(nbrp.Labels).To(HaveKeyWithValue("dog", "bark"))
 					res, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
 						NamespacedName: typeNamespacedName,
@@ -159,13 +163,28 @@ var _ = Describe("Service Controller", func() {
 					Expect(err).NotTo(HaveOccurred())
 					Expect(res.RequeueAfter).To(BeZero())
 				})
+				It("should honor router name prefix when creating NBRoutingPeer", func() {
+					controllerReconciler.RouterNamePrefix = "custom-"
+					defer func() {
+						controllerReconciler.RouterNamePrefix = ""
+					}()
+
+					_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+						NamespacedName: typeNamespacedName,
+					})
+					Expect(err).NotTo(HaveOccurred())
+					nbrp := &netbirdiov1.NBRoutingPeer{}
+					expectedName := controllerReconciler.RouterNamePrefix + routingPeerBaseName
+					Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: typeNamespacedName.Namespace, Name: expectedName}, nbrp)).To(Succeed())
+					Expect(nbrp.Name).To(Equal("custom-router"))
+				})
 			})
 			When("NBRoutingPeer exists", func() {
 				BeforeEach(func() {
 					nbrp := &netbirdiov1.NBRoutingPeer{
 						ObjectMeta: v1.ObjectMeta{
 							Namespace: typeNamespacedName.Namespace,
-							Name:      "router",
+							Name:      controllerReconciler.routingPeerName(),
 						},
 						Spec: netbirdiov1.NBRoutingPeerSpec{},
 					}
@@ -313,7 +332,7 @@ var _ = Describe("Service Controller", func() {
 				nbrp := &netbirdiov1.NBRoutingPeer{
 					ObjectMeta: v1.ObjectMeta{
 						Namespace: typeNamespacedName.Namespace,
-						Name:      "router",
+						Name:      controllerReconciler.routingPeerName(),
 					},
 					Spec: netbirdiov1.NBRoutingPeerSpec{},
 				}

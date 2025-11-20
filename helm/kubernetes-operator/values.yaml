@@ -150,6 +150,8 @@ ingress:
   router:
     # Deploy routing peer(s)
     enabled: false
+    # Prefix appended to routing peer names (final name becomes <prefix>router)
+    namePrefix: ""
     # replicas: 3
     # resources:
     #   requests:
@@ -187,6 +189,8 @@ ingress:
 cluster:
   # Cluster DNS name (used for webhooks certificates and for network resource DNS names)
   dns: svc.cluster.local
+  # Cluster API server address (overrides in-cluster address detection)
+  # apiserver: https://my-custom-apiserver:6443
   # Cluster name (used for generating network and network resource names in NetBird)
   name: kubernetes
 

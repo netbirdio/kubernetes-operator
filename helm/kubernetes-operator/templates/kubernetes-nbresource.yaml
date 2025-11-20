@@ -3,6 +3,10 @@
 {{- if .Values.ingress.namespacedNetworks }}
 {{- $routerNS = "default" }}
 {{- end }}
+{{- $routerName := "router" }}
+{{- if .Values.ingress.router.namePrefix }}
+{{- $routerName = printf "%s-router" .Values.ingress.router.namePrefix }}
+{{- end }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -32,7 +36,7 @@ spec:
         - bash
         - -c
         args:
-        - kubectl wait --for 'jsonpath={.status.networkID}' -n {{ $routerNS }} nbroutingpeer router; 
+        - kubectl wait --for 'jsonpath={.status.networkID}' -n {{ $routerNS }} nbroutingpeer {{ $routerName }}; 
       containers:
       - name: apply-nbresource
         image: "bitnami/kubectl:latest"
@@ -47,10 +51,14 @@ spec:
               name: kubernetes
               namespace: default
             spec:
+              {{- if .Values.cluster.apiserver }}
+              address: {{ .Values.cluster.apiserver }}
+              {{- else }}
               address: kubernetes.default.{{.Values.cluster.dns}}
+              {{- end }}
               groups:
               {{- if .Values.ingress.kubernetesAPI.groups }}
-              {{ toYaml .Values.ingress.kubernetesAPI.groups }}
+              {{ toYaml .Values.ingress.kubernetesAPI.groups | nindent 14 }}
               {{- else }}
               - {{ .Values.cluster.name }}-default-api-access
               {{- end }}
@@ -65,7 +73,7 @@ spec:
         - bash
         - -c
         args:
-        - kubectl delete NBResource --ignore-not-found -n default kubernetes; export NETWORK_ID=$(kubectl get NBRoutingPeer -n {{ $routerNS }} router -o 'jsonpath={.status.networkID}'); echo "$NBRESOURCE_VALUE" | envsubst | kubectl apply -f -
+        - kubectl delete NBResource --ignore-not-found -n default kubernetes; export NETWORK_ID=$(kubectl get NBRoutingPeer -n {{ $routerNS }} {{ $routerName }} -o 'jsonpath={.status.networkID}'); echo "$NBRESOURCE_VALUE" | envsubst | kubectl apply -f -
       serviceAccountName: {{ include "kubernetes-operator.serviceAccountName" . }}
       restartPolicy: Never
 {{- end }}

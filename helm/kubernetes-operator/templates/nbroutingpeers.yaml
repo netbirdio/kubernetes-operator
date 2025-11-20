@@ -1,6 +1,6 @@
 {{- if and .Values.ingress.enabled .Values.ingress.router.enabled }}
 {{- $routerNamePrefix := default "" .Values.ingress.router.namePrefix }}
-{{- $routerResourceName := printf "%s%s" $routerNamePrefix "router" }}
+{{- $routerResourceName := printf "%s-%s" $routerNamePrefix "router" }}
 {{- if .Values.ingress.namespacedNetworks }}
 {{ $defaults := .Values.ingress.router }}
 {{ range $k, $v := .Values.ingress.router.namespaces }}

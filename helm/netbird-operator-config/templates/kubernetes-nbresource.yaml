@@ -1,6 +1,6 @@
-{{- if and .Values.ingress.enabled .Values.ingress.kubernetesAPI.enabled }}
+{{- if and .Values.enabled .Values.kubernetesAPI.enabled }}
 {{- $routerNS := .Release.Namespace }}
-{{- if .Values.ingress.namespacedNetworks }}
+{{- if .Values.namespacedNetworks }}
 {{- $routerNS = "default" }}
 {{- end }}
 apiVersion: batch/v1

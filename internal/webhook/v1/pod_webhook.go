@@ -96,38 +96,36 @@ func (d *PodNetbirdInjector) Default(ctx context.Context, obj runtime.Object) er
 		managementURL = nbSetupKey.Spec.ManagementURL
 	}
 
-	// build the base arguments.
-	args := []string{
-		"--setup-key-file", "/etc/nbkey",
-		"-m", managementURL,
+	// build environment variables
+	envVars := []corev1.EnvVar{
+		{
+			Name: "NB_SETUP_KEY",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &nbSetupKey.Spec.SecretKeyRef,
+			},
+		},
+		{
+			Name:  "NB_MANAGEMENT_URL",
+			Value: managementURL,
+		},
 	}
 
-	// check for extra DNS labels in annotations.
+	// check for extra DNS labels in annotations and add as environment variable
 	if pod.Annotations != nil {
 		if extra, ok := pod.Annotations["netbird.io/extra-dns-labels"]; ok && extra != "" {
 			podlog.Info("Found extra DNS labels", "extra", extra)
-			// append extra DNS labels to the CLI args.
-			args = append(args, "--extra-dns-labels", extra)
+			envVars = append(envVars, corev1.EnvVar{
+				Name:  "NB_EXTRA_DNS_LABELS",
+				Value: extra,
+			})
 		}
 	}
 
-	// Append the netbird container with the constructed args.
+	// Append the netbird container with the constructed env vars.
 	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{
 		Name:  "netbird",
 		Image: d.clientImage,
-		Args:  args,
-		Env: []corev1.EnvVar{
-			{
-				Name: "NB_SETUP_KEY",
-				ValueFrom: &corev1.EnvVarSource{
-					SecretKeyRef: &nbSetupKey.Spec.SecretKeyRef,
-				},
-			},
-			{
-				Name:  "NB_MANAGEMENT_URL",
-				Value: managementURL,
-			},
-		},
+		Env:   envVars,
 		SecurityContext: &corev1.SecurityContext{
 			Capabilities: &corev1.Capabilities{
 				Add: []corev1.Capability{"NET_ADMIN"},

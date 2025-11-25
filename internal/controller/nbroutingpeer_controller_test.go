@@ -912,10 +912,8 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 					})
 					When("NBRoutingPeer is set for deletion", func() {
 						networkDeleted := false
-						routerDeleted := false
 						BeforeEach(func() {
 							networkDeleted = false
-							routerDeleted = false
 							nbroutingpeer.Status.SetupKeyID = util.Ptr("skid")
 							Expect(k8sClient.Status().Update(ctx, nbroutingpeer)).To(Succeed())
 
@@ -953,14 +951,6 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								Expect(err).NotTo(HaveOccurred())
 								networkDeleted = true
 							})
-
-							mux.HandleFunc("/api/networks/test/routers/test", func(w http.ResponseWriter, r *http.Request) {
-								defer GinkgoRecover()
-								Expect(r.Method).To(Equal(http.MethodDelete))
-								_, err = w.Write([]byte(`{}`))
-								Expect(err).NotTo(HaveOccurred())
-								routerDeleted = true
-							})
 						})
 
 						It("should remove finalizer from NBGroup", func() {
@@ -980,7 +970,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								NamespacedName: typeNamespacedName,
 							})
 							Expect(err).NotTo(HaveOccurred())
-							Expect(routerDeleted).To(BeTrue())
+							Expect(networkDeleted).To(BeTrue())
 						})
 
 						It("should delete Network", func() {

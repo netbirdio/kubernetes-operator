@@ -2,10 +2,14 @@ package controller
 
 import (
 	"context"
+	nerrors "errors"
 	"fmt"
 	"slices"
 	"strings"
 	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,6 +25,10 @@ import (
 	"github.com/netbirdio/kubernetes-operator/internal/util"
 	netbird "github.com/netbirdio/netbird/management/client/rest"
 	"github.com/netbirdio/netbird/management/server/http/api"
+)
+
+var (
+	errDuplicateResource = fmt.Errorf("duplicate resource")
 )
 
 // NBResourceReconciler reconciles a NBResource object
@@ -87,6 +95,10 @@ func (r *NBResourceReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	resource, err := r.handleNetBirdResource(ctx, nbResource, groupIDs, logger)
+	if err != nil && nerrors.Is(err, errDuplicateResource) {
+		return ctrl.Result{RequeueAfter: defaultRequeueAfter}, nil
+	}
+
 	if err != nil {
 		nbResource.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("Error occurred handling NetBird Network Resource: %v", err))
 		return ctrl.Result{}, err
@@ -406,6 +418,12 @@ func (r *NBResourceReconciler) handleNetBirdResource(ctx context.Context, nbReso
 			Name:        nbResource.Spec.Name,
 		})
 
+		if err != nil && strings.Contains(err.Error(), "already exists") {
+			log.Log.Error(errNetBirdAPI, "network resource with the same name already exists", "err", err)
+			nbResource.Status.Conditions = netbirdiov1.NBConditionFalse("DuplicateName", "Resource name already exists")
+			return nil, errDuplicateResource
+		}
+
 		if err != nil {
 			logger.Error(errNetBirdAPI, "error creating resource", "err", err)
 			return nil, err
@@ -562,6 +580,22 @@ func (r *NBResourceReconciler) handleGroups(ctx context.Context, req ctrl.Reques
 }
 
 func (r *NBResourceReconciler) handleDelete(ctx context.Context, req ctrl.Request, nbResource *netbirdiov1.NBResource, logger logr.Logger) error {
+	var svc corev1.Service
+	err := r.Client.Get(ctx, req.NamespacedName, &svc)
+	if !errors.IsNotFound(err) {
+		logger.Error(errKubernetesAPI, "error getting Service", "err", err, "svc", req.NamespacedName.String())
+		return err
+	} else if err == nil {
+		if _, ok := svc.Annotations[ServiceExposeAnnotation]; ok {
+			delete(svc.Annotations, ServiceExposeAnnotation)
+			err = r.Client.Update(ctx, &svc)
+			if err != nil {
+				logger.Error(errKubernetesAPI, "error updating Service", "err", err, "svc", req.NamespacedName.String())
+				return err
+			}
+		}
+	}
+
 	if nbResource.Status.PolicyName != nil {
 		for _, policy := range util.SplitTrim(*nbResource.Status.PolicyName, ",") {
 			var nbPolicy netbirdiov1.NBPolicy
@@ -593,7 +627,7 @@ func (r *NBResourceReconciler) handleDelete(ctx context.Context, req ctrl.Reques
 	}
 
 	nbGroupList := netbirdiov1.NBGroupList{}
-	err := r.Client.List(ctx, &nbGroupList, &client.ListOptions{Namespace: req.Namespace})
+	err = r.Client.List(ctx, &nbGroupList, &client.ListOptions{Namespace: req.Namespace})
 	if err != nil {
 		logger.Error(errKubernetesAPI, "error listing NBGroup", "err", err)
 		return err

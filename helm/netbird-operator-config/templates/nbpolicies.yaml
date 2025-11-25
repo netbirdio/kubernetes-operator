@@ -1,15 +1,15 @@
-{{- range $k, $v := $.Values.ingress.policies }}
+{{- range $k, $v := $.Values.policies }}
 ---
 apiVersion: netbird.io/v1
 kind: NBPolicy
 metadata:
+  annotations:
+    helm.sh/resource-policy: keep
   finalizers:
     - netbird.io/cleanup
   labels:
     app.kubernetes.io/component: operator
-    {{- include "kubernetes-operator.labels" $ | nindent 4 }}
-  annotations:
-    helm.sh/resource-policy: keep
+    {{- include "netbird-operator-config.labels" $ | nindent 4 }}
   name: {{ $k }}
 spec:
   name: {{ $v.name }}

@@ -151,7 +151,7 @@ func (r *NBGroupReconciler) handleDelete(ctx context.Context, nbGroup netbirdiov
 		return err
 	}
 
-	if err != nil && strings.Contains(err.Error(), "linked") {
+	if err != nil && strings.Contains(err.Error(), "linked") && !nbGroup.DeletionTimestamp.Add(time.Minute).Before(time.Now()) {
 		logger.Info("group still linked to resources on netbird", "err", err)
 		// Check if group is defined elsewhere in the cluster
 		var groups netbirdiov1.NBGroupList

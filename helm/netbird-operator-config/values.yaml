@@ -1,0 +1,57 @@
+cluster:
+  name: "kubernetes"
+  dns: "svc.cluster.local"
+
+# Create router per namespace, useful for strict networking requirements
+namespacedNetworks: false
+
+router:
+  # Deploy routing peer(s)
+  enabled: false
+  # replicas: 3
+  # resources:
+  #   requests:
+  #     cpu: 100m
+  #     memory: 100Mi
+  #   limits:
+  #     cpu: 100m
+  #     memory: 100Mi
+  # labels: {}
+  # annotations: {}
+  # nodeSelector: {}
+  # tolerations: []
+  # Only needed if namespacedNetworks is set to true
+  namespaces: {}
+    # default:
+    # replicas: 3
+    # resources:
+    #   requests:
+    #     cpu: 100m
+    #     memory: 100Mi
+    #   limits:
+    #     cpu: 100m
+    #     memory: 100Mi
+    # labels: {}
+    # annotations: {}
+    # nodeSelector: {}
+  # tolerations: []
+# NetBird Policies for use with exposed services
+policies: {}
+  # default:
+  #   name: Kubernetes Default Policy
+  #   sourceGroups:
+#   - All
+
+kubernetesAPI:
+  enabled: false
+  groups: []
+  # - group1
+  # - group2
+  policies: []
+  # - default
+  # resourceName: "my-cluster-kubernetes"
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}

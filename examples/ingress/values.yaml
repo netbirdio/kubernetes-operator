@@ -5,6 +5,7 @@ ingress:
   enabled: true
   router:
     enabled: true
+    # namePrefix: "demo-"
 #  policies:
 #    default:
 #      name: Kubernetes Default Policy

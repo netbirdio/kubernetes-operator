@@ -62,8 +62,9 @@ With this setup, all peers with the same extra label would be used in a DNS roun
     1. Alternatively, provision secret in the same namespace as the operator and set the key `NB_API_KEY` to the access token generated.
     2. Set `netbirdAPI.keyFromSecret` to the name of the secret created.
 4. Set `ingress.enabled` to `true`.
-    1. Optionally, to provision the network immediately, set `ingress.router.enabled` to `true`.
-    2. Optionally, to provision 1 network per namespace, set `ingress.namespacedNetworks` to `true`.
+  1. Optionally, to provision the network immediately, set `ingress.router.enabled` to `true`.
+  2. Optionally, to provision 1 network per namespace, set `ingress.namespacedNetworks` to `true`.
+  3. Optionally, set `ingress.router.namePrefix` to prepend a custom string to every routing peer name (resulting name becomes `<prefix>-router`).
 5. Run `helm install` or `helm upgrade`.
 
 Minimum values.yaml example:

@@ -76,6 +76,7 @@ func main() {
 		netbirdAPIKey                string
 		allowAutomaticPolicyCreation bool
 		defaultLabels                string
+		routingPeerNamePrefix        string
 	)
 	flag.StringVar(&managementURL, "netbird-management-url", "https://api.netbird.io", "Management service URL")
 	flag.StringVar(&clientImage, "netbird-client-image", "netbirdio/netbird:latest", "Image for netbird client container")
@@ -104,6 +105,12 @@ func main() {
 		"default-labels",
 		"",
 		"Default labels used for all resources, in format key=value,key=value",
+	)
+	flag.StringVar(
+		&routingPeerNamePrefix,
+		"routing-peer-name-prefix",
+		"",
+		"Prefix applied to routing peer names (final name becomes <prefix>router)",
 	)
 
 	// Controller generic flags
@@ -255,6 +262,7 @@ func main() {
 			NamespacedNetworks:  namespacedNetworks,
 			ControllerNamespace: controllerNamespace,
 			DefaultLabels:       defaultLabelsMap,
+			RouterNamePrefix:    routingPeerNamePrefix,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "Service")
 			os.Exit(1)

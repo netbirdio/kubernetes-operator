@@ -28,6 +28,7 @@ type ServiceReconciler struct {
 	NamespacedNetworks  bool
 	ControllerNamespace string
 	DefaultLabels       map[string]string
+	RouterNamePrefix    string
 }
 
 const (
@@ -40,6 +41,7 @@ const (
 	serviceProtocolAnnotation           = "netbird.io/policy-protocol"
 	servicePolicySourceGroupsAnnotation = "netbird.io/policy-source-groups"
 	servicePolicyNameAnnotation         = "netbird.io/policy-name"
+	routingPeerBaseName                 = "router"
 )
 
 var (
@@ -114,6 +116,7 @@ func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request,
 	if r.NamespacedNetworks {
 		routerNamespace = req.Namespace
 	}
+	routerName := r.routingPeerName()
 
 	if !util.Contains(svc.Finalizers, "netbird.io/cleanup") {
 		svc.Finalizers = append(svc.Finalizers, "netbird.io/cleanup")
@@ -126,7 +129,7 @@ func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request,
 
 	var routingPeer netbirdiov1.NBRoutingPeer
 	// Check if NBRoutingPeer exists
-	err := r.Client.Get(ctx, types.NamespacedName{Namespace: routerNamespace, Name: "router"}, &routingPeer)
+	err := r.Client.Get(ctx, types.NamespacedName{Namespace: routerNamespace, Name: routerName}, &routingPeer)
 	if err != nil && !errors.IsNotFound(err) {
 		logger.Error(errKubernetesAPI, "error getting NBRoutingPeer", "err", err)
 		return ctrl.Result{}, err
@@ -136,7 +139,7 @@ func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request,
 	if errors.IsNotFound(err) {
 		routingPeer = netbirdiov1.NBRoutingPeer{
 			ObjectMeta: v1.ObjectMeta{
-				Name:       "router",
+				Name:       routerName,
 				Namespace:  routerNamespace,
 				Finalizers: []string{"netbird.io/cleanup"},
 				Labels:     r.DefaultLabels,
@@ -292,6 +295,10 @@ func (r *ServiceReconciler) applyPolicy(nbResource *netbirdiov1.NBResource, svc 
 	}
 
 	return nil
+}
+
+func (r *ServiceReconciler) routingPeerName() string {
+	return fmt.Sprintf("%s-%s", r.RouterNamePrefix, routingPeerBaseName)
 }
 
 // SetupWithManager sets up the controller with the Manager.

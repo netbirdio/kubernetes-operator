@@ -54,6 +54,9 @@ spec:
           {{- if .Values.ingress.namespacedNetworks }}
           - --namespaced-networks={{.Values.ingress.namespacedNetworks}}
           {{- end }}
+          {{- if .Values.ingress.router.namePrefix }}
+          - --routing-peer-name-prefix={{ .Values.ingress.router.namePrefix }}
+          {{- end }}
           {{- if .Values.cluster.dns }}
           - --cluster-dns={{.Values.cluster.dns}}
           {{- end }}

@@ -66,6 +66,13 @@ spec:
           {{- if .Values.routingClientImage }}
           - --netbird-client-image={{.Values.routingClientImage}}
           {{- end }}
+          {{- if .Values.general.labels }}
+          {{- $list := list }}
+          {{- range $k, $v := .Values.general.labels }}
+          {{- $list = append $list (printf "%s=%s" $k $v) }}
+          {{- end }}
+          - --default-labels="{{ join ", " $list }}"
+          {{- end }}
           ports:
             - name: webhook-server
               containerPort: {{ .Values.webhook.service.port }}

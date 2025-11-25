@@ -31,6 +31,7 @@ type NBResourceReconciler struct {
 	ManagementURL                string
 	AllowAutomaticPolicyCreation bool
 	ClusterName                  string
+	DefaultLabels                map[string]string
 	netbird                      *netbird.Client
 }
 
@@ -128,6 +129,7 @@ func (r *NBResourceReconciler) handlePolicyCreate(ctx context.Context, nbResourc
 			Name:        generatedName,
 			Annotations: map[string]string{"netbird.io/generated-by": req.NamespacedName.String()},
 			Finalizers:  []string{"netbird.io/cleanup"},
+			Labels:      r.DefaultLabels,
 		},
 		Spec: netbirdiov1.NBPolicySpec{
 			Name:          name,
@@ -148,6 +150,7 @@ func (r *NBResourceReconciler) handlePolicyCreate(ctx context.Context, nbResourc
 		if nbPolicy.Annotations == nil {
 			nbPolicy.Annotations = make(map[string]string)
 		}
+		nbPolicy.Labels = r.DefaultLabels
 		nbPolicy.Annotations["netbird.io/generated-by"] = req.NamespacedName.String()
 		nbPolicy.Spec = netbirdiov1.NBPolicySpec{
 			Name:          name,
@@ -505,6 +508,7 @@ func (r *NBResourceReconciler) handleGroups(ctx context.Context, req ctrl.Reques
 						},
 					},
 					Finalizers: []string{"netbird.io/group-cleanup", "netbird.io/resource-cleanup"},
+					Labels:     r.DefaultLabels,
 				},
 				Spec: netbirdiov1.NBGroupSpec{
 					Name: groupName,

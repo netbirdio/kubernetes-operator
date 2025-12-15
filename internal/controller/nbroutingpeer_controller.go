@@ -245,7 +245,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 			"app.kubernetes.io/name": "netbird-router",
 		}
 		if len(updatedDeployment.Spec.Template.Spec.Containers) != 1 {
-			updatedDeployment.Spec.Template.Spec.Containers = []corev1.Container{}
+			updatedDeployment.Spec.Template.Spec.Containers = []corev1.Container{{}}
 		}
 		updatedDeployment.Spec.Template.Spec.Containers[0].Name = "netbird"
 		updatedDeployment.Spec.Template.Spec.Containers[0].Image = r.ClientImage

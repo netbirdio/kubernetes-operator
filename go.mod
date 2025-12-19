@@ -7,6 +7,8 @@ godebug default=go1.23
 require (
 	github.com/go-logr/logr v1.4.2
 	github.com/google/uuid v1.6.0
+	// NOTE: The auth-proxy requires netbird with embed client support.
+	// Update to the version that includes github.com/netbirdio/netbird/client/embed
 	github.com/netbirdio/netbird v0.36.7
 	github.com/onsi/ginkgo/v2 v2.21.0
 	github.com/onsi/gomega v1.35.1

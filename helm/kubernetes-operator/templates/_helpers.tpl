@@ -66,6 +66,16 @@ Create the name of the service account to use
 {{- end }}
 {{- end }}
 
+{{/*
+Create the name of the service account to use for auth proxy
+*/}}
+{{- define "kubernetes-operator.authProxyServiceAccountName" -}}
+{{- if .Values.authProxy.serviceAccount.create }}
+{{- default (printf "%s-auth-proxy" (include "kubernetes-operator.fullname" .)) .Values.authProxy.serviceAccount.name }}
+{{- else }}
+{{- default "default" .Values.authProxy.serviceAccount.name }}
+{{- end }}
+{{- end }}
 
 {{/*
 Create the name of the webhook service

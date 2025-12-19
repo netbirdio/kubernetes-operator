@@ -1,0 +1,29 @@
+# Build the auth-proxy binary
+FROM golang:1.24 AS builder
+
+ARG TARGETOS=linux
+ARG TARGETARCH
+
+WORKDIR /workspace
+
+# Copy go mod files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY cmd/ cmd/
+
+# Build the binary
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags="-w -s" -a -o auth-proxy ./cmd/auth-proxy
+
+# Runtime image - using alpine because NetBird client requires
+# system utilities (uname, etc.) for system detection
+FROM alpine:3.19
+RUN apk add --no-cache ca-certificates
+WORKDIR /
+COPY --from=builder /workspace/auth-proxy .
+USER 65532:65532
+ENTRYPOINT ["/auth-proxy"]
+

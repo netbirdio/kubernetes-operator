@@ -1,0 +1,62 @@
+{{- if .Values.authProxy.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kubernetes-operator.fullname" . }}-auth-proxy
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kubernetes-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: auth-proxy
+spec:
+  replicas: {{ .Values.authProxy.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "kubernetes-operator.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: auth-proxy
+  template:
+    metadata:
+      labels:
+        {{- include "kubernetes-operator.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: auth-proxy
+    spec:
+      serviceAccountName: {{ include "kubernetes-operator.authProxyServiceAccountName" . }}
+      containers:
+        - name: auth-proxy
+          image: "{{ .Values.authProxy.image.repository }}:{{ .Values.authProxy.image.tag }}"
+          imagePullPolicy: {{ .Values.authProxy.image.pullPolicy }}
+          args:
+            - "--config-path=/var/lib/netbird/config.json"
+            - "--state-path=/var/lib/netbird/state.json"
+          env:
+            - name: NB_MANAGEMENT_URL
+              value: {{ .Values.authProxy.managementURL | default "https://api.netbird.io" }}
+            - name: NB_HOSTNAME
+              value: {{ .Values.authProxy.hostname }}
+            - name: KUBERNETES_API_SERVER
+              value: "https://kubernetes.default.svc"
+            - name: NB_LOG_LEVEL
+              value: {{ .Values.authProxy.logLevel | default "info" }}
+            {{- if .Values.authProxy.dnsDomain }}
+            - name: NB_DNS_DOMAIN
+              value: {{ .Values.authProxy.dnsDomain }}
+            {{- end }}
+            - name: NB_SETUP_KEY
+              valueFrom:
+                secretKeyRef:
+                  {{- if .Values.authProxy.existingSecret }}
+                  name: {{ .Values.authProxy.existingSecret }}
+                  key: NB_SETUP_KEY
+                  {{- else }}
+                  name: {{ include "kubernetes-operator.fullname" . }}-auth-proxy-secret
+                  key: NB_SETUP_KEY
+                  {{- end }}
+          resources:
+            {{- toYaml .Values.authProxy.resources | nindent 12 }}
+          volumeMounts:
+            - name: state
+              mountPath: /var/lib/netbird
+      volumes:
+        - name: state
+          emptyDir: {}
+{{- end }}
+

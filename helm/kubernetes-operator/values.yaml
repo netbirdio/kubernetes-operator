@@ -1,3 +1,54 @@
+# Kubernetes API Auth Proxy - Provides identity-aware access to the Kubernetes API
+# through NetBird peer authentication and Kubernetes impersonation
+authProxy:
+  # Enable the auth proxy deployment
+  enabled: false
+  
+  image:
+    repository: netbirdio/kubernetes-auth-proxy
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  # Number of auth proxy replicas
+  replicaCount: 1
+  
+  serviceAccount:
+    # Create a dedicated service account for the auth proxy
+    create: true
+    # Override the service account name
+    name: ""
+    # Annotations for the service account
+    annotations: {}
+  
+  # Resource limits and requests
+  resources: {}
+    # limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # requests:
+    #   cpu: 50m
+    #   memory: 64Mi
+  
+  # NetBird setup key for the auth proxy peer
+  # Can also be provided via existingSecret
+  setupKey: ""
+  
+  # Use an existing secret containing NB_SETUP_KEY
+  existingSecret: ""
+  
+  # Hostname for the auth proxy peer in NetBird
+  hostname: "k8s-api"
+  
+  # NetBird DNS domain (e.g., "netbird.cloud" or "netbird.selfhosted")
+  # Used for TLS certificate generation
+  dnsDomain: ""
+  
+  # Override the global management URL
+  managementURL: ""
+  
+  # Log level (debug, info, warn, error)
+  logLevel: "info"
+
 clusterSecretsPermissions:
   # Required for NBSetupKey validation
   # Required for Ingress functionality to create and validate secrets for routing peers

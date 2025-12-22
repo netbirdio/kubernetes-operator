@@ -241,9 +241,6 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 		updatedDeployment.Spec.Template.Spec.NodeSelector = nbrp.Spec.NodeSelector
 		updatedDeployment.Spec.Template.ObjectMeta.Labels = podLabels
 		updatedDeployment.Spec.Template.Spec.Volumes = nbrp.Spec.Volumes
-		updatedDeployment.Spec.Template.ObjectMeta.Labels = map[string]string{
-			"app.kubernetes.io/name": "netbird-router",
-		}
 		if len(updatedDeployment.Spec.Template.Spec.Containers) != 1 {
 			updatedDeployment.Spec.Template.Spec.Containers = []corev1.Container{}
 		}

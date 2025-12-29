@@ -242,7 +242,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 		updatedDeployment.Spec.Template.ObjectMeta.Labels = podLabels
 		updatedDeployment.Spec.Template.Spec.Volumes = nbrp.Spec.Volumes
 		if len(updatedDeployment.Spec.Template.Spec.Containers) != 1 {
-			updatedDeployment.Spec.Template.Spec.Containers = []corev1.Container{}
+			updatedDeployment.Spec.Template.Spec.Containers = []corev1.Container{{}}
 		}
 		updatedDeployment.Spec.Template.Spec.Containers[0].Name = "netbird"
 		updatedDeployment.Spec.Template.Spec.Containers[0].Image = r.ClientImage

@@ -909,6 +909,144 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								Expect(deployment.ResourceVersion).To(Equal(resourceVersion))
 							})
 						})
+
+						When("Privileged mode is enabled", func() {
+							It("should create deployment with privileged security context", func() {
+								Expect(k8sClient.Get(ctx, typeNamespacedName, nbroutingpeer)).To(Succeed())
+								nbroutingpeer.Spec.Privileged = util.Ptr(true)
+								Expect(k8sClient.Update(ctx, nbroutingpeer)).To(Succeed())
+
+								_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+									NamespacedName: typeNamespacedName,
+								})
+								Expect(err).NotTo(HaveOccurred())
+
+								deployment := &appsv1.Deployment{}
+								Expect(k8sClient.Get(ctx, typeNamespacedName, deployment)).To(Succeed())
+								Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(1))
+
+								container := deployment.Spec.Template.Spec.Containers[0]
+								Expect(container.SecurityContext).NotTo(BeNil())
+								Expect(container.SecurityContext.Privileged).NotTo(BeNil())
+								Expect(*container.SecurityContext.Privileged).To(BeTrue())
+								Expect(container.SecurityContext.Capabilities).NotTo(BeNil())
+								Expect(container.SecurityContext.Capabilities.Add).To(ContainElement(corev1.Capability("NET_ADMIN")))
+							})
+						})
+
+						When("Privileged mode is disabled", func() {
+							It("should create deployment with non-privileged security context", func() {
+								Expect(k8sClient.Get(ctx, typeNamespacedName, nbroutingpeer)).To(Succeed())
+								nbroutingpeer.Spec.Privileged = util.Ptr(false)
+								Expect(k8sClient.Update(ctx, nbroutingpeer)).To(Succeed())
+
+								_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+									NamespacedName: typeNamespacedName,
+								})
+								Expect(err).NotTo(HaveOccurred())
+
+								deployment := &appsv1.Deployment{}
+								Expect(k8sClient.Get(ctx, typeNamespacedName, deployment)).To(Succeed())
+								Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(1))
+
+								container := deployment.Spec.Template.Spec.Containers[0]
+								Expect(container.SecurityContext).NotTo(BeNil())
+								Expect(container.SecurityContext.Privileged).To(BeNil())
+								Expect(container.SecurityContext.Capabilities).NotTo(BeNil())
+								Expect(container.SecurityContext.Capabilities.Add).To(ContainElement(corev1.Capability("NET_ADMIN")))
+							})
+						})
+
+						When("Privileged mode is not specified", func() {
+							It("should create deployment with default security context (non-privileged)", func() {
+								// Ensure Privileged is nil (default)
+								Expect(k8sClient.Get(ctx, typeNamespacedName, nbroutingpeer)).To(Succeed())
+								nbroutingpeer.Spec.Privileged = nil
+								Expect(k8sClient.Update(ctx, nbroutingpeer)).To(Succeed())
+
+								_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+									NamespacedName: typeNamespacedName,
+								})
+								Expect(err).NotTo(HaveOccurred())
+
+								deployment := &appsv1.Deployment{}
+								Expect(k8sClient.Get(ctx, typeNamespacedName, deployment)).To(Succeed())
+								Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(1))
+
+								container := deployment.Spec.Template.Spec.Containers[0]
+								Expect(container.SecurityContext).NotTo(BeNil())
+								Expect(container.SecurityContext.Privileged).To(BeNil())
+								Expect(container.SecurityContext.Capabilities).NotTo(BeNil())
+								Expect(container.SecurityContext.Capabilities.Add).To(ContainElement(corev1.Capability("NET_ADMIN")))
+							})
+						})
+
+						When("Deployment exists and privileged mode changes", func() {
+							It("should update deployment security context when privileged mode is enabled", func() {
+								// First create deployment without privileged mode
+								_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+									NamespacedName: typeNamespacedName,
+								})
+								Expect(err).NotTo(HaveOccurred())
+
+								// Verify initial state
+								deployment := &appsv1.Deployment{}
+								Expect(k8sClient.Get(ctx, typeNamespacedName, deployment)).To(Succeed())
+								container := deployment.Spec.Template.Spec.Containers[0]
+								Expect(container.SecurityContext.Privileged).To(BeNil())
+
+								// Enable privileged mode
+								Expect(k8sClient.Get(ctx, typeNamespacedName, nbroutingpeer)).To(Succeed())
+								nbroutingpeer.Spec.Privileged = util.Ptr(true)
+								Expect(k8sClient.Update(ctx, nbroutingpeer)).To(Succeed())
+
+								_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
+									NamespacedName: typeNamespacedName,
+								})
+								Expect(err).NotTo(HaveOccurred())
+
+								// Verify privileged mode is now enabled
+								deployment = &appsv1.Deployment{}
+								Expect(k8sClient.Get(ctx, typeNamespacedName, deployment)).To(Succeed())
+								container = deployment.Spec.Template.Spec.Containers[0]
+								Expect(container.SecurityContext.Privileged).NotTo(BeNil())
+								Expect(*container.SecurityContext.Privileged).To(BeTrue())
+							})
+
+							It("should update deployment security context when privileged mode is disabled", func() {
+								// First create deployment with privileged mode enabled
+								nbroutingpeer.Spec.Privileged = util.Ptr(true)
+								Expect(k8sClient.Update(ctx, nbroutingpeer)).To(Succeed())
+
+								_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+									NamespacedName: typeNamespacedName,
+								})
+								Expect(err).NotTo(HaveOccurred())
+
+								// Verify initial privileged state
+								deployment := &appsv1.Deployment{}
+								Expect(k8sClient.Get(ctx, typeNamespacedName, deployment)).To(Succeed())
+								container := deployment.Spec.Template.Spec.Containers[0]
+								Expect(container.SecurityContext.Privileged).NotTo(BeNil())
+								Expect(*container.SecurityContext.Privileged).To(BeTrue())
+
+								// Disable privileged mode
+								Expect(k8sClient.Get(ctx, typeNamespacedName, nbroutingpeer)).To(Succeed())
+								nbroutingpeer.Spec.Privileged = util.Ptr(false)
+								Expect(k8sClient.Update(ctx, nbroutingpeer)).To(Succeed())
+
+								_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
+									NamespacedName: typeNamespacedName,
+								})
+								Expect(err).NotTo(HaveOccurred())
+
+								// Verify privileged mode is now disabled
+								deployment = &appsv1.Deployment{}
+								Expect(k8sClient.Get(ctx, typeNamespacedName, deployment)).To(Succeed())
+								container = deployment.Spec.Template.Spec.Containers[0]
+								Expect(container.SecurityContext.Privileged).To(BeNil())
+							})
+						})
 					})
 					When("NBRoutingPeer is set for deletion", func() {
 						networkDeleted := false

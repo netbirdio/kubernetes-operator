@@ -285,6 +285,27 @@ var _ = Describe("Service Controller", func() {
 							Expect(nbResource.Spec.Groups).To(ConsistOf([]string{"meow", "wow", policyName}))
 						})
 					})
+					When("load balancer class is netbird", func() {
+						BeforeEach(func() {
+							service.Spec.Type = corev1.ServiceTypeLoadBalancer
+							if service.Spec.LoadBalancerClass == nil {
+								service.Spec.LoadBalancerClass = util.Ptr("netbird")
+							}
+							Expect(k8sClient.Update(ctx, service)).To(Succeed())
+						})
+						It("should add load balancer ingress to service status", func() {
+							_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+								NamespacedName: typeNamespacedName,
+							})
+							Expect(err).NotTo(HaveOccurred())
+							nbResource := &netbirdiov1.NBResource{}
+							updatedService := &corev1.Service{}
+							Expect(k8sClient.Get(ctx, typeNamespacedName, nbResource)).To(Succeed())
+							Expect(k8sClient.Get(ctx, typeNamespacedName, updatedService)).To(Succeed())
+							Expect(updatedService.Status.LoadBalancer.Ingress).To(HaveLen(1))
+							Expect(updatedService.Status.LoadBalancer.Ingress[0].Hostname).To(Equal(nbResource.Spec.Address))
+						})
+					})
 				})
 			})
 		})

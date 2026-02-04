@@ -187,15 +187,9 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 										Value: r.ManagementURL,
 									},
 								},
-								SecurityContext: &corev1.SecurityContext{
-									Capabilities: &corev1.Capabilities{
-										Add: []corev1.Capability{
-											"NET_ADMIN",
-										},
-									},
-								},
-								Resources:    nbrp.Spec.Resources,
-								VolumeMounts: nbrp.Spec.VolumeMounts,
+								SecurityContext: r.buildSecurityContext(nbrp),
+								Resources:       nbrp.Spec.Resources,
+								VolumeMounts:    nbrp.Spec.VolumeMounts,
 							},
 						},
 						Volumes: nbrp.Spec.Volumes,
@@ -263,13 +257,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 				Value: r.ManagementURL,
 			},
 		}
-		updatedDeployment.Spec.Template.Spec.Containers[0].SecurityContext = &corev1.SecurityContext{
-			Capabilities: &corev1.Capabilities{
-				Add: []corev1.Capability{
-					"NET_ADMIN",
-				},
-			},
-		}
+		updatedDeployment.Spec.Template.Spec.Containers[0].SecurityContext = r.buildSecurityContext(nbrp)
 		updatedDeployment.Spec.Template.Spec.Containers[0].Resources = nbrp.Spec.Resources
 		updatedDeployment.Spec.Template.Spec.Containers[0].VolumeMounts = nbrp.Spec.VolumeMounts
 
@@ -655,6 +643,24 @@ func (r *NBRoutingPeerReconciler) handleDelete(ctx context.Context, req ctrl.Req
 	}
 
 	return ctrl.Result{}, nil
+}
+
+// buildSecurityContext creates the appropriate SecurityContext based on the NBRoutingPeer spec
+func (r *NBRoutingPeerReconciler) buildSecurityContext(nbrp *netbirdiov1.NBRoutingPeer) *corev1.SecurityContext {
+	securityContext := &corev1.SecurityContext{
+		Capabilities: &corev1.Capabilities{
+			Add: []corev1.Capability{
+				"NET_ADMIN",
+			},
+		},
+	}
+
+	// Set privileged mode if specified
+	if nbrp.Spec.Privileged != nil && *nbrp.Spec.Privileged {
+		securityContext.Privileged = nbrp.Spec.Privileged
+	}
+
+	return securityContext
 }
 
 // SetupWithManager sets up the controller with the Manager.

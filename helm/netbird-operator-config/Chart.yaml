@@ -1,6 +1,6 @@
 apiVersion: v2
 name: netbird-operator-config
-description: A Helm chart for Kubernetes
+description: NetBird Operator Configuration
 type: application
 version: 0.1.0
-appVersion: "0.0.0"
+appVersion: "0.2.0"

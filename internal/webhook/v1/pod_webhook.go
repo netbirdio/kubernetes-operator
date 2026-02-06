@@ -125,9 +125,7 @@ func (d *PodNetbirdInjector) Default(ctx context.Context, obj runtime.Object) er
 	// Build the netbird container spec.
 	nbContainer := d.buildNetbirdContainer(envVars, nbSetupKey.Spec.VolumeMounts)
 
-	// If sidecar mode is requested, inject as a native sidecar (init container
-	// with restartPolicy: Always). This ensures the VPN is available during init
-	// and does not block Job completion. Requires Kubernetes 1.28+.
+	// If sidecar mode is requested, inject as a sidecar (init container with restartPolicy: Always).
 	if pod.Annotations[sidecarAnnotation] == "true" {
 		restartPolicy := corev1.ContainerRestartPolicyAlways
 		nbContainer.RestartPolicy = &restartPolicy

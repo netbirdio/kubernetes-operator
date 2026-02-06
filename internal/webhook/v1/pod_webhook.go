@@ -33,6 +33,7 @@ import (
 
 const (
 	setupKeyAnnotation = "netbird.io/setup-key"
+	sidecarAnnotation  = "netbird.io/sidecar"
 )
 
 // nolint:unused
@@ -121,8 +122,29 @@ func (d *PodNetbirdInjector) Default(ctx context.Context, obj runtime.Object) er
 		}
 	}
 
-	// Append the netbird container with the constructed env vars.
-	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{
+	// Build the netbird container spec.
+	nbContainer := d.buildNetbirdContainer(envVars, nbSetupKey.Spec.VolumeMounts)
+
+	// If sidecar mode is requested, inject as a native sidecar (init container
+	// with restartPolicy: Always). This ensures the VPN is available during init
+	// and does not block Job completion. Requires Kubernetes 1.28+.
+	if pod.Annotations[sidecarAnnotation] == "true" {
+		restartPolicy := corev1.ContainerRestartPolicyAlways
+		nbContainer.RestartPolicy = &restartPolicy
+		pod.Spec.InitContainers = append(pod.Spec.InitContainers, nbContainer)
+	} else {
+		pod.Spec.Containers = append(pod.Spec.Containers, nbContainer)
+	}
+
+	pod.Spec.Volumes = append(pod.Spec.Volumes, nbSetupKey.Spec.Volumes...)
+
+	return nil
+}
+
+// buildNetbirdContainer constructs the NetBird container spec with the given
+// environment variables and volume mounts.
+func (d *PodNetbirdInjector) buildNetbirdContainer(envVars []corev1.EnvVar, volumeMounts []corev1.VolumeMount) corev1.Container {
+	return corev1.Container{
 		Name:  "netbird",
 		Image: d.clientImage,
 		Env:   envVars,
@@ -131,10 +153,6 @@ func (d *PodNetbirdInjector) Default(ctx context.Context, obj runtime.Object) er
 				Add: []corev1.Capability{"NET_ADMIN"},
 			},
 		},
-		VolumeMounts: nbSetupKey.Spec.VolumeMounts,
-	})
-
-	pod.Spec.Volumes = append(pod.Spec.Volumes, nbSetupKey.Spec.Volumes...)
-
-	return nil
+		VolumeMounts: volumeMounts,
+	}
 }

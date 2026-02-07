@@ -1,0 +1,55 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: test
+  namespace: default
+stringData:
+  SETUP_KEY: 50445ABC-8901-4050-8047-0A390658A79B # Replace with valid setup key
+---
+apiVersion: netbird.io/v1
+kind: NBSetupKey
+metadata:
+  name: test
+  namespace: default
+spec:
+  secretKeyRef:
+    name: test
+    key: SETUP_KEY
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: job
+spec:
+  template:
+    metadata:
+      annotations:
+        netbird.io/setup-key: test
+        netbird.io/sidecar: "true"
+    spec:
+      containers:
+        - name: worker
+          image: curlimages/curl:latest
+          command: ["sh", "-c", "curl -s https://example.com && echo done && sleep 60"]
+      restartPolicy: Never
+  backoffLimit: 3
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cronjob
+spec:
+  schedule: "*/30 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          annotations:
+            netbird.io/setup-key: test
+            netbird.io/sidecar: "true"
+        spec:
+          containers:
+            - name: worker
+              image: curlimages/curl:latest
+              command: ["sh", "-c", "curl -s https://example.com && echo done"]
+          restartPolicy: Never

@@ -125,6 +125,33 @@ var _ = Describe("Pod Webhook", func() {
 				Expect(obj.Spec.Containers).To(HaveLen(2))
 				Expect(obj.Spec.Containers[1].Name).To(Equal("netbird"))
 			})
+
+			It("Should inject NB container as native sidecar when sidecar annotation is true", func() {
+				obj.Annotations[sidecarAnnotation] = "true"
+				Expect(defaulter.Default(context.Background(), obj)).NotTo(HaveOccurred())
+				Expect(obj.Spec.Containers).To(HaveLen(1), "original containers should be unchanged")
+				Expect(obj.Spec.InitContainers).To(HaveLen(1))
+				Expect(obj.Spec.InitContainers[0].Name).To(Equal("netbird"))
+				Expect(obj.Spec.InitContainers[0].RestartPolicy).NotTo(BeNil())
+				Expect(*obj.Spec.InitContainers[0].RestartPolicy).To(Equal(corev1.ContainerRestartPolicyAlways))
+			})
+
+			It("Should inject NB as regular container when sidecar annotation is false", func() {
+				obj.Annotations[sidecarAnnotation] = "false"
+				Expect(defaulter.Default(context.Background(), obj)).NotTo(HaveOccurred())
+				Expect(obj.Spec.Containers).To(HaveLen(2))
+				Expect(obj.Spec.Containers[1].Name).To(Equal("netbird"))
+				Expect(obj.Spec.InitContainers).To(BeEmpty())
+			})
+
+			It("Should inject NB as regular container when sidecar annotation is absent", func() {
+				delete(obj.Annotations, sidecarAnnotation)
+				Expect(defaulter.Default(context.Background(), obj)).NotTo(HaveOccurred())
+				Expect(obj.Spec.Containers).To(HaveLen(2))
+				Expect(obj.Spec.Containers[1].Name).To(Equal("netbird"))
+				Expect(obj.Spec.InitContainers).To(BeEmpty())
+			})
+
 		})
 	})
 })

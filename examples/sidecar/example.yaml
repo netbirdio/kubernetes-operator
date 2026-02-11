@@ -25,7 +25,7 @@ spec:
     metadata:
       annotations:
         netbird.io/setup-key: test
-        netbird.io/sidecar: "true"
+        netbird.io/init-sidecar: "true"
     spec:
       containers:
         - name: worker
@@ -46,7 +46,7 @@ spec:
         metadata:
           annotations:
             netbird.io/setup-key: test
-            netbird.io/sidecar: "true"
+            netbird.io/init-sidecar: "true"
         spec:
           containers:
             - name: worker

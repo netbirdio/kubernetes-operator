@@ -33,7 +33,7 @@ import (
 
 const (
 	setupKeyAnnotation = "netbird.io/setup-key"
-	sidecarAnnotation  = "netbird.io/sidecar"
+	sidecarAnnotation  = "netbird.io/init-sidecar"
 )
 
 // nolint:unused

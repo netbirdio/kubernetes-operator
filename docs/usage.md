@@ -2,8 +2,8 @@
 
 ## Provision pods with NetBird access using side-cars
 
-1. Create a [Setup Key](https://docs.netbird.io/how-to/register-machines-using-setup-keys#using-setup-keys) in the NetBird console.
-2. Create a Secret with the setup key in the target namespace.
+1. Create a Setup Key in your [NetBird console](https://docs.netbird.io/how-to/register-machines-using-setup-keys#using-setup-keys).
+2. Create a Secret object in the namespace where you need to provision NetBird access (secret name and field can be anything).
 
 ```yaml
 apiVersion: v1
@@ -13,7 +13,7 @@ kind: Secret
 metadata:
   name: test
 ```
-3. Create an NBSetupKey object referring to your secret.
+1. Create an NBSetupKey object referring to your secret.
 ```yaml
 apiVersion: netbird.io/v1
 kind: NBSetupKey
@@ -22,12 +22,12 @@ metadata:
 spec:
   # Optional, overrides management URL for this setupkey only
   # defaults to https://api.netbird.io
-  managementURL: https://netbird.example.com
+  managementURL: https://netbird.example.com 
   secretKeyRef:
     name: test # Required
     key: setupkey # Required
 ```
-4. Annotate the pods you need to inject NetBird into with `netbird.io/setup-key`.
+1. Annotate the pods you need to inject NetBird into with `netbird.io/setup-key`.
 ```yaml
 kind: Deployment
 ...
@@ -43,49 +43,20 @@ spec:
 ...
 ```
 
-### Annotations
-
-|Annotation|Description|Default|
-|---|---|---|
-|`netbird.io/setup-key`|Name of the NBSetupKey resource to use for authentication|*(required)*|
-|`netbird.io/sidecar`|Inject NetBird as a [sidecar container](https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/)|`"false"`|
-|`netbird.io/extra-dns-labels`|Comma-separated extra DNS labels for DNS round-robin|*(none)*|
-
-### Sidecar Mode
-
-Set `netbird.io/sidecar: "true"` to inject NetBird as a [sidecar container](https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/). This is recommended for Jobs, CronJobs, and workloads that need VPN during the init phase.
-
-```yaml
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: job
-spec:
-  template:
-    metadata:
-      annotations:
-        netbird.io/setup-key: test
-        netbird.io/sidecar: "true"
-    spec:
-      restartPolicy: Never
-      containers:
-        - name: worker
-          image: curlimages/curl:latest
-          command: ["sh", "-c", "curl -s https://internal-service.example.com"]
-```
-
-> [!NOTE]
-> Sidecar containers require **Kubernetes 1.28 or later**.
-
-See [examples/sidecar/](../examples/sidecar/) for complete examples.
-
-### Extra DNS Labels
-
 Since v0.27.0, NetBird supports extra DNS labels, which extends the DNS names that you can link to peers by grouping them and load balancing access using DNS round-robin. To enable this feature, add the following annotation to the pod:
 ```yaml
     netbird.io/extra-dns-labels: "label1,label2"
 ```
 With this setup, all peers with the same extra label would be used in a DNS round-robin fashion.
+
+### Init Sidecar Mode
+
+By default, the NetBird container is injected as a regular sidecar container. For workloads like Jobs and CronJobs where the pod should terminate after the main container completes, you can use init sidecar mode. This injects NetBird as an init container with `restartPolicy: Always`.
+
+To enable init sidecar mode, add the following annotation:
+```yaml
+    netbird.io/init-sidecar: "true"
+```
 
 ## Provisioning Networks (Ingress Functionality)
 
@@ -127,10 +98,10 @@ cluster:
 ```yaml
 apiVersion: v1
 clusters:
-- cluster:
-    certificate-authority: /home/user/.minikube/ca.crt
-    server: https://kubernetes.default.svc.cluster.local
-  name: minikube
+  - cluster:
+      certificate-authority: /home/user/.minikube/ca.crt
+      server: https://kubernetes.default.svc.cluster.local
+    name: minikube
 ```
 
 ### Exposing a Service
@@ -213,12 +184,12 @@ ingress:
       name: Kubernetes Default Policy # Required, name of policy in NetBird console
       description: Default # Optional
       sourceGroups: # Required, name of groups to assign as source in Policy.
-      - All
+        - All
       ports: # Optional, resources annotated 'netbird.io/policy=default' will append to this.
-      - 443
+        - 443
       protocols: # Optional, restricts protocols allowed to resources, defaults to ['tcp', 'udp'].
-      - tcp
-      - udp
+        - tcp
+        - udp
       bidirectional: true # Optional, defaults to true
 ```
 2. Reference policies in Services using `netbird.io/policy=default,otherpolicy,...`, this will add relevant ports and destination groups to policies.

@@ -49,6 +49,15 @@ Since v0.27.0, NetBird supports extra DNS labels, which extends the DNS names th
 ```
 With this setup, all peers with the same extra label would be used in a DNS round-robin fashion.
 
+### Init Sidecar Mode
+
+By default, the NetBird container is injected as a regular sidecar container. For workloads like Jobs and CronJobs where the pod should terminate after the main container completes, you can use init sidecar mode. This injects NetBird as an init container with `restartPolicy: Always`.
+
+To enable init sidecar mode, add the following annotation:
+```yaml
+    netbird.io/init-sidecar: "true"
+```
+
 ## Provisioning Networks (Ingress Functionality)
 
 ### Granting controller access to NetBird Management
@@ -89,10 +98,10 @@ cluster:
 ```yaml
 apiVersion: v1
 clusters:
-- cluster:
-    certificate-authority: /home/user/.minikube/ca.crt
-    server: https://kubernetes.default.svc.cluster.local
-  name: minikube
+  - cluster:
+      certificate-authority: /home/user/.minikube/ca.crt
+      server: https://kubernetes.default.svc.cluster.local
+    name: minikube
 ```
 
 ### Exposing a Service
@@ -175,12 +184,12 @@ ingress:
       name: Kubernetes Default Policy # Required, name of policy in NetBird console
       description: Default # Optional
       sourceGroups: # Required, name of groups to assign as source in Policy.
-      - All
+        - All
       ports: # Optional, resources annotated 'netbird.io/policy=default' will append to this.
-      - 443
+        - 443
       protocols: # Optional, restricts protocols allowed to resources, defaults to ['tcp', 'udp'].
-      - tcp
-      - udp
+        - tcp
+        - udp
       bidirectional: true # Optional, defaults to true
 ```
 2. Reference policies in Services using `netbird.io/policy=default,otherpolicy,...`, this will add relevant ports and destination groups to policies.

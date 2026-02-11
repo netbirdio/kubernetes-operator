@@ -105,7 +105,6 @@ func main() {
 		"",
 		"Default labels used for all resources, in format key=value,key=value",
 	)
-
 	// Controller generic flags
 	var (
 		metricsAddr          string

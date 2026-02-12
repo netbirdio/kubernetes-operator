@@ -7,4 +7,6 @@ RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/s
 
 FROM alpine:3 AS final
 
+RUN apk add --no-cache gettext-envsubst
+
 COPY --from=builder /usr/local/bin/kubectl /usr/local/bin/kubectl

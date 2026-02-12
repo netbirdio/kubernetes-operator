@@ -1,4 +1,4 @@
-{{- if and .Values.enabled .Values.kubernetesAPI.enabled }}
+{{- if .Values.kubernetesAPI.enabled }}
 {{- $routerNS := .Release.Namespace }}
 {{- if .Values.namespacedNetworks }}
 {{- $routerNS = "default" }}
@@ -21,18 +21,15 @@ spec:
       labels:
         app.kubernetes.io/component: operator
         {{- include "netbird-operator-config.labels" . | nindent 8 }}
-        {{- with .Values.operator.podLabels }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
     spec:
       initContainers:
       - name: wait-network-ready
         image: "netbirdio/kubectl:latest"
         command:
-        - bash
+        - sh
         - -c
         args:
-        - kubectl wait --for 'jsonpath={.status.networkID}' -n {{ $routerNS }} nbroutingpeer router; 
+        - kubectl wait --for 'jsonpath={.status.networkID}' -n {{ $routerNS }} nbroutingpeer router;
       containers:
       - name: apply-nbresource
         image: "netbirdio/kubectl:latest"
@@ -62,7 +59,7 @@ spec:
               tcpPorts:
               - 443
         command:
-        - bash
+        - sh
         - -c
         args:
         - kubectl delete NBResource --ignore-not-found -n default kubernetes; export NETWORK_ID=$(kubectl get NBRoutingPeer -n {{ $routerNS }} router -o 'jsonpath={.status.networkID}'); echo "$NBRESOURCE_VALUE" | envsubst | kubectl apply -f -

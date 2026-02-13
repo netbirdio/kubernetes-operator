@@ -659,16 +659,20 @@ var _ = Describe("NBPolicy Controller", func() {
 
 				Expect(k8sClient.Delete(ctx, nbpolicy)).To(Succeed())
 
+				tcpDeleteAttempted := false
 				mux.HandleFunc("/api/policies/policyidtcp-gone", func(w http.ResponseWriter, r *http.Request) {
 					if r.Method == http.MethodDelete {
+						tcpDeleteAttempted = true
 						w.WriteHeader(http.StatusNotFound)
 						_, err := w.Write([]byte(`{"message":"policy: policyidtcp-gone not found","code":404}`))
 						Expect(err).NotTo(HaveOccurred())
 					}
 				})
 
+				udpDeleteAttempted := false
 				mux.HandleFunc("/api/policies/policyidudp-gone", func(w http.ResponseWriter, r *http.Request) {
 					if r.Method == http.MethodDelete {
+						udpDeleteAttempted = true
 						w.WriteHeader(http.StatusNotFound)
 						_, err := w.Write([]byte(`{"message":"policy: policyidudp-gone not found","code":404}`))
 						Expect(err).NotTo(HaveOccurred())
@@ -679,6 +683,8 @@ var _ = Describe("NBPolicy Controller", func() {
 					NamespacedName: typeNamespacedName,
 				})
 				Expect(err).NotTo(HaveOccurred())
+				Expect(tcpDeleteAttempted).To(BeTrue())
+				Expect(udpDeleteAttempted).To(BeTrue())
 
 				err = k8sClient.Get(ctx, typeNamespacedName, nbpolicy)
 				Expect(errors.IsNotFound(err)).To(BeTrue())

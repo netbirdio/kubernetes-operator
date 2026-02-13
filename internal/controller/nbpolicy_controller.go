@@ -390,9 +390,14 @@ func (r *NBPolicyReconciler) groupNamesToIDs(ctx context.Context, groupNames []s
 		groupNameIDMapping[g.Name] = g.Id
 	}
 
+	seen := make(map[string]bool)
 	ret := make([]string, 0, len(groupNames))
 	for _, g := range groupNames {
-		ret = append(ret, groupNameIDMapping[g])
+		id := groupNameIDMapping[g]
+		if !seen[id] {
+			seen[id] = true
+			ret = append(ret, id)
+		}
 	}
 
 	return ret, nil

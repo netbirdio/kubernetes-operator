@@ -643,5 +643,46 @@ var _ = Describe("NBPolicy Controller", func() {
 				Expect(errors.IsNotFound(err)).To(BeTrue())
 			})
 		})
+
+		When("NBPolicy is set for deletion but policies are already gone from API", func() {
+			It("should remove finalizer and complete deletion", func() {
+				controllerReconciler := &NBPolicyReconciler{
+					Client:      k8sClient,
+					Scheme:      k8sClient.Scheme(),
+					netbird:     netbirdClient,
+					ClusterName: "Kubernetes",
+				}
+
+				nbpolicy.Status.TCPPolicyID = util.Ptr("policyidtcp-gone")
+				nbpolicy.Status.UDPPolicyID = util.Ptr("policyidudp-gone")
+				Expect(k8sClient.Status().Update(ctx, nbpolicy)).To(Succeed())
+
+				Expect(k8sClient.Delete(ctx, nbpolicy)).To(Succeed())
+
+				mux.HandleFunc("/api/policies/policyidtcp-gone", func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == http.MethodDelete {
+						w.WriteHeader(http.StatusNotFound)
+						_, err := w.Write([]byte(`{"message":"policy: policyidtcp-gone not found","code":404}`))
+						Expect(err).NotTo(HaveOccurred())
+					}
+				})
+
+				mux.HandleFunc("/api/policies/policyidudp-gone", func(w http.ResponseWriter, r *http.Request) {
+					if r.Method == http.MethodDelete {
+						w.WriteHeader(http.StatusNotFound)
+						_, err := w.Write([]byte(`{"message":"policy: policyidudp-gone not found","code":404}`))
+						Expect(err).NotTo(HaveOccurred())
+					}
+				})
+
+				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+					NamespacedName: typeNamespacedName,
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				err = k8sClient.Get(ctx, typeNamespacedName, nbpolicy)
+				Expect(errors.IsNotFound(err)).To(BeTrue())
+			})
+		})
 	})
 })

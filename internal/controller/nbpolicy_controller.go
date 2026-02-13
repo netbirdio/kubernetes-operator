@@ -92,8 +92,12 @@ func (r *NBPolicyReconciler) mapResources(ctx context.Context, nbPolicy *netbird
 		if generatedBy != "" && !util.Contains(resourcePolicies, strings.ReplaceAll(nbPolicy.Name, "-"+generatedBy, "")) {
 			continue
 		}
-		// Groups
-		groups = append(groups, resource.Status.Groups...)
+		// Groups (deduplicate to avoid duplicate destination group IDs)
+		for _, g := range resource.Status.Groups {
+			if !util.Contains(groups, g) {
+				groups = append(groups, g)
+			}
+		}
 
 		for _, p := range resource.Spec.TCPPorts {
 			portMapping[protocolTCP][p] = nil

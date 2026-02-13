@@ -643,5 +643,94 @@ var _ = Describe("NBPolicy Controller", func() {
 				Expect(errors.IsNotFound(err)).To(BeTrue())
 			})
 		})
+
+		When("managedServiceList has duplicates", func() {
+			It("should deduplicate destinations via mapResources", func() {
+				controllerReconciler := &NBPolicyReconciler{
+					Client:      k8sClient,
+					Scheme:      k8sClient.Scheme(),
+					netbird:     netbirdClient,
+					ClusterName: "Kubernetes",
+				}
+
+				// Add annotations to the pre-created nbpolicy
+				nbpolicy.Annotations = map[string]string{
+					"netbird.io/generated-by": "default/test",
+				}
+				Expect(k8sClient.Update(ctx, nbpolicy)).To(Succeed())
+
+				nbResource := &netbirdiov1.NBResource{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: "default",
+					},
+					Spec: netbirdiov1.NBResourceSpec{
+						Name:       "meow",
+						Groups:     []string{"test"},
+						NetworkID:  "test",
+						Address:    "test.default.svc.cluster.local",
+						PolicyName: resourceName,
+						TCPPorts:   []int32{443},
+					},
+				}
+				Expect(k8sClient.Create(ctx, nbResource)).To(Succeed())
+
+				nbResource.Status = netbirdiov1.NBResourceStatus{
+					TCPPorts:   []int32{443},
+					PolicyName: &resourceName,
+					Groups:     []string{"groupid1"},
+				}
+				Expect(k8sClient.Status().Update(ctx, nbResource)).To(Succeed())
+
+				// Simulate the duplicate in managedServiceList
+				nbpolicy.Status.ManagedServiceList = []string{"default/test", "default/test"}
+				Expect(k8sClient.Status().Update(ctx, nbpolicy)).To(Succeed())
+
+				mux.HandleFunc("/api/groups", func(w http.ResponseWriter, r *http.Request) {
+					resp := []api.Group{
+						{
+							Id:   "meow",
+							Name: "All",
+						},
+					}
+					bs, err := json.Marshal(resp)
+					Expect(err).NotTo(HaveOccurred())
+					_, err = w.Write(bs)
+					Expect(err).NotTo(HaveOccurred())
+				})
+
+				policyCreated := false
+				mux.HandleFunc("/api/policies", func(w http.ResponseWriter, r *http.Request) {
+					defer GinkgoRecover()
+					if r.Method == http.MethodPost {
+						var policyReq api.PostApiPoliciesJSONRequestBody
+						bs, err := io.ReadAll(r.Body)
+						Expect(err).NotTo(HaveOccurred())
+						err = json.Unmarshal(bs, &policyReq)
+						Expect(err).NotTo(HaveOccurred())
+
+						// Destinations must not be duplicated
+						Expect(policyReq.Rules[0].Destinations).NotTo(BeNil())
+						Expect(*policyReq.Rules[0].Destinations).To(HaveLen(1))
+						Expect((*policyReq.Rules[0].Destinations)[0]).To(Equal("groupid1"))
+
+						policyCreated = true
+						resp := api.Policy{
+							Id: &resourceName,
+						}
+						bs, err = json.Marshal(resp)
+						Expect(err).NotTo(HaveOccurred())
+						_, err = w.Write(bs)
+						Expect(err).NotTo(HaveOccurred())
+					}
+				})
+
+				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+					NamespacedName: typeNamespacedName,
+				})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(policyCreated).To(BeTrue())
+			})
+		})
 	})
 })

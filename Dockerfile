@@ -1,7 +1,7 @@
 # This dockerfile is used for tests and local builds
 
 # Build the manager binary
-FROM docker.io/golang:1.23 AS builder
+FROM docker.io/golang:1.26 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 

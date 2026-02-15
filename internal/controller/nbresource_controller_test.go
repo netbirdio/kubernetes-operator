@@ -19,8 +19,8 @@ import (
 
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
 	"github.com/netbirdio/kubernetes-operator/internal/util"
-	netbird "github.com/netbirdio/netbird/management/client/rest"
-	"github.com/netbirdio/netbird/management/server/http/api"
+	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
+	"github.com/netbirdio/netbird/shared/management/http/api"
 )
 
 var _ = Describe("NBResource Controller", func() {

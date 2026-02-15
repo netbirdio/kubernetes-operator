@@ -5,12 +5,10 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
@@ -22,7 +20,7 @@ var nbgrouplog = logf.Log.WithName("nbgroup-resource")
 
 // SetupNBGroupWebhookWithManager registers the webhook for NBGroup in the manager.
 func SetupNBGroupWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).For(&netbirdiov1.NBGroup{}).
+	return ctrl.NewWebhookManagedBy(mgr, &netbirdiov1.NBGroup{}).
 		WithValidator(&NBGroupCustomValidator{client: mgr.GetClient()}).
 		Complete()
 }
@@ -33,24 +31,20 @@ type NBGroupCustomValidator struct {
 	client client.Client
 }
 
-var _ webhook.CustomValidator = &NBGroupCustomValidator{}
+var _ admission.Validator[*netbirdiov1.NBGroup] = &NBGroupCustomValidator{}
 
-// ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type NBGroup.
-func (v *NBGroupCustomValidator) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+// ValidateCreate implements admission.Validator[*netbirdiov1.NBGroup].
+func (v *NBGroupCustomValidator) ValidateCreate(ctx context.Context, nbgroup *netbirdiov1.NBGroup) (admission.Warnings, error) {
 	return nil, nil
 }
 
-// ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type NBGroup.
-func (v *NBGroupCustomValidator) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
+// ValidateUpdate implements admission.Validator[*netbirdiov1.NBGroup].
+func (v *NBGroupCustomValidator) ValidateUpdate(ctx context.Context, oldObj, newObj *netbirdiov1.NBGroup) (admission.Warnings, error) {
 	return nil, nil
 }
 
-// ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type NBGroup.
-func (v *NBGroupCustomValidator) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	nbgroup, ok := obj.(*netbirdiov1.NBGroup)
-	if !ok {
-		return nil, fmt.Errorf("expected a NBGroup object but got %T", obj)
-	}
+// ValidateDelete implements admission.Validator[*netbirdiov1.NBGroup].
+func (v *NBGroupCustomValidator) ValidateDelete(ctx context.Context, nbgroup *netbirdiov1.NBGroup) (admission.Warnings, error) {
 	nbgrouplog.Info("Validation for NBGroup upon deletion", "name", nbgroup.GetName())
 
 	for _, o := range nbgroup.OwnerReferences {

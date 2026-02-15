@@ -65,7 +65,7 @@ func (r *NBGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 				err = updateErr
 			}
 		}
-		if res.RequeueAfter == 0 {
+		if !res.Requeue && res.RequeueAfter == 0 {
 			res.RequeueAfter = defaultRequeueAfter
 		}
 	}()
@@ -118,7 +118,7 @@ func (r *NBGroupReconciler) syncNetBirdGroup(ctx context.Context, nbGroup *netbi
 		logger.Info("NBGroup: Group was deleted", "name", nbGroup.Spec.Name, "id", *nbGroup.Status.GroupID)
 		nbGroup.Status.GroupID = nil
 		nbGroup.Status.Conditions = netbirdiov1.NBConditionFalse("GroupGone", "Group was deleted from NetBird API")
-		return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
+		return ctrl.Result{Requeue: true}, nil
 	} else {
 		nbGroup.Status.Conditions = netbirdiov1.NBConditionTrue()
 	}

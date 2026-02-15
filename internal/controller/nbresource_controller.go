@@ -76,7 +76,7 @@ func (r *NBResourceReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				err = updateErr
 			}
 		}
-		if res.RequeueAfter == 0 {
+		if !res.Requeue && res.RequeueAfter == 0 {
 			res.RequeueAfter = defaultRequeueAfter
 		}
 	}()
@@ -106,7 +106,7 @@ func (r *NBResourceReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	// resource is only nil if requeue is expected
 	if resource == nil {
-		return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
+		return ctrl.Result{Requeue: true}, nil
 	}
 
 	err = r.handleGroupUpdate(ctx, nbResource, groupIDs, resource, logger)

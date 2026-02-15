@@ -578,7 +578,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 									NamespacedName: typeNamespacedName,
 								})
 								Expect(err).NotTo(HaveOccurred())
-								Expect(res.RequeueAfter).To(BeNumerically(">", 0))
+								Expect(res.Requeue).To(BeTrue())
 								Expect(setupKeyDeleted).To(BeTrue())
 
 								_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -662,7 +662,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 									NamespacedName: typeNamespacedName,
 								})
 								Expect(err).NotTo(HaveOccurred())
-								Expect(res.RequeueAfter).To(BeNumerically(">", 0))
+								Expect(res.Requeue).To(BeTrue())
 								Expect(setupKeyDeleted).To(BeTrue())
 
 								_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -741,7 +741,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 									NamespacedName: typeNamespacedName,
 								})
 								Expect(err).NotTo(HaveOccurred())
-								Expect(res.RequeueAfter).To(BeNumerically(">", 0))
+								Expect(res.Requeue).To(BeTrue())
 								Expect(setupKeyDeleted).To(BeFalse())
 
 								_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -795,7 +795,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 									NamespacedName: typeNamespacedName,
 								})
 								Expect(err).NotTo(HaveOccurred())
-								Expect(res.RequeueAfter).To(BeNumerically(">", 0))
+								Expect(res.Requeue).To(BeFalse())
 								Expect(setupKeyDeleted).To(BeFalse())
 
 								secret = &corev1.Secret{}

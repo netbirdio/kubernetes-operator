@@ -7,11 +7,12 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/google/uuid"
@@ -24,7 +25,7 @@ var nbsetupkeylog = logf.Log.WithName("nbsetupkey-resource")
 
 // SetupNBSetupKeyWebhookWithManager registers the webhook for NBSetupKey in the manager.
 func SetupNBSetupKeyWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr, &netbirdiov1.NBSetupKey{}).
+	return ctrl.NewWebhookManagedBy(mgr).For(&netbirdiov1.NBSetupKey{}).
 		WithValidator(&NBSetupKeyCustomValidator{client: mgr.GetClient()}).
 		Complete()
 }
@@ -35,10 +36,14 @@ type NBSetupKeyCustomValidator struct {
 	client client.Client
 }
 
-var _ admission.Validator[*netbirdiov1.NBSetupKey] = &NBSetupKeyCustomValidator{}
+var _ webhook.CustomValidator = &NBSetupKeyCustomValidator{}
 
 // ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type NBSetupKey.
-func (v *NBSetupKeyCustomValidator) ValidateCreate(ctx context.Context, nbSetupKey *netbirdiov1.NBSetupKey) (admission.Warnings, error) {
+func (v *NBSetupKeyCustomValidator) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+	nbSetupKey, ok := obj.(*netbirdiov1.NBSetupKey)
+	if !ok {
+		return nil, fmt.Errorf("expected a NBSetupKey object but got %T", obj)
+	}
 	nbsetupkeylog.Info("Validating NBSetupKey", "namespace", nbSetupKey.Namespace, "name", nbSetupKey.Name)
 
 	if nbSetupKey.Spec.SecretKeyRef.Name == "" {
@@ -72,12 +77,16 @@ func (v *NBSetupKeyCustomValidator) ValidateCreate(ctx context.Context, nbSetupK
 }
 
 // ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type NBSetupKey.
-func (v *NBSetupKeyCustomValidator) ValidateUpdate(ctx context.Context, oldObj, newObj *netbirdiov1.NBSetupKey) (admission.Warnings, error) {
+func (v *NBSetupKeyCustomValidator) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
 	return v.ValidateCreate(ctx, newObj)
 }
 
 // ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type NBSetupKey.
-func (v *NBSetupKeyCustomValidator) ValidateDelete(ctx context.Context, nbSetupKey *netbirdiov1.NBSetupKey) (admission.Warnings, error) {
+func (v *NBSetupKeyCustomValidator) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+	nbSetupKey, ok := obj.(*netbirdiov1.NBSetupKey)
+	if !ok {
+		return nil, fmt.Errorf("expected a NBSetupKey object but got %T", obj)
+	}
 	nbsetupkeylog.Info("Validating NBSetupKey deletion", "namespace", nbSetupKey.Namespace, "name", nbSetupKey.Name)
 
 	var pods corev1.PodList

@@ -21,11 +21,12 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
 )
@@ -41,7 +42,7 @@ var podlog = logf.Log.WithName("pod-resource")
 
 // SetupPodWebhookWithManager registers the webhook for Pod in the manager.
 func SetupPodWebhookWithManager(mgr ctrl.Manager, managementURL, clientImage string) error {
-	return ctrl.NewWebhookManagedBy(mgr, &corev1.Pod{}).
+	return ctrl.NewWebhookManagedBy(mgr).For(&corev1.Pod{}).
 		WithDefaulter(&PodNetbirdInjector{
 			client:        mgr.GetClient(),
 			managementURL: managementURL,
@@ -58,12 +59,13 @@ type PodNetbirdInjector struct {
 	clientImage   string
 }
 
-var _ admission.Defaulter[*corev1.Pod] = &PodNetbirdInjector{}
+var _ webhook.CustomDefaulter = &PodNetbirdInjector{}
 
-// Default implements admission.Defaulter[*corev1.Pod] so a webhook will be registered for the Kind Pod.
-func (d *PodNetbirdInjector) Default(ctx context.Context, pod *corev1.Pod) error {
-	if pod == nil {
-		return fmt.Errorf("expected a Pod object but got nil")
+// Default implements webhook.CustomDefaulter so a webhook will be registered for the Kind Pod.
+func (d *PodNetbirdInjector) Default(ctx context.Context, obj runtime.Object) error {
+	pod, ok := obj.(*corev1.Pod)
+	if !ok {
+		return fmt.Errorf("expected a Pod object but got %T", obj)
 	}
 	podlog.Info("Defaulting for Pod", "name", pod.GetName())
 

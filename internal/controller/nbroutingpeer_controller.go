@@ -67,7 +67,7 @@ func (r *NBRoutingPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			res = ctrl.Result{}
 			return
 		}
-		if res.RequeueAfter == 0 {
+		if !res.Requeue && res.RequeueAfter == 0 {
 			res.RequeueAfter = defaultRequeueAfter
 		}
 	}()
@@ -428,7 +428,7 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 
 			nbrp.Status.SetupKeyID = nil
 			// Requeue to avoid repeating code
-			return &ctrl.Result{RequeueAfter: defaultRequeueAfter}, nil
+			return &ctrl.Result{Requeue: true}, nil
 		}
 
 		// Check if secret is valid
@@ -455,7 +455,7 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 
 			nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("Gone", "generated secret was deleted")
 			// Requeue to avoid repeating code
-			return &ctrl.Result{RequeueAfter: defaultRequeueAfter}, nil
+			return &ctrl.Result{Requeue: true}, nil
 		}
 	}
 

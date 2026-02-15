@@ -856,7 +856,7 @@ var _ = Describe("NBResource Controller", func() {
 						NamespacedName: typeNamespacedName,
 					})
 					Expect(err).NotTo(HaveOccurred())
-					Expect(res.Requeue).To(BeTrue())
+					Expect(res.RequeueAfter).To(BeNumerically(">", 0))
 
 					Expect(k8sClient.Get(ctx, typeNamespacedName, nbresource)).To(Succeed())
 					Expect(nbresource.Status.NetworkResourceID).To(BeNil())

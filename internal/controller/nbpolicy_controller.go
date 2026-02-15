@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -225,7 +226,7 @@ func (r *NBPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 				err = updateErr
 			}
 		}
-		if !res.Requeue && res.RequeueAfter == 0 {
+		if res.RequeueAfter == 0 {
 			res.RequeueAfter = defaultRequeueAfter
 		}
 	}()
@@ -256,7 +257,7 @@ func (r *NBPolicyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (r
 	requeue, err := r.syncPolicy(ctx, &nbPolicy, sourceGroupIDs, destGroups, portMapping, logger)
 
 	if requeue || err != nil {
-		return ctrl.Result{Requeue: requeue}, err
+		return ctrl.Result{RequeueAfter: 1 * time.Second}, err
 	}
 
 	nbPolicy.Status.Conditions = netbirdiov1.NBConditionTrue()

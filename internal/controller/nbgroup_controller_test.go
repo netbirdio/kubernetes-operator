@@ -340,7 +340,7 @@ var _ = Describe("NBGroup Controller", func() {
 					NamespacedName: typeNamespacedName,
 				})
 				Expect(err).NotTo(HaveOccurred())
-				Expect(res.Requeue).To(BeTrue())
+				Expect(res.RequeueAfter).To(BeNumerically(">", 0))
 
 				err = k8sClient.Get(ctx, typeNamespacedName, &nbGroup)
 				Expect(err).NotTo(HaveOccurred())

@@ -2,7 +2,7 @@ module github.com/netbirdio/kubernetes-operator
 
 go 1.26.0
 
-godebug default=go1.26.0
+godebug default=go1.26
 
 require (
 	github.com/go-logr/logr v1.4.3

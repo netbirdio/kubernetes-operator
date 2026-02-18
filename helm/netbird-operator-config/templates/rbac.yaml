@@ -22,6 +22,8 @@ rules:
   - nbroutingpeers
   verbs:
   - get
+  - list
+  - watch
 - apiGroups:
   - netbird.io
   resources:

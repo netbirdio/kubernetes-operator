@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -109,6 +110,7 @@ func (r *NBPolicyReconciler) mapResources(ctx context.Context, nbPolicy *netbird
 		for v := range vs {
 			ports[k] = append(ports[k], v)
 		}
+		slices.Sort(ports[k])
 	}
 
 	return ports, groups, nil

@@ -222,7 +222,8 @@ var _ = Describe("NBResource Controller", func() {
 					resourceUpdated := false
 					mux.HandleFunc("/api/networks/test/resources/test", func(w http.ResponseWriter, r *http.Request) {
 						defer GinkgoRecover()
-						if r.Method == http.MethodGet {
+						switch r.Method {
+						case http.MethodGet:
 							resp := api.NetworkResource{
 								Address:     nbresource.Spec.Address,
 								Description: &networkDescription,
@@ -245,7 +246,7 @@ var _ = Describe("NBResource Controller", func() {
 							Expect(err).NotTo(HaveOccurred())
 							_, err = w.Write(bs)
 							Expect(err).NotTo(HaveOccurred())
-						} else if r.Method == http.MethodPut {
+						case http.MethodPut:
 							resourceUpdated = true
 							bs, err := io.ReadAll(r.Body)
 							Expect(err).NotTo(HaveOccurred())

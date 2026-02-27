@@ -31,7 +31,7 @@ type NBPolicyReconciler struct {
 }
 
 var (
-	errUnknownProtocol = fmt.Errorf("Unknown protocol")
+	errUnknownProtocol = fmt.Errorf("unknown protocol")
 	errKubernetesAPI   = fmt.Errorf("kubernetes API error")
 	errNetBirdAPI      = fmt.Errorf("netbird API error")
 	errInvalidValue    = fmt.Errorf("invalid value")

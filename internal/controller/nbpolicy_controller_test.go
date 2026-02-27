@@ -89,9 +89,8 @@ var _ = Describe("NBPolicy Controller", func() {
 		When("Not enough information to create policy", func() {
 			It("should not create any policy", func() {
 				controllerReconciler := &NBPolicyReconciler{
-					Client:      k8sClient,
-					Netbird:     netbirdClient,
-					ClusterName: "Kubernetes",
+					Client:  k8sClient,
+					Netbird: netbirdClient,
 				}
 
 				mux.HandleFunc("/api/groups", func(w http.ResponseWriter, r *http.Request) {
@@ -117,9 +116,8 @@ var _ = Describe("NBPolicy Controller", func() {
 		When("Enough information to create TCP policy", func() {
 			It("should create 1 policy", func() {
 				controllerReconciler := &NBPolicyReconciler{
-					Client:      k8sClient,
-					Netbird:     netbirdClient,
-					ClusterName: "Kubernetes",
+					Client:  k8sClient,
+					Netbird: netbirdClient,
 				}
 
 				nbResource := &netbirdiov1.NBResource{
@@ -215,9 +213,8 @@ var _ = Describe("NBPolicy Controller", func() {
 		When("TCP information no longer sufficient", func() {
 			It("should delete tcp policy", func() {
 				controllerReconciler := &NBPolicyReconciler{
-					Client:      k8sClient,
-					Netbird:     netbirdClient,
-					ClusterName: "Kubernetes",
+					Client:  k8sClient,
+					Netbird: netbirdClient,
 				}
 
 				nbpolicy.Status.ManagedServiceList = append(nbpolicy.Status.ManagedServiceList, "default/noexist")
@@ -257,9 +254,8 @@ var _ = Describe("NBPolicy Controller", func() {
 		When("Enough information to create UDP policy", func() {
 			It("should create 1 policy", func() {
 				controllerReconciler := &NBPolicyReconciler{
-					Client:      k8sClient,
-					Netbird:     netbirdClient,
-					ClusterName: "Kubernetes",
+					Client:  k8sClient,
+					Netbird: netbirdClient,
 				}
 
 				nbResource := &netbirdiov1.NBResource{
@@ -355,9 +351,8 @@ var _ = Describe("NBPolicy Controller", func() {
 		When("UDP information no longer sufficient", func() {
 			It("should delete udp policy", func() {
 				controllerReconciler := &NBPolicyReconciler{
-					Client:      k8sClient,
-					Netbird:     netbirdClient,
-					ClusterName: "Kubernetes",
+					Client:  k8sClient,
+					Netbird: netbirdClient,
 				}
 
 				nbpolicy.Status.ManagedServiceList = append(nbpolicy.Status.ManagedServiceList, "default/noexist")
@@ -397,9 +392,8 @@ var _ = Describe("NBPolicy Controller", func() {
 		When("Existing protocol gets restricted", func() {
 			It("Should delete protocol policy", func() {
 				controllerReconciler := &NBPolicyReconciler{
-					Client:      k8sClient,
-					Netbird:     netbirdClient,
-					ClusterName: "Kubernetes",
+					Client:  k8sClient,
+					Netbird: netbirdClient,
 				}
 
 				nbResource := &netbirdiov1.NBResource{
@@ -477,9 +471,8 @@ var _ = Describe("NBPolicy Controller", func() {
 
 			It("Should give all information to Update method", func() {
 				controllerReconciler := &NBPolicyReconciler{
-					Client:      k8sClient,
-					Netbird:     netbirdClient,
-					ClusterName: "Kubernetes",
+					Client:  k8sClient,
+					Netbird: netbirdClient,
 				}
 
 				nbResource := &netbirdiov1.NBResource{
@@ -595,9 +588,8 @@ var _ = Describe("NBPolicy Controller", func() {
 		When("NBPolicy is set for deletion", func() {
 			It("should delete Policies", func() {
 				controllerReconciler := &NBPolicyReconciler{
-					Client:      k8sClient,
-					Netbird:     netbirdClient,
-					ClusterName: "Kubernetes",
+					Client:  k8sClient,
+					Netbird: netbirdClient,
 				}
 
 				nbpolicy.Status.TCPPolicyID = util.Ptr("policyidtcp")

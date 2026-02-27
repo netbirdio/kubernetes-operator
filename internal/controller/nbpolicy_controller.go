@@ -23,8 +23,7 @@ import (
 type NBPolicyReconciler struct {
 	client.Client
 
-	Netbird     *netbird.Client
-	ClusterName string
+	Netbird *netbird.Client
 }
 
 var (

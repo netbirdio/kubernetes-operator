@@ -1,0 +1,30 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: public
+spec:
+  controllerName: "gateway.netbird.io/controller"
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: netbird
+  namespace: netbird
+spec:
+  gatewayClassName: public
+  listeners:
+  - protocol: HTTP
+    port: 80
+    name: dummy
+  infrastructure:
+    parametersRef:
+      group: netbird.io
+      kind: NBRoutingPeer
+      name: netbird
+---
+apiVersion: netbird.io/v1
+kind: NBRoutingPeer
+metadata:
+  name: netbird
+  namespace: netbird
+spec: {}

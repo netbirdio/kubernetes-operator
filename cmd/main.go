@@ -42,7 +42,6 @@ import (
 
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
 	"github.com/netbirdio/kubernetes-operator/internal/controller"
-	webhookk8siov1 "github.com/netbirdio/kubernetes-operator/internal/webhook/v1"
 	webhooknetbirdiov1 "github.com/netbirdio/kubernetes-operator/internal/webhook/v1"
 	// +kubebuilder:scaffold:imports
 )
@@ -215,7 +214,7 @@ func main() {
 	}
 
 	if enableWebhooks {
-		if err = webhookk8siov1.SetupPodWebhookWithManager(mgr, managementURL, clientImage); err != nil {
+		if err = webhooknetbirdiov1.SetupPodWebhookWithManager(mgr, managementURL, clientImage); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "Pod")
 			os.Exit(1)
 		}

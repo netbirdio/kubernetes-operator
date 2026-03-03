@@ -188,11 +188,13 @@ func (r *NBResourceReconciler) handlePolicyCreate(ctx context.Context, nbResourc
 	nbResource.Status.PolicySourceGroups = nbResource.Spec.PolicySourceGroups
 	nbResource.Status.PolicyFriendlyName = nbResource.Spec.PolicyFriendlyName
 
-	nbPolicy.Status.ManagedServiceList = append(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String())
-	err = r.Client.Status().Update(ctx, nbPolicy)
-	if err != nil {
-		logger.Error(errKubernetesAPI, "err", err)
-		return err
+	if !util.Contains(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String()) {
+		nbPolicy.Status.ManagedServiceList = append(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String())
+		err = r.Client.Status().Update(ctx, nbPolicy)
+		if err != nil {
+			logger.Error(errKubernetesAPI, "err", err)
+			return err
+		}
 	}
 	return nil
 }

@@ -93,8 +93,12 @@ func (r *NBPolicyReconciler) mapResources(ctx context.Context, nbPolicy *netbird
 		if generatedBy != "" && !util.Contains(resourcePolicies, strings.ReplaceAll(nbPolicy.Name, "-"+generatedBy, "")) {
 			continue
 		}
-		// Groups
-		groups = append(groups, resource.Status.Groups...)
+		// Groups (deduplicate to avoid duplicate destination group IDs)
+		for _, g := range resource.Status.Groups {
+			if !util.Contains(groups, g) {
+				groups = append(groups, g)
+			}
+		}
 
 		for _, p := range resource.Spec.TCPPorts {
 			portMapping[protocolTCP][p] = nil
@@ -388,9 +392,14 @@ func (r *NBPolicyReconciler) groupNamesToIDs(ctx context.Context, groupNames []s
 		groupNameIDMapping[g.Name] = g.Id
 	}
 
+	seen := make(map[string]bool)
 	ret := make([]string, 0, len(groupNames))
 	for _, g := range groupNames {
-		ret = append(ret, groupNameIDMapping[g])
+		id := groupNameIDMapping[g]
+		if !seen[id] {
+			seen[id] = true
+			ret = append(ret, id)
+		}
 	}
 
 	return ret, nil

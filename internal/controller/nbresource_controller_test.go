@@ -529,6 +529,48 @@ var _ = Describe("NBResource Controller", func() {
 								})
 							})
 
+							When("Policy already exists with service in managedServiceList", func() {
+								It("should not duplicate the entry", func() {
+									// Simulate: NBPolicy was created with this service already in managedServiceList
+									// (e.g., a previous reconcile succeeded but the NBResource status update failed,
+									// causing a retry that enters handlePolicyCreate → AlreadyExists)
+									nbPolicy := &netbirdiov1.NBPolicy{
+										ObjectMeta: metav1.ObjectMeta{
+											Name: "test-gen-default-test-resource",
+										},
+										Spec: netbirdiov1.NBPolicySpec{
+											Name:          "Test",
+											Description:   "Test",
+											SourceGroups:  []string{"toast"},
+											Bidirectional: false,
+										},
+									}
+									Expect(k8sClient.Create(ctx, nbPolicy)).To(Succeed())
+
+									// Pre-populate managedServiceList with the service
+									nbPolicy.Status.ManagedServiceList = []string{"default/test-resource"}
+									Expect(k8sClient.Status().Update(ctx, nbPolicy)).To(Succeed())
+
+									nbresource.Spec.PolicyName = policyGenName
+									nbresource.Spec.PolicySourceGroups = []string{"test"}
+									Expect(k8sClient.Update(ctx, nbresource)).To(Succeed())
+
+									_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+										NamespacedName: typeNamespacedName,
+									})
+									Expect(err).NotTo(HaveOccurred())
+
+									Expect(k8sClient.Get(ctx, typeNamespacedName, nbresource)).To(Succeed())
+									Expect(nbresource.Status.PolicyNameMapping).To(HaveKey(policyGenName))
+
+									nbPolicy = &netbirdiov1.NBPolicy{}
+									Expect(k8sClient.Get(ctx, types.NamespacedName{Name: nbresource.Status.PolicyNameMapping[policyGenName]}, nbPolicy)).To(Succeed())
+									// Must have exactly 1 entry, not duplicated
+									Expect(nbPolicy.Status.ManagedServiceList).To(HaveLen(1))
+									Expect(nbPolicy.Status.ManagedServiceList[0]).To(Equal("default/test-resource"))
+								})
+							})
+
 							When("Policy settings are updated", func() {
 								It("should update it", func() {
 									nbresource.Spec.PolicyName = policyGenName

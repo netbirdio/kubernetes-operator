@@ -24,6 +24,8 @@ type NBRoutingPeerSpec struct {
 	Volumes []corev1.Volume `json:"volumes"`
 	// +optional
 	VolumeMounts []corev1.VolumeMount `json:"volumeMounts"`
+	// +optional
+	Privileged *bool `json:"privileged,omitempty"`
 }
 
 // NBRoutingPeerStatus defines the observed state of NBRoutingPeer.

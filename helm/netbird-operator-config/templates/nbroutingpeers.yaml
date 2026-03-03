@@ -13,7 +13,7 @@ metadata:
   name: router
   namespace: {{ $k }}
 {{ $spec := merge $defaults $v }}
-{{- if or (or (or $spec.replicas $spec.resources) (or $spec.labels $spec.annotations)) (or $spec.nodeSelector $spec.tolerations) }}
+{{- if or (or (or $spec.replicas $spec.resources) (or $spec.labels $spec.annotations)) (or (or $spec.nodeSelector $spec.tolerations) $spec.privileged) }}
 spec:
   {{- if $spec.replicas }}
   replicas: {{ $spec.replicas }}
@@ -38,6 +38,9 @@ spec:
   tolerations:
     {{- toYaml $spec.tolerations | nindent 4 }}
   {{- end }}
+  {{- if $spec.privileged }}
+  privileged: {{ $spec.privileged }}
+  {{- end }}
 {{- end }}
 ---
 {{- end }}
@@ -52,7 +55,7 @@ metadata:
     app.kubernetes.io/component: operator
     {{- include "netbird-operator-config.labels" $ | nindent 4 }}
   name: router
-{{- if or (or (or .replicas .resources) (or .labels .annotations)) (or .nodeSelector .tolerations) }}
+{{- if or (or (or .replicas .resources) (or .labels .annotations)) (or (or .nodeSelector .tolerations) .privileged) }}
 spec:
   {{- if .replicas }}
   replicas: {{ .replicas }}
@@ -76,6 +79,9 @@ spec:
   {{- if .tolerations }}
   tolerations:
     {{- toYaml .tolerations | nindent 4 }}
+  {{- end }}
+  {{- if .privileged }}
+  privileged: {{ .privileged }}
   {{- end }}
 {{- end }}
 {{- end }}

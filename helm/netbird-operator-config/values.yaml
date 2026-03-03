@@ -20,6 +20,7 @@ router:
   # annotations: {}
   # nodeSelector: {}
   # tolerations: []
+  # privileged: false
   # Only needed if namespacedNetworks is set to true
   namespaces: {}
     # default:
@@ -34,7 +35,8 @@ router:
     # labels: {}
     # annotations: {}
     # nodeSelector: {}
-  # tolerations: []
+    # tolerations: []
+    # privileged: false
 # NetBird Policies for use with exposed services
 policies: {}
   # default:

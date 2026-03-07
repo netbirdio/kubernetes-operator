@@ -172,7 +172,8 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 				networkCreated := false
 				mux.HandleFunc("/api/networks", func(w http.ResponseWriter, r *http.Request) {
 					defer GinkgoRecover()
-					if r.Method == http.MethodPost {
+					switch r.Method {
+					case http.MethodPost:
 						networkCreated = true
 						var req api.PostApiNetworksJSONRequestBody
 						bs, err := io.ReadAll(r.Body)
@@ -190,7 +191,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 						Expect(err).NotTo(HaveOccurred())
 						_, err = w.Write(bs)
 						Expect(err).NotTo(HaveOccurred())
-					} else if r.Method == http.MethodGet {
+					case http.MethodGet:
 						_, err := w.Write([]byte("[]"))
 						Expect(err).NotTo(HaveOccurred())
 					}
@@ -276,7 +277,8 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 						routerCreated := false
 						mux.HandleFunc("/api/networks/test/routers", func(w http.ResponseWriter, r *http.Request) {
 							defer GinkgoRecover()
-							if r.Method == http.MethodPost {
+							switch r.Method {
+							case http.MethodPost:
 								routerCreated = true
 								var req api.PostApiNetworksNetworkIdRoutersJSONRequestBody
 								bs, err := io.ReadAll(r.Body)
@@ -299,7 +301,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								Expect(err).NotTo(HaveOccurred())
 								_, err = w.Write(bs)
 								Expect(err).NotTo(HaveOccurred())
-							} else if r.Method == http.MethodGet {
+							case http.MethodGet:
 								resp := []api.NetworkRouter{}
 								bs, err := json.Marshal(resp)
 								Expect(err).NotTo(HaveOccurred())
@@ -555,7 +557,8 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								setupKeyDeleted := false
 								mux.HandleFunc("/api/setup-keys/skid", func(w http.ResponseWriter, r *http.Request) {
 									defer GinkgoRecover()
-									if r.Method == http.MethodGet {
+									switch r.Method {
+									case http.MethodGet:
 										resp := api.SetupKey{
 											Id:      "skid",
 											Revoked: false,
@@ -564,7 +567,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 										Expect(err).NotTo(HaveOccurred())
 										_, err = w.Write(bs)
 										Expect(err).NotTo(HaveOccurred())
-									} else if r.Method == http.MethodDelete {
+									case http.MethodDelete:
 										setupKeyDeleted = true
 										_, err := w.Write([]byte(`{}`))
 										Expect(err).NotTo(HaveOccurred())
@@ -628,7 +631,8 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								setupKeyDeleted := false
 								mux.HandleFunc("/api/setup-keys/skid", func(w http.ResponseWriter, r *http.Request) {
 									defer GinkgoRecover()
-									if r.Method == http.MethodGet {
+									switch r.Method {
+									case http.MethodGet:
 										resp := api.SetupKey{
 											Id:      "skid",
 											Revoked: true,
@@ -637,7 +641,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 										Expect(err).NotTo(HaveOccurred())
 										_, err = w.Write(bs)
 										Expect(err).NotTo(HaveOccurred())
-									} else if r.Method == http.MethodDelete {
+									case http.MethodDelete:
 										setupKeyDeleted = true
 										_, err := w.Write([]byte(`{}`))
 										Expect(err).NotTo(HaveOccurred())
@@ -712,11 +716,12 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								setupKeyDeleted := false
 								mux.HandleFunc("/api/setup-keys/skid", func(w http.ResponseWriter, r *http.Request) {
 									defer GinkgoRecover()
-									if r.Method == http.MethodGet {
+									switch r.Method {
+									case http.MethodGet:
 										w.WriteHeader(404)
 										_, err := w.Write([]byte(`{"message": "setup-key skid not found", "code": 404}`))
 										Expect(err).NotTo(HaveOccurred())
-									} else if r.Method == http.MethodDelete {
+									case http.MethodDelete:
 										setupKeyDeleted = true
 										_, err := w.Write([]byte(`{}`))
 										Expect(err).NotTo(HaveOccurred())
@@ -761,7 +766,8 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								setupKeyDeleted := false
 								mux.HandleFunc("/api/setup-keys/skid", func(w http.ResponseWriter, r *http.Request) {
 									defer GinkgoRecover()
-									if r.Method == http.MethodGet {
+									switch r.Method {
+									case http.MethodGet:
 										resp := api.SetupKey{
 											Id:      "skid",
 											Revoked: false,
@@ -770,7 +776,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 										Expect(err).NotTo(HaveOccurred())
 										_, err = w.Write(bs)
 										Expect(err).NotTo(HaveOccurred())
-									} else if r.Method == http.MethodDelete {
+									case http.MethodDelete:
 										setupKeyDeleted = true
 										_, err := w.Write([]byte(`{}`))
 										Expect(err).NotTo(HaveOccurred())
@@ -907,6 +913,144 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								deployment = &appsv1.Deployment{}
 								Expect(k8sClient.Get(ctx, typeNamespacedName, deployment)).To(Succeed())
 								Expect(deployment.ResourceVersion).To(Equal(resourceVersion))
+							})
+						})
+
+						When("Privileged mode is enabled", func() {
+							It("should create deployment with privileged security context", func() {
+								Expect(k8sClient.Get(ctx, typeNamespacedName, nbroutingpeer)).To(Succeed())
+								nbroutingpeer.Spec.Privileged = util.Ptr(true)
+								Expect(k8sClient.Update(ctx, nbroutingpeer)).To(Succeed())
+
+								_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+									NamespacedName: typeNamespacedName,
+								})
+								Expect(err).NotTo(HaveOccurred())
+
+								deployment := &appsv1.Deployment{}
+								Expect(k8sClient.Get(ctx, typeNamespacedName, deployment)).To(Succeed())
+								Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(1))
+
+								container := deployment.Spec.Template.Spec.Containers[0]
+								Expect(container.SecurityContext).NotTo(BeNil())
+								Expect(container.SecurityContext.Privileged).NotTo(BeNil())
+								Expect(*container.SecurityContext.Privileged).To(BeTrue())
+								Expect(container.SecurityContext.Capabilities).NotTo(BeNil())
+								Expect(container.SecurityContext.Capabilities.Add).To(ContainElement(corev1.Capability("NET_ADMIN")))
+							})
+						})
+
+						When("Privileged mode is disabled", func() {
+							It("should create deployment with non-privileged security context", func() {
+								Expect(k8sClient.Get(ctx, typeNamespacedName, nbroutingpeer)).To(Succeed())
+								nbroutingpeer.Spec.Privileged = util.Ptr(false)
+								Expect(k8sClient.Update(ctx, nbroutingpeer)).To(Succeed())
+
+								_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+									NamespacedName: typeNamespacedName,
+								})
+								Expect(err).NotTo(HaveOccurred())
+
+								deployment := &appsv1.Deployment{}
+								Expect(k8sClient.Get(ctx, typeNamespacedName, deployment)).To(Succeed())
+								Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(1))
+
+								container := deployment.Spec.Template.Spec.Containers[0]
+								Expect(container.SecurityContext).NotTo(BeNil())
+								Expect(container.SecurityContext.Privileged).To(BeNil())
+								Expect(container.SecurityContext.Capabilities).NotTo(BeNil())
+								Expect(container.SecurityContext.Capabilities.Add).To(ContainElement(corev1.Capability("NET_ADMIN")))
+							})
+						})
+
+						When("Privileged mode is not specified", func() {
+							It("should create deployment with default security context (non-privileged)", func() {
+								// Ensure Privileged is nil (default)
+								Expect(k8sClient.Get(ctx, typeNamespacedName, nbroutingpeer)).To(Succeed())
+								nbroutingpeer.Spec.Privileged = nil
+								Expect(k8sClient.Update(ctx, nbroutingpeer)).To(Succeed())
+
+								_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+									NamespacedName: typeNamespacedName,
+								})
+								Expect(err).NotTo(HaveOccurred())
+
+								deployment := &appsv1.Deployment{}
+								Expect(k8sClient.Get(ctx, typeNamespacedName, deployment)).To(Succeed())
+								Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(1))
+
+								container := deployment.Spec.Template.Spec.Containers[0]
+								Expect(container.SecurityContext).NotTo(BeNil())
+								Expect(container.SecurityContext.Privileged).To(BeNil())
+								Expect(container.SecurityContext.Capabilities).NotTo(BeNil())
+								Expect(container.SecurityContext.Capabilities.Add).To(ContainElement(corev1.Capability("NET_ADMIN")))
+							})
+						})
+
+						When("Deployment exists and privileged mode changes", func() {
+							It("should update deployment security context when privileged mode is enabled", func() {
+								// First create deployment without privileged mode
+								_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+									NamespacedName: typeNamespacedName,
+								})
+								Expect(err).NotTo(HaveOccurred())
+
+								// Verify initial state
+								deployment := &appsv1.Deployment{}
+								Expect(k8sClient.Get(ctx, typeNamespacedName, deployment)).To(Succeed())
+								container := deployment.Spec.Template.Spec.Containers[0]
+								Expect(container.SecurityContext.Privileged).To(BeNil())
+
+								// Enable privileged mode
+								Expect(k8sClient.Get(ctx, typeNamespacedName, nbroutingpeer)).To(Succeed())
+								nbroutingpeer.Spec.Privileged = util.Ptr(true)
+								Expect(k8sClient.Update(ctx, nbroutingpeer)).To(Succeed())
+
+								_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
+									NamespacedName: typeNamespacedName,
+								})
+								Expect(err).NotTo(HaveOccurred())
+
+								// Verify privileged mode is now enabled
+								deployment = &appsv1.Deployment{}
+								Expect(k8sClient.Get(ctx, typeNamespacedName, deployment)).To(Succeed())
+								container = deployment.Spec.Template.Spec.Containers[0]
+								Expect(container.SecurityContext.Privileged).NotTo(BeNil())
+								Expect(*container.SecurityContext.Privileged).To(BeTrue())
+							})
+
+							It("should update deployment security context when privileged mode is disabled", func() {
+								// First create deployment with privileged mode enabled
+								nbroutingpeer.Spec.Privileged = util.Ptr(true)
+								Expect(k8sClient.Update(ctx, nbroutingpeer)).To(Succeed())
+
+								_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+									NamespacedName: typeNamespacedName,
+								})
+								Expect(err).NotTo(HaveOccurred())
+
+								// Verify initial privileged state
+								deployment := &appsv1.Deployment{}
+								Expect(k8sClient.Get(ctx, typeNamespacedName, deployment)).To(Succeed())
+								container := deployment.Spec.Template.Spec.Containers[0]
+								Expect(container.SecurityContext.Privileged).NotTo(BeNil())
+								Expect(*container.SecurityContext.Privileged).To(BeTrue())
+
+								// Disable privileged mode
+								Expect(k8sClient.Get(ctx, typeNamespacedName, nbroutingpeer)).To(Succeed())
+								nbroutingpeer.Spec.Privileged = util.Ptr(false)
+								Expect(k8sClient.Update(ctx, nbroutingpeer)).To(Succeed())
+
+								_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
+									NamespacedName: typeNamespacedName,
+								})
+								Expect(err).NotTo(HaveOccurred())
+
+								// Verify privileged mode is now disabled
+								deployment = &appsv1.Deployment{}
+								Expect(k8sClient.Get(ctx, typeNamespacedName, deployment)).To(Succeed())
+								container = deployment.Spec.Template.Spec.Containers[0]
+								Expect(container.SecurityContext.Privileged).To(BeNil())
 							})
 						})
 					})

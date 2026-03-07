@@ -51,6 +51,8 @@ spec:
                 additionalProperties:
                   type: string
                 type: object
+              privileged:
+                type: boolean
               replicas:
                 format: int32
                 type: integer

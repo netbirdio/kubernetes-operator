@@ -19,10 +19,12 @@ spec:
   description: {{ $v.description }}
   {{- end }}
   {{- if $v.protocols }}
-  protocols: {{ $v.protocols }}
+  protocols:
+  {{ toYaml $v.protocols | nindent 4}}
   {{- end }}
   {{- if $v.ports }}
-  ports: {{ $v.ports }}
+  ports:
+  {{ toYaml $v.ports | nindent 4}}
   {{- end }}
   {{- if hasKey $v "bidirectional" }}
   bidirectional: {{ $v.bidirectional }}

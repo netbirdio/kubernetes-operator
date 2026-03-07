@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -30,7 +31,7 @@ type NBPolicyReconciler struct {
 }
 
 var (
-	errUnknownProtocol = fmt.Errorf("Unknown protocol")
+	errUnknownProtocol = fmt.Errorf("unknown protocol")
 	errKubernetesAPI   = fmt.Errorf("kubernetes API error")
 	errNetBirdAPI      = fmt.Errorf("netbird API error")
 	errInvalidValue    = fmt.Errorf("invalid value")
@@ -109,6 +110,7 @@ func (r *NBPolicyReconciler) mapResources(ctx context.Context, nbPolicy *netbird
 		for v := range vs {
 			ports[k] = append(ports[k], v)
 		}
+		slices.Sort(ports[k])
 	}
 
 	return ports, groups, nil

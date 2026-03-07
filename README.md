@@ -24,7 +24,7 @@ helm repo add netbirdio https://netbirdio.github.io/kubernetes-operator
 ```
 2. (Recommended) Install [cert-manager](https://cert-manager.io/docs/installation/#default-static-install) for k8s API to communicate with the NetBird operator.
 ```sh
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.19.3/cert-manager.yaml
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.19.4/cert-manager.yaml
 ```
 3. Add NetBird API token
 ```shell

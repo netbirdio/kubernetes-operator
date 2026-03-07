@@ -194,6 +194,7 @@ func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request,
 func (r *ServiceReconciler) reconcileNBResource(nbResource *netbirdiov1.NBResource, req ctrl.Request, svc corev1.Service, routingPeer netbirdiov1.NBRoutingPeer, logger logr.Logger) error {
 	groups := []string{fmt.Sprintf("%s-%s-%s", r.ClusterName, req.Namespace, req.Name)}
 	if v, ok := svc.Annotations[serviceGroupsAnnotation]; ok {
+		//nolint:prealloc
 		groups = nil
 		for _, g := range strings.Split(v, ",") {
 			groups = append(groups, strings.TrimSpace(g))

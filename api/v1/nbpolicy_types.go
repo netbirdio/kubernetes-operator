@@ -46,9 +46,9 @@ type NBPolicyStatus struct {
 
 // Equal returns if NBPolicyStatus is equal to this one
 func (a NBPolicyStatus) Equal(b NBPolicyStatus) bool {
-	return a.TCPPolicyID == b.TCPPolicyID &&
-		a.UDPPolicyID == b.UDPPolicyID &&
-		a.LastUpdatedAt == b.LastUpdatedAt &&
+	return ptrStrEqual(a.TCPPolicyID, b.TCPPolicyID) &&
+		ptrStrEqual(a.UDPPolicyID, b.UDPPolicyID) &&
+		ptrTimeEqual(a.LastUpdatedAt, b.LastUpdatedAt) &&
 		util.Equivalent(a.ManagedServiceList, b.ManagedServiceList) &&
 		ConditionsEqual(a.Conditions, b.Conditions)
 }

@@ -41,9 +41,9 @@ type NBRoutingPeerStatus struct {
 
 // Equal returns if NBRoutingPeerStatus is equal to this one
 func (a NBRoutingPeerStatus) Equal(b NBRoutingPeerStatus) bool {
-	return a.NetworkID == b.NetworkID &&
-		a.SetupKeyID == b.SetupKeyID &&
-		a.RouterID == b.RouterID &&
+	return ptrStrEqual(a.NetworkID, b.NetworkID) &&
+		ptrStrEqual(a.SetupKeyID, b.SetupKeyID) &&
+		ptrStrEqual(a.RouterID, b.RouterID) &&
 		ConditionsEqual(a.Conditions, b.Conditions)
 }
 

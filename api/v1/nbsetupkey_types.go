@@ -71,6 +71,28 @@ type NBCondition struct {
 	Message string `json:"message,omitempty"`
 }
 
+// ptrStrEqual compares two *string by value, handling nil.
+func ptrStrEqual(a, b *string) bool {
+	if a == b {
+		return true // both nil, or same pointer
+	}
+	if a == nil || b == nil {
+		return false // one nil, one non-nil
+	}
+	return *a == *b
+}
+
+// ptrTimeEqual compares two *metav1.Time by value, handling nil.
+func ptrTimeEqual(a, b *metav1.Time) bool {
+	if a == b {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return a.Equal(b)
+}
+
 // conditionKey returns the semantic identity of a condition, ignoring timestamps.
 func conditionKey(c NBCondition) [4]string {
 	return [4]string{string(c.Type), string(c.Status), c.Reason, c.Message}

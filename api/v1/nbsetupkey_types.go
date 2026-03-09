@@ -71,6 +71,32 @@ type NBCondition struct {
 	Message string `json:"message,omitempty"`
 }
 
+// conditionKey returns the semantic identity of a condition, ignoring timestamps.
+func conditionKey(c NBCondition) [4]string {
+	return [4]string{string(c.Type), string(c.Status), c.Reason, c.Message}
+}
+
+// ConditionsEqual compares two condition slices by their semantic fields
+// (Type, Status, Reason, Message), ignoring LastProbeTime and LastTransitionTime.
+// This prevents spurious status updates when timestamps are regenerated.
+func ConditionsEqual(a, b []NBCondition) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	mp := make(map[[4]string]int, len(a))
+	for _, c := range a {
+		mp[conditionKey(c)]++
+	}
+	for _, c := range b {
+		k := conditionKey(c)
+		if mp[k] <= 0 {
+			return false
+		}
+		mp[k]--
+	}
+	return true
+}
+
 // NBConditionTrue returns default true condition
 func NBConditionTrue() []NBCondition {
 	return []NBCondition{

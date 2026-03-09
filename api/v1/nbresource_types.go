@@ -70,7 +70,7 @@ func (a NBResourceStatus) Equal(b NBResourceStatus) bool {
 		util.Equivalent(a.TCPPorts, b.TCPPorts) &&
 		util.Equivalent(a.UDPPorts, b.UDPPorts) &&
 		util.Equivalent(a.Groups, b.Groups) &&
-		util.Equivalent(a.Conditions, b.Conditions) &&
+		ConditionsEqual(a.Conditions, b.Conditions) &&
 		util.Equivalent(a.PolicySourceGroups, b.PolicySourceGroups) &&
 		maps.Equal(a.PolicyFriendlyName, b.PolicyFriendlyName) &&
 		maps.Equal(a.PolicyNameMapping, b.PolicyNameMapping)

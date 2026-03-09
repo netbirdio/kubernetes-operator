@@ -50,7 +50,7 @@ func (a NBPolicyStatus) Equal(b NBPolicyStatus) bool {
 		a.UDPPolicyID == b.UDPPolicyID &&
 		a.LastUpdatedAt == b.LastUpdatedAt &&
 		util.Equivalent(a.ManagedServiceList, b.ManagedServiceList) &&
-		util.Equivalent(a.Conditions, b.Conditions)
+		ConditionsEqual(a.Conditions, b.Conditions)
 }
 
 // +kubebuilder:object:root=true

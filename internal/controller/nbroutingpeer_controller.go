@@ -10,7 +10,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -25,7 +24,7 @@ import (
 // NBRoutingPeerReconciler reconciles a NBRoutingPeer object
 type NBRoutingPeerReconciler struct {
 	client.Client
-	Scheme             *runtime.Scheme
+
 	ClientImage        string
 	ClusterName        string
 	APIKey             string
@@ -670,8 +669,8 @@ func (r *NBRoutingPeerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&netbirdiov1.NBRoutingPeer{}).
 		Named("nbroutingpeer").
-		Watches(&appsv1.Deployment{}, handler.EnqueueRequestForOwner(r.Scheme, mgr.GetRESTMapper(), &netbirdiov1.NBRoutingPeer{})).
-		Watches(&corev1.Secret{}, handler.EnqueueRequestForOwner(r.Scheme, mgr.GetRESTMapper(), &netbirdiov1.NBRoutingPeer{})).
-		Watches(&netbirdiov1.NBGroup{}, handler.EnqueueRequestForOwner(r.Scheme, mgr.GetRESTMapper(), &netbirdiov1.NBRoutingPeer{})).
+		Watches(&appsv1.Deployment{}, handler.EnqueueRequestForOwner(mgr.GetScheme(), mgr.GetRESTMapper(), &netbirdiov1.NBRoutingPeer{})).
+		Watches(&corev1.Secret{}, handler.EnqueueRequestForOwner(mgr.GetScheme(), mgr.GetRESTMapper(), &netbirdiov1.NBRoutingPeer{})).
+		Watches(&netbirdiov1.NBGroup{}, handler.EnqueueRequestForOwner(mgr.GetScheme(), mgr.GetRESTMapper(), &netbirdiov1.NBRoutingPeer{})).
 		Complete(r)
 }

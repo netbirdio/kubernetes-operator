@@ -206,7 +206,6 @@ func main() {
 
 	nbSetupKeyController := &controller.NBSetupKeyReconciler{
 		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
 	}
 	if err = nbSetupKeyController.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NBSetupKey")
@@ -228,7 +227,6 @@ func main() {
 	if len(netbirdAPIKey) > 0 {
 		if err = (&controller.NBRoutingPeerReconciler{
 			Client:             mgr.GetClient(),
-			Scheme:             mgr.GetScheme(),
 			ClientImage:        clientImage,
 			ClusterName:        clusterName,
 			APIKey:             netbirdAPIKey,
@@ -248,7 +246,6 @@ func main() {
 
 		if err = (&controller.ServiceReconciler{
 			Client:              mgr.GetClient(),
-			Scheme:              mgr.GetScheme(),
 			ClusterName:         clusterName,
 			ClusterDNS:          clusterDNS,
 			NamespacedNetworks:  namespacedNetworks,
@@ -261,7 +258,6 @@ func main() {
 
 		if err = (&controller.NBResourceReconciler{
 			Client:                       mgr.GetClient(),
-			Scheme:                       mgr.GetScheme(),
 			APIKey:                       netbirdAPIKey,
 			ManagementURL:                managementURL,
 			AllowAutomaticPolicyCreation: allowAutomaticPolicyCreation,
@@ -274,7 +270,6 @@ func main() {
 
 		if err = (&controller.NBGroupReconciler{
 			Client:        mgr.GetClient(),
-			Scheme:        mgr.GetScheme(),
 			APIKey:        netbirdAPIKey,
 			ManagementURL: managementURL,
 		}).SetupWithManager(mgr); err != nil {
@@ -284,7 +279,6 @@ func main() {
 
 		if err = (&controller.NBPolicyReconciler{
 			Client:        mgr.GetClient(),
-			Scheme:        mgr.GetScheme(),
 			APIKey:        netbirdAPIKey,
 			ManagementURL: managementURL,
 		}).SetupWithManager(mgr); err != nil {

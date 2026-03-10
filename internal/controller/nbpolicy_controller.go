@@ -7,23 +7,22 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/go-logr/logr"
+	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
+	"github.com/netbirdio/netbird/shared/management/http/api"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/go-logr/logr"
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
 	"github.com/netbirdio/kubernetes-operator/internal/util"
-	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
-	"github.com/netbirdio/netbird/shared/management/http/api"
 )
 
 // NBPolicyReconciler reconciles a NBPolicy object
 type NBPolicyReconciler struct {
 	client.Client
-	Scheme        *runtime.Scheme
+
 	ClusterName   string
 	APIKey        string
 	ManagementURL string

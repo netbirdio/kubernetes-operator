@@ -90,7 +90,6 @@ var _ = Describe("NBPolicy Controller", func() {
 			It("should not create any policy", func() {
 				controllerReconciler := &NBPolicyReconciler{
 					Client:      k8sClient,
-					Scheme:      k8sClient.Scheme(),
 					netbird:     netbirdClient,
 					ClusterName: "Kubernetes",
 				}
@@ -119,7 +118,6 @@ var _ = Describe("NBPolicy Controller", func() {
 			It("should create 1 policy", func() {
 				controllerReconciler := &NBPolicyReconciler{
 					Client:      k8sClient,
-					Scheme:      k8sClient.Scheme(),
 					netbird:     netbirdClient,
 					ClusterName: "Kubernetes",
 				}
@@ -218,7 +216,6 @@ var _ = Describe("NBPolicy Controller", func() {
 			It("should delete tcp policy", func() {
 				controllerReconciler := &NBPolicyReconciler{
 					Client:      k8sClient,
-					Scheme:      k8sClient.Scheme(),
 					netbird:     netbirdClient,
 					ClusterName: "Kubernetes",
 				}
@@ -261,7 +258,6 @@ var _ = Describe("NBPolicy Controller", func() {
 			It("should create 1 policy", func() {
 				controllerReconciler := &NBPolicyReconciler{
 					Client:      k8sClient,
-					Scheme:      k8sClient.Scheme(),
 					netbird:     netbirdClient,
 					ClusterName: "Kubernetes",
 				}
@@ -360,7 +356,6 @@ var _ = Describe("NBPolicy Controller", func() {
 			It("should delete udp policy", func() {
 				controllerReconciler := &NBPolicyReconciler{
 					Client:      k8sClient,
-					Scheme:      k8sClient.Scheme(),
 					netbird:     netbirdClient,
 					ClusterName: "Kubernetes",
 				}
@@ -403,7 +398,6 @@ var _ = Describe("NBPolicy Controller", func() {
 			It("Should delete protocol policy", func() {
 				controllerReconciler := &NBPolicyReconciler{
 					Client:      k8sClient,
-					Scheme:      k8sClient.Scheme(),
 					netbird:     netbirdClient,
 					ClusterName: "Kubernetes",
 				}
@@ -484,7 +478,6 @@ var _ = Describe("NBPolicy Controller", func() {
 			It("Should give all information to Update method", func() {
 				controllerReconciler := &NBPolicyReconciler{
 					Client:      k8sClient,
-					Scheme:      k8sClient.Scheme(),
 					netbird:     netbirdClient,
 					ClusterName: "Kubernetes",
 				}
@@ -603,7 +596,6 @@ var _ = Describe("NBPolicy Controller", func() {
 			It("should delete Policies", func() {
 				controllerReconciler := &NBPolicyReconciler{
 					Client:      k8sClient,
-					Scheme:      k8sClient.Scheme(),
 					netbird:     netbirdClient,
 					ClusterName: "Kubernetes",
 				}

@@ -8,23 +8,21 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
+	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
+	"github.com/netbirdio/netbird/shared/management/http/api"
 	corev1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/log"
-
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/go-logr/logr"
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
 	"github.com/netbirdio/kubernetes-operator/internal/util"
-	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
-	"github.com/netbirdio/netbird/shared/management/http/api"
 )
 
 var (
@@ -34,7 +32,7 @@ var (
 // NBResourceReconciler reconciles a NBResource object
 type NBResourceReconciler struct {
 	client.Client
-	Scheme                       *runtime.Scheme
+
 	APIKey                       string
 	ManagementURL                string
 	AllowAutomaticPolicyCreation bool
@@ -678,7 +676,7 @@ func (r *NBResourceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&netbirdiov1.NBResource{}).
 		Named("nbresource").
-		Watches(&netbirdiov1.NBGroup{}, handler.EnqueueRequestForOwner(r.Scheme, mgr.GetRESTMapper(), &netbirdiov1.NBResource{})).
+		Watches(&netbirdiov1.NBGroup{}, handler.EnqueueRequestForOwner(mgr.GetScheme(), mgr.GetRESTMapper(), &netbirdiov1.NBResource{})).
 		Watches(&netbirdiov1.NBPolicy{}, handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
 			if v, ok := obj.GetAnnotations()["netbird.io/generated-by"]; ok {
 				return []reconcile.Request{

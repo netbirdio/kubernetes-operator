@@ -11,6 +11,7 @@ import (
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
 	"github.com/netbirdio/kubernetes-operator/internal/util"
 	corev1 "k8s.io/api/core/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -40,6 +41,8 @@ const (
 	serviceProtocolAnnotation           = "netbird.io/policy-protocol"
 	servicePolicySourceGroupsAnnotation = "netbird.io/policy-source-groups"
 	servicePolicyNameAnnotation         = "netbird.io/policy-name"
+
+	netbirdLoadBalancerClass = "netbird"
 )
 
 var (
@@ -184,6 +187,23 @@ func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request,
 		if err != nil {
 			logger.Error(errKubernetesAPI, "error updating NBResource", "err", err)
 			return ctrl.Result{}, err
+		}
+	}
+
+	if svc.Spec.Type == corev1.ServiceTypeLoadBalancer && svc.Spec.LoadBalancerClass != nil && *svc.Spec.LoadBalancerClass == netbirdLoadBalancerClass {
+		ingress := []corev1.LoadBalancerIngress{
+			{Hostname: nbResource.Spec.Address},
+		}
+
+		oldSvcStatus := svc.Status.DeepCopy()
+		svc.Status.LoadBalancer.Ingress = ingress
+
+		if !apiequality.Semantic.DeepEqual(oldSvcStatus, svc.Status) {
+			err = r.Client.Status().Update(ctx, &svc)
+			if err != nil {
+				logger.Error(errKubernetesAPI, "error updating service status", "err", err)
+				return ctrl.Result{}, err
+			}
 		}
 	}
 

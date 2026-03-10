@@ -19,6 +19,7 @@ package v1
 import (
 	"context"
 	"fmt"
+	"github.com/netbirdio/kubernetes-operator/internal/util"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -150,6 +151,9 @@ func (d *PodNetbirdInjector) buildNetbirdContainer(envVars []corev1.EnvVar, volu
 			Capabilities: &corev1.Capabilities{
 				Add: []corev1.Capability{"NET_ADMIN"},
 			},
+			RunAsUser:    util.Ptr[int64](0),
+			RunAsGroup:   util.Ptr[int64](0),
+			RunAsNonRoot: util.Ptr(false),
 		},
 		VolumeMounts: volumeMounts,
 	}

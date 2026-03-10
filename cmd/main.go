@@ -28,6 +28,8 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	netbirdrest "github.com/netbirdio/netbird/shared/management/client/rest"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -37,8 +39,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
-
-	corev1 "k8s.io/api/core/v1"
 
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
 	"github.com/netbirdio/kubernetes-operator/internal/controller"
@@ -225,11 +225,13 @@ func main() {
 	}
 
 	if len(netbirdAPIKey) > 0 {
+		netbird := netbirdrest.New(managementURL, netbirdAPIKey)
+
 		if err = (&controller.NBRoutingPeerReconciler{
 			Client:             mgr.GetClient(),
+			Netbird:            netbird,
 			ClientImage:        clientImage,
 			ClusterName:        clusterName,
-			APIKey:             netbirdAPIKey,
 			ManagementURL:      managementURL,
 			NamespacedNetworks: namespacedNetworks,
 			DefaultLabels:      defaultLabelsMap,
@@ -258,8 +260,7 @@ func main() {
 
 		if err = (&controller.NBResourceReconciler{
 			Client:                       mgr.GetClient(),
-			APIKey:                       netbirdAPIKey,
-			ManagementURL:                managementURL,
+			Netbird:                      netbird,
 			AllowAutomaticPolicyCreation: allowAutomaticPolicyCreation,
 			ClusterName:                  clusterName,
 			DefaultLabels:                defaultLabelsMap,
@@ -269,18 +270,16 @@ func main() {
 		}
 
 		if err = (&controller.NBGroupReconciler{
-			Client:        mgr.GetClient(),
-			APIKey:        netbirdAPIKey,
-			ManagementURL: managementURL,
+			Client:  mgr.GetClient(),
+			Netbird: netbird,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "NBGroup")
 			os.Exit(1)
 		}
 
 		if err = (&controller.NBPolicyReconciler{
-			Client:        mgr.GetClient(),
-			APIKey:        netbirdAPIKey,
-			ManagementURL: managementURL,
+			Client:  mgr.GetClient(),
+			Netbird: netbird,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "NBPolicy")
 			os.Exit(1)

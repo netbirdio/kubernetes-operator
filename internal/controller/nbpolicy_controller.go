@@ -23,10 +23,8 @@ import (
 type NBPolicyReconciler struct {
 	client.Client
 
-	ClusterName   string
-	APIKey        string
-	ManagementURL string
-	netbird       *netbird.Client
+	Netbird     *netbird.Client
+	ClusterName string
 }
 
 var (
@@ -119,7 +117,7 @@ func (r *NBPolicyReconciler) mapResources(ctx context.Context, nbPolicy *netbird
 func (r *NBPolicyReconciler) createPolicy(ctx context.Context, nbPolicy *netbirdiov1.NBPolicy, protocol string, sourceGroupIDs, destinationGroupIDs, ports []string, logger logr.Logger) (*string, error) {
 	policyName := fmt.Sprintf("%s %s", nbPolicy.Spec.Name, strings.ToUpper(protocol))
 	logger.Info("Creating NetBird Policy", "name", policyName, "description", nbPolicy.Spec.Description, "protocol", protocol, "sources", sourceGroupIDs, "destinations", destinationGroupIDs, "ports", ports, "bidirectional", nbPolicy.Spec.Bidirectional)
-	policy, err := r.netbird.Policies.Create(ctx, api.PostApiPoliciesJSONRequestBody{
+	policy, err := r.Netbird.Policies.Create(ctx, api.PostApiPoliciesJSONRequestBody{
 		Enabled:     true,
 		Name:        policyName,
 		Description: &nbPolicy.Spec.Description,
@@ -151,7 +149,7 @@ func (r *NBPolicyReconciler) createPolicy(ctx context.Context, nbPolicy *netbird
 func (r *NBPolicyReconciler) updatePolicy(ctx context.Context, policyID *string, nbPolicy *netbirdiov1.NBPolicy, protocol string, sourceGroupIDs, destinationGroupIDs, ports []string, logger logr.Logger) (*string, bool, error) {
 	policyName := fmt.Sprintf("%s %s", nbPolicy.Spec.Name, strings.ToUpper(protocol))
 	logger.Info("Updating NetBird Policy", "name", policyName, "description", nbPolicy.Spec.Description, "protocol", protocol, "sources", sourceGroupIDs, "destinations", destinationGroupIDs, "ports", ports, "bidirectional", nbPolicy.Spec.Bidirectional)
-	_, err := r.netbird.Policies.Update(ctx, *policyID, api.PutApiPoliciesPolicyIdJSONRequestBody{
+	_, err := r.Netbird.Policies.Update(ctx, *policyID, api.PutApiPoliciesPolicyIdJSONRequestBody{
 		Enabled:     true,
 		Name:        policyName,
 		Description: &nbPolicy.Spec.Description,
@@ -285,7 +283,7 @@ func (r *NBPolicyReconciler) syncPolicy(ctx context.Context, nbPolicy *netbirdio
 		if len(nbPolicy.Spec.Protocols) > 0 && !slices.Contains(nbPolicy.Spec.Protocols, protocol) {
 			if policyID != nil {
 				logger.Info("Deleting protocol policy as NBPolicy has restricted protocols", "protocol", protocol)
-				err := r.netbird.Policies.Delete(ctx, *policyID)
+				err := r.Netbird.Policies.Delete(ctx, *policyID)
 				if err != nil && !strings.Contains(err.Error(), "not found") {
 					nbPolicy.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("Error deleting policy: %v", err))
 					return requeue, err
@@ -307,7 +305,7 @@ func (r *NBPolicyReconciler) syncPolicy(ctx context.Context, nbPolicy *netbirdio
 		} else if len(ports) == 0 || len(destGroups) == 0 || len(sourceGroups) == 0 {
 			// Delete policy
 			logger.Info("Deleting policy", "protocol", protocol)
-			err := r.netbird.Policies.Delete(ctx, *policyID)
+			err := r.Netbird.Policies.Delete(ctx, *policyID)
 			if err != nil && !strings.Contains(err.Error(), "not found") {
 				nbPolicy.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("Error deleting policy: %v", err))
 				return requeue, err
@@ -350,14 +348,14 @@ func (r *NBPolicyReconciler) syncPolicy(ctx context.Context, nbPolicy *netbirdio
 
 func (r *NBPolicyReconciler) handleDelete(ctx context.Context, nbPolicy *netbirdiov1.NBPolicy, logger logr.Logger) error {
 	if nbPolicy.Status.TCPPolicyID != nil {
-		err := r.netbird.Policies.Delete(ctx, *nbPolicy.Status.TCPPolicyID)
+		err := r.Netbird.Policies.Delete(ctx, *nbPolicy.Status.TCPPolicyID)
 		if err != nil && !strings.Contains("not found", err.Error()) {
 			return err
 		}
 		nbPolicy.Status.TCPPolicyID = nil
 	}
 	if nbPolicy.Status.UDPPolicyID != nil {
-		err := r.netbird.Policies.Delete(ctx, *nbPolicy.Status.UDPPolicyID)
+		err := r.Netbird.Policies.Delete(ctx, *nbPolicy.Status.UDPPolicyID)
 		if err != nil && !strings.Contains("not found", err.Error()) {
 			return err
 		}
@@ -376,7 +374,7 @@ func (r *NBPolicyReconciler) handleDelete(ctx context.Context, nbPolicy *netbird
 
 // groupNamesToIDs map list of NetBird group names to group IDs
 func (r *NBPolicyReconciler) groupNamesToIDs(ctx context.Context, groupNames []string, logger logr.Logger) ([]string, error) {
-	groups, err := r.netbird.Groups.List(ctx)
+	groups, err := r.Netbird.Groups.List(ctx)
 	if err != nil {
 		logger.Error(errNetBirdAPI, "Error listing Groups", "err", err)
 		return nil, err
@@ -397,8 +395,6 @@ func (r *NBPolicyReconciler) groupNamesToIDs(ctx context.Context, groupNames []s
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *NBPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.netbird = netbird.New(r.ManagementURL, r.APIKey)
-
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&netbirdiov1.NBPolicy{}).
 		Named("nbpolicy").

@@ -8,7 +8,6 @@ on:
       - "v*"
     branches:
       - main
-  pull_request:
 
 jobs:
   kubectl-docker:

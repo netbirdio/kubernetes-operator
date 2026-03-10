@@ -155,12 +155,13 @@ var _ = Describe("Manager", Ordered, func() {
 
 				// Validate the pod's status
 				cmd = exec.Command("kubectl", "get",
-					"pods", controllerPodName, "-o", "jsonpath={.status.phase}",
+					"pods", controllerPodName,
+					"-o", "jsonpath={.status.conditions[?(@.type=='Ready')].status}",
 					"-n", namespace,
 				)
 				output, err := utils.Run(cmd)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(output).To(Equal("Running"), "Incorrect kubernetes-operator pod status")
+				g.Expect(output).To(Equal("True"), "Incorrect kubernetes-operator pod status")
 			}
 			Eventually(verifyControllerUp).Should(Succeed())
 		})

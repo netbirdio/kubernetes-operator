@@ -219,7 +219,7 @@ func (r *NBResourceReconciler) handlePolicyAddUpdate(ctx context.Context, req ct
 		return err
 	}
 
-	if !util.Contains(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String()) {
+	if !slices.Contains(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String()) {
 		nbPolicy.Status.ManagedServiceList = append(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String())
 		updatePolicyStatus = true
 	}
@@ -295,7 +295,7 @@ func (r *NBResourceReconciler) handlePolicyAddUpdate(ctx context.Context, req ct
 
 func (r *NBResourceReconciler) handlePolicyDelete(ctx context.Context, req ctrl.Request, nbResource *netbirdiov1.NBResource, specPolicies []string, policy string, logger logr.Logger) error {
 	var nbPolicy netbirdiov1.NBPolicy
-	if !util.Contains(specPolicies, policy) {
+	if !slices.Contains(specPolicies, policy) {
 		kubeName := policy
 		if v, ok := nbResource.Status.PolicyNameMapping[policy]; ok {
 			kubeName = v
@@ -316,7 +316,7 @@ func (r *NBResourceReconciler) handlePolicyDelete(ctx context.Context, req ctrl.
 				}
 
 				delete(nbResource.Status.PolicyNameMapping, policy)
-			} else if util.Contains(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String()) {
+			} else if slices.Contains(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String()) {
 				nbPolicy.Status.ManagedServiceList = util.Without(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String())
 				nbPolicy.Status.LastUpdatedAt = &v1.Time{Time: time.Now()}
 				err := r.Client.Status().Update(ctx, &nbPolicy)
@@ -366,7 +366,7 @@ func (r *NBResourceReconciler) handlePolicy(ctx context.Context, req ctrl.Reques
 // handleGroupUpdate update network resource groups
 func (r *NBResourceReconciler) handleGroupUpdate(ctx context.Context, nbResource *netbirdiov1.NBResource, groupIDs []string, resource *api.NetworkResource, logger logr.Logger) error {
 	// Handle possible updated group IDs
-	groupIDMap := make(map[string]interface{})
+	groupIDMap := make(map[string]any)
 	for _, g := range groupIDs {
 		groupIDMap[g] = nil
 	}
@@ -480,7 +480,7 @@ func (r *NBResourceReconciler) handleGroups(ctx context.Context, req ctrl.Reques
 		if ownerIndex == -1 {
 			continue
 		}
-		if util.Contains(nbResource.Spec.Groups, g.Spec.Name) {
+		if slices.Contains(nbResource.Spec.Groups, g.Spec.Name) {
 			continue
 		}
 		if len(g.OwnerReferences) > 1 {
@@ -605,7 +605,7 @@ func (r *NBResourceReconciler) handleDelete(ctx context.Context, req ctrl.Reques
 				return err
 			}
 
-			if !errors.IsNotFound(err) && util.Contains(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String()) {
+			if !errors.IsNotFound(err) && slices.Contains(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String()) {
 				nbPolicy.Status.ManagedServiceList = util.Without(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String())
 				nbPolicy.Status.LastUpdatedAt = &v1.Time{Time: time.Now()}
 				err = r.Client.Status().Update(ctx, &nbPolicy)

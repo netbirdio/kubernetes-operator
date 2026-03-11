@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -96,7 +97,7 @@ func (r *ServiceReconciler) hideService(ctx context.Context, req ctrl.Request, s
 		}
 	}
 
-	if util.Contains(svc.Finalizers, "netbird.io/cleanup") {
+	if slices.Contains(svc.Finalizers, "netbird.io/cleanup") {
 		svc.Finalizers = util.Without(svc.Finalizers, "netbird.io/cleanup")
 		err := r.Client.Update(ctx, &svc)
 		if err != nil {
@@ -115,7 +116,7 @@ func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request,
 		routerNamespace = req.Namespace
 	}
 
-	if !util.Contains(svc.Finalizers, "netbird.io/cleanup") {
+	if !slices.Contains(svc.Finalizers, "netbird.io/cleanup") {
 		svc.Finalizers = append(svc.Finalizers, "netbird.io/cleanup")
 		err := r.Client.Update(ctx, &svc)
 		if err != nil {
@@ -196,7 +197,7 @@ func (r *ServiceReconciler) reconcileNBResource(nbResource *netbirdiov1.NBResour
 	if v, ok := svc.Annotations[serviceGroupsAnnotation]; ok {
 		//nolint:prealloc
 		groups = nil
-		for _, g := range strings.Split(v, ",") {
+		for g := range strings.SplitSeq(v, ",") {
 			groups = append(groups, strings.TrimSpace(g))
 		}
 	}
@@ -237,7 +238,7 @@ func (r *ServiceReconciler) applyPolicy(nbResource *netbirdiov1.NBResource, svc 
 	}
 	var filterPorts []int32
 	if v, ok := svc.Annotations[servicePortsAnnotation]; ok {
-		for _, v := range strings.Split(v, ",") {
+		for v := range strings.SplitSeq(v, ",") {
 			port, err := strconv.ParseInt(v, 10, 64)
 			if err != nil {
 				return err
@@ -267,23 +268,23 @@ func (r *ServiceReconciler) applyPolicy(nbResource *netbirdiov1.NBResource, svc 
 	for _, p := range svc.Spec.Ports {
 		switch p.Protocol {
 		case corev1.ProtocolTCP:
-			if (len(filterPorts) > 0 && !util.Contains(filterPorts, p.Port)) || (len(filterProtocols) > 0 && !util.Contains(filterProtocols, "tcp")) {
-				if util.Contains(nbResource.Spec.TCPPorts, p.Port) {
+			if (len(filterPorts) > 0 && !slices.Contains(filterPorts, p.Port)) || (len(filterProtocols) > 0 && !slices.Contains(filterProtocols, "tcp")) {
+				if slices.Contains(nbResource.Spec.TCPPorts, p.Port) {
 					nbResource.Spec.TCPPorts = util.Without(nbResource.Spec.TCPPorts, p.Port)
 				}
 				continue
 			}
-			if !util.Contains(nbResource.Spec.TCPPorts, p.Port) {
+			if !slices.Contains(nbResource.Spec.TCPPorts, p.Port) {
 				nbResource.Spec.TCPPorts = append(nbResource.Spec.TCPPorts, p.Port)
 			}
 		case corev1.ProtocolUDP:
-			if (len(filterPorts) > 0 && !util.Contains(filterPorts, p.Port)) || (len(filterProtocols) > 0 && !util.Contains(filterProtocols, "udp")) {
-				if util.Contains(nbResource.Spec.UDPPorts, p.Port) {
+			if (len(filterPorts) > 0 && !slices.Contains(filterPorts, p.Port)) || (len(filterProtocols) > 0 && !slices.Contains(filterProtocols, "udp")) {
+				if slices.Contains(nbResource.Spec.UDPPorts, p.Port) {
 					nbResource.Spec.UDPPorts = util.Without(nbResource.Spec.UDPPorts, p.Port)
 				}
 				continue
 			}
-			if !util.Contains(nbResource.Spec.UDPPorts, p.Port) {
+			if !slices.Contains(nbResource.Spec.UDPPorts, p.Port) {
 				nbResource.Spec.UDPPorts = append(nbResource.Spec.UDPPorts, p.Port)
 			}
 		default:

@@ -145,11 +145,100 @@ func (r *NBPolicyReconciler) createPolicy(ctx context.Context, nbPolicy *netbird
 	return policy.Id, nil
 }
 
+// groupMinimumToIDs extracts group IDs from a slice of GroupMinimum
+func groupMinimumToIDs(groups []api.GroupMinimum) []string {
+	ids := make([]string, 0, len(groups))
+	for _, g := range groups {
+		ids = append(ids, g.Id)
+	}
+	return ids
+}
+
+// policyNeedsUpdate compares the current remote policy state with the desired state
+// and returns true if an update is needed.
+func policyNeedsUpdate(policy *api.Policy, policyName, description, protocol string, bidirectional bool, sourceGroupIDs, destinationGroupIDs, ports []string) bool {
+	if policy.Name != policyName {
+		return true
+	}
+	if !policy.Enabled {
+		return true
+	}
+	if policy.Description == nil || *policy.Description != description {
+		return true
+	}
+	if len(policy.Rules) != 1 {
+		return true
+	}
+
+	rule := policy.Rules[0]
+	if !rule.Enabled {
+		return true
+	}
+	if rule.Name != policyName {
+		return true
+	}
+	if string(rule.Protocol) != protocol {
+		return true
+	}
+	if rule.Bidirectional != bidirectional {
+		return true
+	}
+
+	// Compare sources
+	var remoteSources []string
+	if rule.Sources != nil {
+		remoteSources = groupMinimumToIDs(*rule.Sources)
+	}
+	if !util.Equivalent(remoteSources, sourceGroupIDs) {
+		return true
+	}
+
+	// Compare destinations
+	var remoteDestinations []string
+	if rule.Destinations != nil {
+		remoteDestinations = groupMinimumToIDs(*rule.Destinations)
+	}
+	if !util.Equivalent(remoteDestinations, destinationGroupIDs) {
+		return true
+	}
+
+	// Compare ports
+	var remotePorts []string
+	if rule.Ports != nil {
+		remotePorts = *rule.Ports
+	}
+	if !util.Equivalent(remotePorts, ports) {
+		return true
+	}
+
+	return false
+}
+
 // updatePolicy helper for updating policy with settings
 func (r *NBPolicyReconciler) updatePolicy(ctx context.Context, policyID *string, nbPolicy *netbirdiov1.NBPolicy, protocol string, sourceGroupIDs, destinationGroupIDs, ports []string, logger logr.Logger) (*string, bool, error) {
 	policyName := fmt.Sprintf("%s %s", nbPolicy.Spec.Name, strings.ToUpper(protocol))
+
+	// Fetch current policy state from NetBird API
+	currentPolicy, err := r.Netbird.Policies.Get(ctx, *policyID)
+	if err != nil && strings.Contains(err.Error(), "not found") {
+		logger.Info("Policy deleted from NetBird API, recreating", "protocol", protocol)
+		nbPolicy.Status.Conditions = netbirdiov1.NBConditionFalse("Gone", "Policy deleted from NetBird API")
+		return nil, true, nil
+	}
+	if err != nil {
+		logger.Error(errNetBirdAPI, "Error getting Policy", "err", err)
+		nbPolicy.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("Error getting policy: %v", err))
+		return policyID, false, err
+	}
+
+	// Compare current state with desired state — skip update if nothing changed
+	if !policyNeedsUpdate(currentPolicy, policyName, nbPolicy.Spec.Description, protocol, nbPolicy.Spec.Bidirectional, sourceGroupIDs, destinationGroupIDs, ports) {
+		logger.Info("Policy already up-to-date, skipping update", "name", policyName)
+		return policyID, false, nil
+	}
+
 	logger.Info("Updating NetBird Policy", "name", policyName, "description", nbPolicy.Spec.Description, "protocol", protocol, "sources", sourceGroupIDs, "destinations", destinationGroupIDs, "ports", ports, "bidirectional", nbPolicy.Spec.Bidirectional)
-	_, err := r.Netbird.Policies.Update(ctx, *policyID, api.PutApiPoliciesPolicyIdJSONRequestBody{
+	_, err = r.Netbird.Policies.Update(ctx, *policyID, api.PutApiPoliciesPolicyIdJSONRequestBody{
 		Enabled:     true,
 		Name:        policyName,
 		Description: &nbPolicy.Spec.Description,
@@ -168,24 +257,13 @@ func (r *NBPolicyReconciler) updatePolicy(ctx context.Context, policyID *string,
 		},
 	})
 
-	if err != nil && !strings.Contains(err.Error(), "not found") {
+	if err != nil {
 		logger.Error(errNetBirdAPI, "Error updating Policy", "err", err)
 		nbPolicy.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("Error updating policy: %v", err))
 		return policyID, false, err
 	}
 
-	requeue := false
-
-	if err != nil && strings.Contains(err.Error(), "not found") {
-		logger.Info("Policy deleted from NetBird API, recreating", "protocol", protocol)
-		policyID = nil
-		requeue = true
-		nbPolicy.Status.Conditions = netbirdiov1.NBConditionFalse("Gone", "Policy deleted from NetBird API")
-	} else if err != nil {
-		return nil, false, err
-	}
-
-	return policyID, requeue, nil
+	return policyID, false, nil
 }
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to

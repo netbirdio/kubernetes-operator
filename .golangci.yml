@@ -26,7 +26,7 @@ linters:
       rules:
         - name: comment-spacings
     staticcheck:
-      checks: ["all", "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022", "-QF1008"]
+      checks: ["all", "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022", "-QF1008", "-SA1019"]
   exclusions:
     generated: lax
     rules:

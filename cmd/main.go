@@ -137,7 +137,7 @@ func main() {
 
 	defaultLabelsMap := make(map[string]string)
 	if defaultLabels != "" {
-		for _, s := range strings.Split(defaultLabels, ",") {
+		for s := range strings.SplitSeq(defaultLabels, ",") {
 			kv := strings.Split(s, "=")
 			if len(kv) != 2 {
 				panic(fmt.Errorf("invalid label format: %s", s))

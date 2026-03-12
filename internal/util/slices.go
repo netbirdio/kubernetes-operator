@@ -2,16 +2,6 @@ package util
 
 import "strings"
 
-// Contains return if y is in slice x
-func Contains[T comparable](x []T, y T) bool {
-	for _, v := range x {
-		if v == y {
-			return true
-		}
-	}
-	return false
-}
-
 // Without return all of x in same order without y
 func Without[T comparable](x []T, y T) []T {
 	var ret []T
@@ -29,7 +19,7 @@ func Equivalent[T comparable](x, y []T) bool {
 		return false
 	}
 
-	mp := make(map[T]interface{})
+	mp := make(map[T]any)
 	for _, v := range x {
 		mp[v] = nil
 	}

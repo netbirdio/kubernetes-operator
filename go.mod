@@ -2,6 +2,8 @@ module github.com/netbirdio/kubernetes-operator
 
 go 1.25.0
 
+toolchain go1.26.1
+
 require (
 	github.com/go-logr/logr v1.4.3
 	github.com/google/uuid v1.6.0

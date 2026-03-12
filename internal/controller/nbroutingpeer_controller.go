@@ -3,6 +3,8 @@ package controller
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -123,9 +125,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 	}
 
 	labels := r.DefaultLabels
-	for k, v := range nbrp.Spec.Labels {
-		labels[k] = v
-	}
+	maps.Copy(labels, nbrp.Spec.Labels)
 	podLabels := labels
 	podLabels["app.kubernetes.io/name"] = "netbird-router"
 
@@ -617,7 +617,7 @@ func (r *NBRoutingPeerReconciler) handleDelete(ctx context.Context, req ctrl.Req
 		}
 	}
 
-	if nbGroup.Spec.Name != "" && util.Contains(nbGroup.Finalizers, "netbird.io/routing-peer-cleanup") {
+	if nbGroup.Spec.Name != "" && slices.Contains(nbGroup.Finalizers, "netbird.io/routing-peer-cleanup") {
 		nbGroup.Finalizers = util.Without(nbGroup.Finalizers, "netbird.io/routing-peer-cleanup")
 		logger.Info("Removing netbird.io/routing-peer-cleanup finalizer NBGroup", "namespace", nbGroup.Namespace, "name", nbGroup.Name)
 		err = r.Client.Update(ctx, &nbGroup)

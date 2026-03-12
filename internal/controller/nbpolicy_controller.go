@@ -68,9 +68,9 @@ func (r *NBPolicyReconciler) getResources(ctx context.Context, nbPolicy *netbird
 // mapResources map each NBResource ports and protocols into one object to generate the policy
 // returns map[protocol] => ports, destination group IDs
 func (r *NBPolicyReconciler) mapResources(ctx context.Context, nbPolicy *netbirdiov1.NBPolicy, resources []netbirdiov1.NBResource, logger logr.Logger) (map[string][]int32, []string, error) {
-	portMapping := map[string]map[int32]interface{}{
-		protocolTCP: make(map[int32]interface{}),
-		protocolUDP: make(map[int32]interface{}),
+	portMapping := map[string]map[int32]any{
+		protocolTCP: make(map[int32]any),
+		protocolUDP: make(map[int32]any),
 	}
 	groups, err := r.groupNamesToIDs(ctx, nbPolicy.Spec.DestinationGroups, logger)
 	if err != nil {
@@ -85,11 +85,11 @@ func (r *NBPolicyReconciler) mapResources(ctx context.Context, nbPolicy *netbird
 		}
 		resourcePolicies := util.SplitTrim(*resource.Status.PolicyName, ",")
 
-		if generatedBy == "" && !util.Contains(resourcePolicies, nbPolicy.Name) {
+		if generatedBy == "" && !slices.Contains(resourcePolicies, nbPolicy.Name) {
 			continue
 		}
 
-		if generatedBy != "" && !util.Contains(resourcePolicies, strings.ReplaceAll(nbPolicy.Name, "-"+generatedBy, "")) {
+		if generatedBy != "" && !slices.Contains(resourcePolicies, strings.ReplaceAll(nbPolicy.Name, "-"+generatedBy, "")) {
 			continue
 		}
 		// Groups
@@ -282,7 +282,7 @@ func (r *NBPolicyReconciler) syncPolicy(ctx context.Context, nbPolicy *netbirdio
 			return requeue, errUnknownProtocol
 		}
 
-		if len(nbPolicy.Spec.Protocols) > 0 && !util.Contains(nbPolicy.Spec.Protocols, protocol) {
+		if len(nbPolicy.Spec.Protocols) > 0 && !slices.Contains(nbPolicy.Spec.Protocols, protocol) {
 			if policyID != nil {
 				logger.Info("Deleting protocol policy as NBPolicy has restricted protocols", "protocol", protocol)
 				err := r.netbird.Policies.Delete(ctx, *policyID)
@@ -363,7 +363,7 @@ func (r *NBPolicyReconciler) handleDelete(ctx context.Context, nbPolicy *netbird
 		}
 		nbPolicy.Status.UDPPolicyID = nil
 	}
-	if util.Contains(nbPolicy.Finalizers, "netbird.io/cleanup") {
+	if slices.Contains(nbPolicy.Finalizers, "netbird.io/cleanup") {
 		nbPolicy.Finalizers = util.Without(nbPolicy.Finalizers, "netbird.io/cleanup")
 		err := r.Client.Update(ctx, nbPolicy)
 		if err != nil {

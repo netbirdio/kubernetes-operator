@@ -8,21 +8,21 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
-	"github.com/netbirdio/kubernetes-operator/internal/util"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
+	"github.com/netbirdio/kubernetes-operator/internal/util"
 )
 
 // ServiceReconciler reconciles a Service object
 type ServiceReconciler struct {
 	client.Client
-	Scheme              *runtime.Scheme
+
 	ClusterName         string
 	ClusterDNS          string
 	NamespacedNetworks  bool

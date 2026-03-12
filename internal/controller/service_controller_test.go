@@ -62,7 +62,6 @@ var _ = Describe("Service Controller", func() {
 			Expect(k8sClient.Create(ctx, service)).To(Succeed())
 			controllerReconciler = &ServiceReconciler{
 				Client:              k8sClient,
-				Scheme:              k8sClient.Scheme(),
 				ClusterName:         "kubernetes",
 				NamespacedNetworks:  false,
 				ClusterDNS:          "svc.cluster.local",

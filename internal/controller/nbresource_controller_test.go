@@ -47,7 +47,6 @@ var _ = Describe("NBResource Controller", func() {
 			netbirdClient = netbird.New(server.URL, "ABC")
 			controllerReconciler = &NBResourceReconciler{
 				Client:        k8sClient,
-				Scheme:        k8sClient.Scheme(),
 				netbird:       netbirdClient,
 				ClusterName:   "kubernetes",
 				DefaultLabels: map[string]string{"dog": "bark"},

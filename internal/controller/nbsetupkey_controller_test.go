@@ -79,7 +79,6 @@ var _ = Describe("NBSetupKey Controller", func() {
 			It("should set status to not ready", func() {
 				controllerReconciler := &NBSetupKeyReconciler{
 					Client:            k8sClient,
-					Scheme:            k8sClient.Scheme(),
 					ReferencedSecrets: make(map[string]types.NamespacedName),
 				}
 
@@ -125,7 +124,6 @@ var _ = Describe("NBSetupKey Controller", func() {
 
 					controllerReconciler := &NBSetupKeyReconciler{
 						Client:            k8sClient,
-						Scheme:            k8sClient.Scheme(),
 						ReferencedSecrets: make(map[string]types.NamespacedName),
 					}
 
@@ -151,7 +149,6 @@ var _ = Describe("NBSetupKey Controller", func() {
 
 					controllerReconciler := &NBSetupKeyReconciler{
 						Client:            k8sClient,
-						Scheme:            k8sClient.Scheme(),
 						ReferencedSecrets: make(map[string]types.NamespacedName),
 					}
 
@@ -177,7 +174,6 @@ var _ = Describe("NBSetupKey Controller", func() {
 
 					controllerReconciler := &NBSetupKeyReconciler{
 						Client:            k8sClient,
-						Scheme:            k8sClient.Scheme(),
 						ReferencedSecrets: make(map[string]types.NamespacedName),
 					}
 

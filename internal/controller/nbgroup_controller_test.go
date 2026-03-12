@@ -85,7 +85,6 @@ var _ = Describe("NBGroup Controller", func() {
 				By("Reconciling the created resource")
 				controllerReconciler := &NBGroupReconciler{
 					Client:  k8sClient,
-					Scheme:  k8sClient.Scheme(),
 					netbird: netbirdClient,
 				}
 
@@ -124,7 +123,6 @@ var _ = Describe("NBGroup Controller", func() {
 				By("Reconciling the created resource")
 				controllerReconciler := &NBGroupReconciler{
 					Client:  k8sClient,
-					Scheme:  k8sClient.Scheme(),
 					netbird: netbirdClient,
 				}
 
@@ -174,7 +172,6 @@ var _ = Describe("NBGroup Controller", func() {
 					By("Reconciling the deleting resource")
 					controllerReconciler := &NBGroupReconciler{
 						Client:  k8sClient,
-						Scheme:  k8sClient.Scheme(),
 						netbird: netbirdClient,
 					}
 
@@ -201,7 +198,6 @@ var _ = Describe("NBGroup Controller", func() {
 					By("Reconciling the deleting resource")
 					controllerReconciler := &NBGroupReconciler{
 						Client:  k8sClient,
-						Scheme:  k8sClient.Scheme(),
 						netbird: netbirdClient,
 					}
 
@@ -243,7 +239,6 @@ var _ = Describe("NBGroup Controller", func() {
 					By("Reconciling the deleting resource")
 					controllerReconciler := &NBGroupReconciler{
 						Client:  k8sClient,
-						Scheme:  k8sClient.Scheme(),
 						netbird: netbirdClient,
 					}
 
@@ -271,7 +266,6 @@ var _ = Describe("NBGroup Controller", func() {
 			It("should re-use existing group ID", func() {
 				controllerReconciler := &NBGroupReconciler{
 					Client:  k8sClient,
-					Scheme:  k8sClient.Scheme(),
 					netbird: netbirdClient,
 				}
 
@@ -309,7 +303,6 @@ var _ = Describe("NBGroup Controller", func() {
 			It("Should requeue and create group on next run", func() {
 				controllerReconciler := &NBGroupReconciler{
 					Client:  k8sClient,
-					Scheme:  k8sClient.Scheme(),
 					netbird: netbirdClient,
 				}
 

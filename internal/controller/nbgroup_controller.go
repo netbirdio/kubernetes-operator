@@ -6,22 +6,21 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
+	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
+	"github.com/netbirdio/netbird/shared/management/http/api"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/go-logr/logr"
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
 	"github.com/netbirdio/kubernetes-operator/internal/util"
-	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
-	"github.com/netbirdio/netbird/shared/management/http/api"
 )
 
 // NBGroupReconciler reconciles a NBGroup object
 type NBGroupReconciler struct {
 	client.Client
-	Scheme        *runtime.Scheme
+
 	APIKey        string
 	ManagementURL string
 	netbird       *netbird.Client

@@ -13,12 +13,12 @@ import (
 	"github.com/netbirdio/netbird/shared/management/http/api"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
@@ -88,7 +88,7 @@ func (r *NBResourceReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	groupIDs, result, err := r.handleGroups(ctx, req, nbResource, logger)
 	if result != nil {
-		nbResource.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("Error occurred handling groups: %v", err))
+		meta.SetStatusCondition(&nbResource.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.ResourceErrorReason, Message: "could not handle group"})
 		return *result, err
 	}
 
@@ -96,9 +96,8 @@ func (r *NBResourceReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	if err != nil && nerrors.Is(err, errDuplicateResource) {
 		return ctrl.Result{RequeueAfter: defaultRequeueAfter}, nil
 	}
-
 	if err != nil {
-		nbResource.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("Error occurred handling NetBird Network Resource: %v", err))
+		meta.SetStatusCondition(&nbResource.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.ResourceErrorReason, Message: "could not handle netbird resource"})
 		return ctrl.Result{}, err
 	}
 
@@ -109,17 +108,17 @@ func (r *NBResourceReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	err = r.handleGroupUpdate(ctx, nbResource, groupIDs, resource, logger)
 	if err != nil {
-		nbResource.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("Error occurred handling groups: %v", err))
+		meta.SetStatusCondition(&nbResource.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.ResourceErrorReason, Message: "could not handle group updates"})
 		return ctrl.Result{}, err
 	}
 
 	err = r.handlePolicy(ctx, req, nbResource, groupIDs, logger)
 	if err != nil {
-		nbResource.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("Error occurred handling policy changes: %v", err))
+		meta.SetStatusCondition(&nbResource.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.ResourceErrorReason, Message: "could not handle policy updates"})
 		return ctrl.Result{}, err
 	}
 
-	nbResource.Status.Conditions = netbirdiov1.NBConditionTrue()
+	meta.SetStatusCondition(&nbResource.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionTrue})
 
 	return ctrl.Result{}, nil
 }
@@ -135,7 +134,7 @@ func (r *NBResourceReconciler) handlePolicyCreate(ctx context.Context, nbResourc
 	}
 	generatedName := fmt.Sprintf("%s-%s-%s", policy, req.Namespace, req.Name)
 	*nbPolicy = netbirdiov1.NBPolicy{
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:        generatedName,
 			Annotations: map[string]string{"netbird.io/generated-by": req.NamespacedName.String()},
 			Finalizers:  []string{"netbird.io/cleanup"},
@@ -224,19 +223,19 @@ func (r *NBResourceReconciler) handlePolicyAddUpdate(ctx context.Context, req ct
 
 	if !util.Equivalent(nbResource.Spec.TCPPorts, nbResource.Status.TCPPorts) {
 		nbResource.Status.TCPPorts = nbResource.Spec.TCPPorts
-		nbPolicy.Status.LastUpdatedAt = &v1.Time{Time: time.Now()}
+		nbPolicy.Status.LastUpdatedAt = &metav1.Time{Time: time.Now()}
 		updatePolicyStatus = true
 	}
 
 	if !util.Equivalent(nbResource.Spec.UDPPorts, nbResource.Status.UDPPorts) {
 		nbResource.Status.UDPPorts = nbResource.Spec.UDPPorts
-		nbPolicy.Status.LastUpdatedAt = &v1.Time{Time: time.Now()}
+		nbPolicy.Status.LastUpdatedAt = &metav1.Time{Time: time.Now()}
 		updatePolicyStatus = true
 	}
 
 	if !util.Equivalent(nbResource.Status.Groups, groupIDs) {
 		nbResource.Status.Groups = groupIDs
-		nbPolicy.Status.LastUpdatedAt = &v1.Time{Time: time.Now()}
+		nbPolicy.Status.LastUpdatedAt = &metav1.Time{Time: time.Now()}
 		updatePolicyStatus = true
 	}
 
@@ -316,7 +315,7 @@ func (r *NBResourceReconciler) handlePolicyDelete(ctx context.Context, req ctrl.
 				delete(nbResource.Status.PolicyNameMapping, policy)
 			} else if slices.Contains(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String()) {
 				nbPolicy.Status.ManagedServiceList = util.Without(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String())
-				nbPolicy.Status.LastUpdatedAt = &v1.Time{Time: time.Now()}
+				nbPolicy.Status.LastUpdatedAt = &metav1.Time{Time: time.Now()}
 				err := r.Client.Status().Update(ctx, &nbPolicy)
 				if err != nil {
 					logger.Error(errKubernetesAPI, "error updating NBPolicy", "err", err, "policyName", policy)
@@ -417,8 +416,7 @@ func (r *NBResourceReconciler) handleNetBirdResource(ctx context.Context, nbReso
 		})
 
 		if err != nil && strings.Contains(err.Error(), "already exists") {
-			log.Log.Error(errNetBirdAPI, "network resource with the same name already exists", "err", err)
-			nbResource.Status.Conditions = netbirdiov1.NBConditionFalse("DuplicateName", "Resource name already exists")
+			meta.SetStatusCondition(&nbResource.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.ResourceErrorReason, Message: "resource name already exists"})
 			return nil, errDuplicateResource
 		}
 
@@ -511,10 +509,10 @@ func (r *NBResourceReconciler) handleGroups(ctx context.Context, req ctrl.Reques
 		} else if errors.IsNotFound(err) {
 			// Create NBGroup
 			nbGroup = netbirdiov1.NBGroup{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      groupNameRFC,
 					Namespace: nbResource.Namespace,
-					OwnerReferences: []v1.OwnerReference{
+					OwnerReferences: []metav1.OwnerReference{
 						{
 							APIVersion:         netbirdiov1.GroupVersion.Identifier(),
 							Kind:               "NBResource",
@@ -548,7 +546,7 @@ func (r *NBResourceReconciler) handleGroups(ctx context.Context, req ctrl.Reques
 			}
 
 			if !ownerExists {
-				nbGroup.OwnerReferences = append(nbGroup.OwnerReferences, v1.OwnerReference{
+				nbGroup.OwnerReferences = append(nbGroup.OwnerReferences, metav1.OwnerReference{
 					APIVersion:         netbirdiov1.GroupVersion.Identifier(),
 					Kind:               "NBResource",
 					Name:               nbResource.Name,
@@ -605,7 +603,7 @@ func (r *NBResourceReconciler) handleDelete(ctx context.Context, req ctrl.Reques
 
 			if !errors.IsNotFound(err) && slices.Contains(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String()) {
 				nbPolicy.Status.ManagedServiceList = util.Without(nbPolicy.Status.ManagedServiceList, req.NamespacedName.String())
-				nbPolicy.Status.LastUpdatedAt = &v1.Time{Time: time.Now()}
+				nbPolicy.Status.LastUpdatedAt = &metav1.Time{Time: time.Now()}
 				err = r.Client.Status().Update(ctx, &nbPolicy)
 				if err != nil {
 					return err

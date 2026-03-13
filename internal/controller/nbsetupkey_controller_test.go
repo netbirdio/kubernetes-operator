@@ -92,7 +92,7 @@ var _ = Describe("NBSetupKey Controller", func() {
 
 				Expect(nbsetupkey.Status.Conditions).NotTo(BeNil())
 				Expect(nbsetupkey.Status.Conditions).To(HaveLen(1))
-				Expect(nbsetupkey.Status.Conditions[0].Status).To(Equal(v1.ConditionFalse))
+				BeEquivalentTo(nbsetupkey.Status.Conditions[0].Status).Match(v1.ConditionFalse)
 				Expect(nbsetupkey.Status.Conditions[0].Reason).To(Equal("SecretNotExists"))
 				Expect(controllerReconciler.ReferencedSecrets).To(HaveKey("default/test-resource"))
 			})
@@ -137,7 +137,7 @@ var _ = Describe("NBSetupKey Controller", func() {
 
 					Expect(nbsetupkey.Status.Conditions).NotTo(BeNil())
 					Expect(nbsetupkey.Status.Conditions).To(HaveLen(1))
-					Expect(nbsetupkey.Status.Conditions[0].Status).To(Equal(v1.ConditionFalse))
+					BeEquivalentTo(nbsetupkey.Status.Conditions[0].Status).Match(v1.ConditionFalse)
 					Expect(nbsetupkey.Status.Conditions[0].Reason).To(Equal("InvalidSetupKey"))
 					Expect(controllerReconciler.ReferencedSecrets).To(HaveKey("default/test-resource"))
 				})

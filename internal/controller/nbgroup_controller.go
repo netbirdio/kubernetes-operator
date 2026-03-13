@@ -10,6 +10,8 @@ import (
 	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
 	"github.com/netbirdio/netbird/shared/management/http/api"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -101,32 +103,31 @@ func (r *NBGroupReconciler) syncNetBirdGroup(ctx context.Context, nbGroup *netbi
 			Name: nbGroup.Spec.Name,
 		})
 		if err != nil {
-			nbGroup.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("NetBird API Error: %v", err))
-			logger.Error(errNetBirdAPI, "error creating group", "err", err)
+			meta.SetStatusCondition(&nbGroup.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.APIErrorReason, Message: fmt.Sprintf("could not create group %s", nbGroup.Spec.Name)})
 			return ctrl.Result{}, err
 		}
 
 		logger.Info("NBGroup: Created group on NetBird", "name", nbGroup.Spec.Name, "id", group.Id)
 		nbGroup.Status.GroupID = &group.Id
-		nbGroup.Status.Conditions = netbirdiov1.NBConditionTrue()
+		meta.SetStatusCondition(&nbGroup.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionTrue})
 	} else if nbGroup.Status.GroupID == nil && group != nil {
 		logger.Info("NBGroup: Found group with same name on NetBird", "name", nbGroup.Spec.Name, "id", group.Id)
 		nbGroup.Status.GroupID = &group.Id
-		nbGroup.Status.Conditions = netbirdiov1.NBConditionTrue()
+		meta.SetStatusCondition(&nbGroup.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionTrue})
 	} else if group == nil {
 		logger.Info("NBGroup: Group was deleted", "name", nbGroup.Spec.Name, "id", *nbGroup.Status.GroupID)
 		nbGroup.Status.GroupID = nil
-		nbGroup.Status.Conditions = netbirdiov1.NBConditionFalse("GroupGone", "Group was deleted from NetBird API")
+		meta.SetStatusCondition(&nbGroup.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.APIErrorReason, Message: fmt.Sprintf("group has been deleted %s", nbGroup.Spec.Name)})
 		return ctrl.Result{Requeue: true}, nil
 	} else {
-		nbGroup.Status.Conditions = netbirdiov1.NBConditionTrue()
+		meta.SetStatusCondition(&nbGroup.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionTrue})
 	}
 
 	if nbGroup.Status.GroupID != nil && group != nil && *nbGroup.Status.GroupID != group.Id {
 		// There are two possibilities here, either someone deleted and created the group in NetBird, thus the changed ID
 		// Or there's a conflict with something else, either way, we just need to take the new ID here
 		nbGroup.Status.GroupID = &group.Id
-		nbGroup.Status.Conditions = netbirdiov1.NBConditionTrue()
+		meta.SetStatusCondition(&nbGroup.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionTrue})
 	}
 	return ctrl.Result{}, nil
 }

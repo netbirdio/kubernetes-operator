@@ -1,8 +1,9 @@
 package v1
 
 import (
-	"github.com/netbirdio/kubernetes-operator/internal/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/netbirdio/kubernetes-operator/internal/util"
 )
 
 // NBGroupSpec defines the desired state of NBGroup.
@@ -17,7 +18,7 @@ type NBGroupStatus struct {
 	// +optional
 	GroupID *string `json:"groupID"`
 	// +optional
-	Conditions []NBCondition `json:"conditions,omitempty"`
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // Equal returns if NBGroupStatus is equal to this one

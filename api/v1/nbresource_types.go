@@ -58,9 +58,9 @@ type NBResourceStatus struct {
 	// +optional
 	PolicyFriendlyName map[string]string `json:"policyFriendlyName,omitempty"`
 	// +optional
-	Conditions []NBCondition `json:"conditions,omitempty"`
-	// +optional
 	PolicyNameMapping map[string]string `json:"policyNameMapping"`
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // Equal returns if NBResourceStatus is equal to this one

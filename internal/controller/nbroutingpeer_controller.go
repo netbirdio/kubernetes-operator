@@ -8,19 +8,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
+	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
+	"github.com/netbirdio/netbird/shared/management/http/api"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 
-	"github.com/go-logr/logr"
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
 	"github.com/netbirdio/kubernetes-operator/internal/util"
-	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
-	"github.com/netbirdio/netbird/shared/management/http/api"
 )
 
 // NBRoutingPeerReconciler reconciles a NBRoutingPeer object
@@ -87,7 +88,7 @@ func (r *NBRoutingPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	logger.Info("NBRoutingPeer: Checking groups")
-	nbGroup, result, err := r.handleGroup(ctx, req, nbrp, logger)
+	nbGroup, result, err := r.handleGroup(ctx, req, nbrp)
 	if nbGroup == nil {
 		return *result, err
 	}
@@ -99,28 +100,27 @@ func (r *NBRoutingPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	logger.Info("NBRoutingPeer: Checking network router")
-	err = r.handleRouter(ctx, nbrp, *nbGroup, logger)
+	err = r.handleRouter(ctx, nbrp, *nbGroup)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
 	logger.Info("NBRoutingPeer: Checking deployment")
-	err = r.handleDeployment(ctx, req, nbrp, logger)
+	err = r.handleDeployment(ctx, req, nbrp)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	nbrp.Status.Conditions = netbirdiov1.NBConditionTrue()
+	meta.SetStatusCondition(&nbrp.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionTrue})
 	return ctrl.Result{}, nil
 }
 
 // handleDeployment reconcile routing peer Deployment
-func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl.Request, nbrp *netbirdiov1.NBRoutingPeer, logger logr.Logger) error {
+func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl.Request, nbrp *netbirdiov1.NBRoutingPeer) error {
 	routingPeerDeployment := appsv1.Deployment{}
 	err := r.Client.Get(ctx, req.NamespacedName, &routingPeerDeployment)
 	if err != nil && !errors.IsNotFound(err) {
-		logger.Error(errKubernetesAPI, "error getting Deployment", "err", err)
-		nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("error getting Deployment: %v", err))
+		meta.SetStatusCondition(&nbrp.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.ResourceErrorReason, Message: fmt.Sprintf("could not get deployment %s", req.NamespacedName)})
 		return err
 	}
 
@@ -136,10 +136,10 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 			replicas = *nbrp.Spec.Replicas
 		}
 		routingPeerDeployment = appsv1.Deployment{
-			ObjectMeta: v1.ObjectMeta{
+			ObjectMeta: metav1.ObjectMeta{
 				Name:      nbrp.Name,
 				Namespace: nbrp.Namespace,
-				OwnerReferences: []v1.OwnerReference{
+				OwnerReferences: []metav1.OwnerReference{
 					{
 						APIVersion:         netbirdiov1.GroupVersion.Identifier(),
 						Kind:               "NBRoutingPeer",
@@ -153,13 +153,13 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 			},
 			Spec: appsv1.DeploymentSpec{
 				Replicas: &replicas,
-				Selector: &v1.LabelSelector{
+				Selector: &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"app.kubernetes.io/name": "netbird-router",
 					},
 				},
 				Template: corev1.PodTemplateSpec{
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Labels: podLabels,
 					},
 					Spec: corev1.PodSpec{
@@ -199,15 +199,14 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 
 		err = r.Client.Create(ctx, &routingPeerDeployment)
 		if err != nil {
-			logger.Error(errKubernetesAPI, "error creating Deployment", "err", err)
-			nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("error creating Deployment: %v", err))
+			meta.SetStatusCondition(&nbrp.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.ResourceErrorReason, Message: fmt.Sprintf("could not create deployment %s", req.NamespacedName)})
 			return err
 		}
 	} else if err == nil {
 		updatedDeployment := routingPeerDeployment.DeepCopy()
 		updatedDeployment.ObjectMeta.Name = nbrp.Name
 		updatedDeployment.ObjectMeta.Namespace = nbrp.Namespace
-		updatedDeployment.ObjectMeta.OwnerReferences = []v1.OwnerReference{
+		updatedDeployment.ObjectMeta.OwnerReferences = []metav1.OwnerReference{
 			{
 				APIVersion:         netbirdiov1.GroupVersion.Identifier(),
 				Kind:               "NBRoutingPeer",
@@ -225,7 +224,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 			replicas = *nbrp.Spec.Replicas
 		}
 		updatedDeployment.Spec.Replicas = &replicas
-		updatedDeployment.Spec.Selector = &v1.LabelSelector{
+		updatedDeployment.Spec.Selector = &metav1.LabelSelector{
 			MatchLabels: map[string]string{
 				"app.kubernetes.io/name": "netbird-router",
 			},
@@ -269,8 +268,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 		}
 		err = r.Client.Patch(ctx, updatedDeployment, patch)
 		if err != nil {
-			logger.Error(errKubernetesAPI, "error updating Deployment", "err", err)
-			nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("error updating Deployment: %v", err))
+			meta.SetStatusCondition(&nbrp.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.ResourceErrorReason, Message: fmt.Sprintf("could not update deployment %s", req.NamespacedName)})
 			return err
 		}
 	}
@@ -279,13 +277,11 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 }
 
 // handleRouter reconcile network routing peer in NetBird management API
-func (r *NBRoutingPeerReconciler) handleRouter(ctx context.Context, nbrp *netbirdiov1.NBRoutingPeer, nbGroup netbirdiov1.NBGroup, logger logr.Logger) error {
+func (r *NBRoutingPeerReconciler) handleRouter(ctx context.Context, nbrp *netbirdiov1.NBRoutingPeer, nbGroup netbirdiov1.NBGroup) error {
 	// Check NetworkRouter exists
 	routers, err := r.netbird.Networks.Routers(*nbrp.Status.NetworkID).List(ctx)
-
 	if err != nil {
-		logger.Error(errNetBirdAPI, "error listing network routers", "err", err)
-		nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("error listing network routers: %v", err))
+		meta.SetStatusCondition(&nbrp.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.APIErrorReason, Message: "could not list network routers"})
 		return err
 	}
 
@@ -303,8 +299,7 @@ func (r *NBRoutingPeerReconciler) handleRouter(ctx context.Context, nbrp *netbir
 			})
 
 			if err != nil {
-				logger.Error(errNetBirdAPI, "error creating network router", "err", err)
-				nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("error creating network router: %v", err))
+				meta.SetStatusCondition(&nbrp.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.APIErrorReason, Message: "could not create network router"})
 				return err
 			}
 
@@ -321,8 +316,7 @@ func (r *NBRoutingPeerReconciler) handleRouter(ctx context.Context, nbrp *netbir
 			})
 
 			if err != nil {
-				logger.Error(errNetBirdAPI, "error updating network router", "err", err)
-				nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("error updating network router: %v", err))
+				meta.SetStatusCondition(&nbrp.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.APIErrorReason, Message: "could not update router"})
 				return err
 			}
 		}
@@ -349,18 +343,17 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 		})
 
 		if err != nil {
-			logger.Error(errNetBirdAPI, "error creating setup key", "err", err)
-			nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("error creating setup key: %v", err))
+			meta.SetStatusCondition(&nbrp.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.APIErrorReason, Message: "could not create setup key"})
 			return &ctrl.Result{}, err
 		}
 
 		nbrp.Status.SetupKeyID = &setupKey.Id
 
 		skSecret := corev1.Secret{
-			ObjectMeta: v1.ObjectMeta{
+			ObjectMeta: metav1.ObjectMeta{
 				Name:      nbrp.Name,
 				Namespace: nbrp.Namespace,
-				OwnerReferences: []v1.OwnerReference{
+				OwnerReferences: []metav1.OwnerReference{
 					{
 						APIVersion:         netbirdiov1.GroupVersion.Identifier(),
 						Kind:               "NBRoutingPeer",
@@ -389,26 +382,22 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 		}
 
 		if err != nil {
-			logger.Error(errKubernetesAPI, "error creating Secret", "err", err)
-			nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("error creating secret: %v", err))
+			meta.SetStatusCondition(&nbrp.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.ResourceErrorReason, Message: "could not create secret"})
 			return &ctrl.Result{}, err
 		}
 	} else {
 		// Check SetupKey is not revoked
 		setupKey, err := r.netbird.SetupKeys.Get(ctx, *nbrp.Status.SetupKeyID)
 		if err != nil && !strings.Contains(err.Error(), "not found") {
-			logger.Error(errNetBirdAPI, "error getting setup key", "err", err)
-			nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("error getting setup key: %v", err))
+			meta.SetStatusCondition(&nbrp.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.APIErrorReason, Message: "could not get setup key"})
 			return &ctrl.Result{}, err
 		}
 
 		if (err != nil && strings.Contains(err.Error(), "not found")) || setupKey == nil || setupKey.Revoked {
 			if setupKey != nil && setupKey.Revoked {
 				err = r.netbird.SetupKeys.Delete(ctx, *nbrp.Status.SetupKeyID)
-
 				if err != nil {
-					logger.Error(errNetBirdAPI, "error deleting setup key", "err", err)
-					nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("error deleting setup key: %v", err))
+					meta.SetStatusCondition(&nbrp.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.APIErrorReason, Message: "could not delete setup key"})
 					return &ctrl.Result{}, err
 				}
 			}
@@ -422,8 +411,7 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 		skSecret := corev1.Secret{}
 		err = r.Client.Get(ctx, req.NamespacedName, &skSecret)
 		if err != nil && !errors.IsNotFound(err) {
-			logger.Error(errKubernetesAPI, "error getting Secret", "err", err)
-			nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("error getting secret: %v", err))
+			meta.SetStatusCondition(&nbrp.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.ResourceErrorReason, Message: fmt.Sprintf("could not get secret %s", req.NamespacedName)})
 			return &ctrl.Result{}, err
 		}
 
@@ -431,16 +419,14 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 			// Someone deleted setup key secret
 			// Revoke SK from NetBird and re-generate
 			err = r.netbird.SetupKeys.Delete(ctx, *nbrp.Status.SetupKeyID)
-
 			if err != nil {
-				logger.Error(errNetBirdAPI, "error deleting setup key", "err", err)
-				nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("error deleting setup key: %v", err))
+				meta.SetStatusCondition(&nbrp.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.APIErrorReason, Message: "could not delete setup key"})
 				return &ctrl.Result{}, err
 			}
 
 			nbrp.Status.SetupKeyID = nil
 
-			nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("Gone", "generated secret was deleted")
+			meta.SetStatusCondition(&nbrp.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.ResourceErrorReason, Message: "generated secret was deleted"})
 			// Requeue to avoid repeating code
 			return &ctrl.Result{Requeue: true}, nil
 		}
@@ -450,7 +436,7 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 }
 
 // handleGroup creates/updates NBGroup for routing peer
-func (r *NBRoutingPeerReconciler) handleGroup(ctx context.Context, req ctrl.Request, nbrp *netbirdiov1.NBRoutingPeer, logger logr.Logger) (*netbirdiov1.NBGroup, *ctrl.Result, error) {
+func (r *NBRoutingPeerReconciler) handleGroup(ctx context.Context, req ctrl.Request, nbrp *netbirdiov1.NBRoutingPeer) (*netbirdiov1.NBGroup, *ctrl.Result, error) {
 	networkName := r.ClusterName
 	if r.NamespacedNetworks {
 		networkName += "-" + req.Namespace
@@ -460,17 +446,16 @@ func (r *NBRoutingPeerReconciler) handleGroup(ctx context.Context, req ctrl.Requ
 	nbGroup := netbirdiov1.NBGroup{}
 	err := r.Client.Get(ctx, req.NamespacedName, &nbGroup)
 	if err != nil && !errors.IsNotFound(err) {
-		logger.Error(errKubernetesAPI, "error getting NBGroup", "err", err)
-		nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("error getting NBGroup: %v", err))
+		meta.SetStatusCondition(&nbrp.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.ResourceErrorReason, Message: "could not get group"})
 		return nil, &ctrl.Result{}, err
 	}
 
 	if errors.IsNotFound(err) {
 		nbGroup = netbirdiov1.NBGroup{
-			ObjectMeta: v1.ObjectMeta{
+			ObjectMeta: metav1.ObjectMeta{
 				Name:      nbrp.Name,
 				Namespace: nbrp.Namespace,
-				OwnerReferences: []v1.OwnerReference{
+				OwnerReferences: []metav1.OwnerReference{
 					{
 						APIVersion:         netbirdiov1.GroupVersion.Identifier(),
 						Kind:               "NBRoutingPeer",
@@ -490,8 +475,7 @@ func (r *NBRoutingPeerReconciler) handleGroup(ctx context.Context, req ctrl.Requ
 		err = r.Client.Create(ctx, &nbGroup)
 
 		if err != nil {
-			logger.Error(errKubernetesAPI, "error creating NBGroup", "err", err)
-			nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("error creating NBGroup: %v", err))
+			meta.SetStatusCondition(&nbrp.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.ResourceErrorReason, Message: "could not create group"})
 			return nil, &ctrl.Result{}, err
 		}
 
@@ -518,8 +502,7 @@ func (r *NBRoutingPeerReconciler) handleNetwork(ctx context.Context, req ctrl.Re
 		// Check if network exists
 		networks, err := r.netbird.Networks.List(ctx)
 		if err != nil {
-			logger.Error(errNetBirdAPI, "error listing networks", "err", err)
-			nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("error listing networks: %v", err))
+			meta.SetStatusCondition(&nbrp.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.APIErrorReason, Message: "could not list networks"})
 			return err
 		}
 		var network *api.Network
@@ -539,8 +522,7 @@ func (r *NBRoutingPeerReconciler) handleNetwork(ctx context.Context, req ctrl.Re
 				Description: &networkDescription,
 			})
 			if err != nil {
-				logger.Error(errNetBirdAPI, "error creating network", "err", err)
-				nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("error creating network: %v", err))
+				meta.SetStatusCondition(&nbrp.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.APIErrorReason, Message: "could not create network"})
 				return err
 			}
 
@@ -668,7 +650,6 @@ func (r *NBRoutingPeerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&netbirdiov1.NBRoutingPeer{}).
-		Named("nbroutingpeer").
 		Watches(&appsv1.Deployment{}, handler.EnqueueRequestForOwner(mgr.GetScheme(), mgr.GetRESTMapper(), &netbirdiov1.NBRoutingPeer{})).
 		Watches(&corev1.Secret{}, handler.EnqueueRequestForOwner(mgr.GetScheme(), mgr.GetRESTMapper(), &netbirdiov1.NBRoutingPeer{})).
 		Watches(&netbirdiov1.NBGroup{}, handler.EnqueueRequestForOwner(mgr.GetScheme(), mgr.GetRESTMapper(), &netbirdiov1.NBRoutingPeer{})).

@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -77,13 +78,7 @@ func (d *PodNetbirdInjector) Default(ctx context.Context, pod *corev1.Pod) error
 	}
 
 	// ensure the NBSetupKey is ready.
-	ready := false
-	for _, c := range nbSetupKey.Status.Conditions {
-		if c.Type == netbirdiov1.NBSetupKeyReady {
-			ready = c.Status == corev1.ConditionTrue
-		}
-	}
-	if !ready {
+	if !meta.IsStatusConditionTrue(nbSetupKey.Status.Conditions, netbirdiov1.ReadyCondition) {
 		return fmt.Errorf("NBSetupKey is not ready")
 	}
 

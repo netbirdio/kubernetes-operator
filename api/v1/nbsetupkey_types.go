@@ -21,15 +21,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// NBConditionType is a valid value for PodCondition.Type
-type NBConditionType string
-
-// These are built-in conditions of pod. An application may use a custom condition not listed here.
-const (
-	// NBSetupKeyReady indicates whether NBSetupKey is valid and ready to use.
-	NBSetupKeyReady NBConditionType = "Ready"
-)
-
 // NBSetupKeySpec defines the desired state of NBSetupKey.
 type NBSetupKeySpec struct {
 	// SecretKeyRef is a reference to the secret containing the setup key
@@ -47,54 +38,7 @@ type NBSetupKeySpec struct {
 // NBSetupKeyStatus defines the observed state of NBSetupKey.
 type NBSetupKeyStatus struct {
 	// +optional
-	Conditions []NBCondition `json:"conditions,omitempty"`
-}
-
-// NBCondition defines a condition in NBSetupKey status.
-type NBCondition struct {
-	// Type is the type of the condition.
-	Type NBConditionType `json:"type"`
-	// Status is the status of the condition.
-	// Can be True, False, Unknown.
-	Status corev1.ConditionStatus `json:"status"`
-	// Last time we probed the condition.
-	// +optional
-	LastProbeTime metav1.Time `json:"lastProbeTime,omitempty"`
-	// Last time the condition transitioned from one status to another.
-	// +optional
-	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
-	// Unique, one-word, CamelCase reason for the condition's last transition.
-	// +optional
-	Reason string `json:"reason,omitempty"`
-	// Human-readable message indicating details about last transition.
-	// +optional
-	Message string `json:"message,omitempty"`
-}
-
-// NBConditionTrue returns default true condition
-func NBConditionTrue() []NBCondition {
-	return []NBCondition{
-		{
-			Type:               NBSetupKeyReady,
-			LastProbeTime:      metav1.Now(),
-			LastTransitionTime: metav1.Now(),
-			Status:             corev1.ConditionTrue,
-		},
-	}
-}
-
-// NBConditionFalse returns default false condition
-func NBConditionFalse(reason, msg string) []NBCondition {
-	return []NBCondition{
-		{
-			Type:               NBSetupKeyReady,
-			LastProbeTime:      metav1.Now(),
-			LastTransitionTime: metav1.Now(),
-			Status:             corev1.ConditionFalse,
-			Reason:             reason,
-			Message:            msg,
-		},
-	}
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true

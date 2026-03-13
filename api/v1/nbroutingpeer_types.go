@@ -37,7 +37,7 @@ type NBRoutingPeerStatus struct {
 	// +optional
 	RouterID *string `json:"routerID"`
 	// +optional
-	Conditions []NBCondition `json:"conditions,omitempty"`
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // Equal returns if NBRoutingPeerStatus is equal to this one

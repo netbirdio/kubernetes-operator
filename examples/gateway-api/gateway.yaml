@@ -1,0 +1,11 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: netbird
+  namespace: netbird
+spec:
+  gatewayClassName: netbird
+  listeners:
+  - protocol: HTTP
+    port: 80
+    name: dummy

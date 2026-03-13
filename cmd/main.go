@@ -28,6 +28,7 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -37,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	corev1 "k8s.io/api/core/v1"
 
@@ -60,6 +62,7 @@ func init() {
 
 	utilruntime.Must(netbirdiov1.AddToScheme(scheme))
 	utilruntime.Must(corev1.AddToScheme(scheme))
+	utilruntime.Must(gatewayv1.Install(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -238,11 +241,12 @@ func main() {
 			os.Exit(1)
 		}
 
-		controllerNamespace, err := getInClusterNamespace()
-		if err != nil {
-			setupLog.Error(err, "unable to get main namespace", "controller", "Service")
-			os.Exit(1)
-		}
+		// controllerNamespace, err := getInClusterNamespace()
+		// if err != nil {
+		// 	setupLog.Error(err, "unable to get main namespace", "controller", "Service")
+		// 	os.Exit(1)
+		// }
+		controllerNamespace := "netbird"
 
 		if err = (&controller.ServiceReconciler{
 			Client:              mgr.GetClient(),
@@ -292,6 +296,37 @@ func main() {
 				os.Exit(1)
 			}
 		}
+
+		nbClient := netbird.New(managementURL, netbirdAPIKey)
+
+		if err = (&controller.GatewayClassReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "GatewayClass")
+			os.Exit(1)
+		}
+		if err = (&controller.GatewayReconciler{
+			Client:        mgr.GetClient(),
+			Scheme:        mgr.GetScheme(),
+			NBClient:      nbClient,
+			ManagementURL: managementURL,
+			ClusterName:   clusterName,
+			ClientImage:   clientImage,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "Gateway")
+			os.Exit(1)
+		}
+		if err = (&controller.HTTPRouteReconciler{
+			Client:     mgr.GetClient(),
+			Scheme:     mgr.GetScheme(),
+			NBClient:   nbClient,
+			ClusterDNS: clusterDNS,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "HTTPRoute")
+			os.Exit(1)
+		}
+
 	} else {
 		setupLog.Info("netbird API key not provided, ingress capabilities disabled")
 	}

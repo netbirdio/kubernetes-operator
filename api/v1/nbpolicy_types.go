@@ -1,8 +1,9 @@
 package v1
 
 import (
-	"github.com/netbirdio/kubernetes-operator/internal/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/netbirdio/kubernetes-operator/internal/util"
 )
 
 // NBPolicySpec defines the desired state of NBPolicy.
@@ -41,7 +42,7 @@ type NBPolicyStatus struct {
 	// +optional
 	ManagedServiceList []string `json:"managedServiceList"`
 	// +optional
-	Conditions []NBCondition `json:"conditions,omitempty"`
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // Equal returns if NBPolicyStatus is equal to this one

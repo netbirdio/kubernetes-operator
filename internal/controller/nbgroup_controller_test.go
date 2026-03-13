@@ -114,7 +114,7 @@ var _ = Describe("NBGroup Controller", func() {
 				Expect(*nbGroup.Status.GroupID).To(Equal("Test"))
 				Expect(nbGroup.Status.Conditions).To(HaveLen(1))
 				Expect(nbGroup.Status.Conditions[0].Status).To(BeEquivalentTo(v1.ConditionTrue))
-				Expect(nbGroup.Status.Conditions[0].Type).To(Equal(netbirdiov1.NBSetupKeyReady))
+				Expect(nbGroup.Status.Conditions[0].Type).To(Equal(netbirdiov1.ReadyCondition))
 			})
 		})
 
@@ -149,7 +149,7 @@ var _ = Describe("NBGroup Controller", func() {
 				Expect(*nbGroup.Status.GroupID).To(Equal("Test"))
 				Expect(nbGroup.Status.Conditions).To(HaveLen(1))
 				Expect(nbGroup.Status.Conditions[0].Status).To(BeEquivalentTo(v1.ConditionTrue))
-				Expect(nbGroup.Status.Conditions[0].Type).To(Equal(netbirdiov1.NBSetupKeyReady))
+				Expect(nbGroup.Status.Conditions[0].Type).To(Equal(netbirdiov1.ReadyCondition))
 			})
 		})
 
@@ -295,7 +295,7 @@ var _ = Describe("NBGroup Controller", func() {
 				Expect(*nbGroup.Status.GroupID).To(Equal("Test"))
 				Expect(nbGroup.Status.Conditions).To(HaveLen(1))
 				Expect(nbGroup.Status.Conditions[0].Status).To(BeEquivalentTo(v1.ConditionTrue))
-				Expect(nbGroup.Status.Conditions[0].Type).To(Equal(netbirdiov1.NBSetupKeyReady))
+				Expect(nbGroup.Status.Conditions[0].Type).To(Equal(netbirdiov1.ReadyCondition))
 			})
 		})
 

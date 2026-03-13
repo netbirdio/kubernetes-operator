@@ -23,7 +23,8 @@ import (
 	"github.com/google/uuid"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -54,18 +55,13 @@ func (r *NBSetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	if nbSetupKey.Spec.SecretKeyRef.Name == "" || nbSetupKey.Spec.SecretKeyRef.Key == "" {
-		logger.Error(fmt.Errorf("invalid NBSetupKey"), "secretKeyRef must contain both secret name and secret key")
-		return ctrl.Result{}, r.setStatus(ctx, &nbSetupKey, netbirdiov1.NBSetupKeyStatus{
-			Conditions: []netbirdiov1.NBCondition{
-				{
-					Type:          netbirdiov1.NBSetupKeyReady,
-					Status:        corev1.ConditionFalse,
-					LastProbeTime: v1.Now(),
-					Reason:        "InvalidConfig",
-					Message:       "secretKeyRef must contain both secret name and secret key.",
-				},
-			},
-		})
+		if meta.SetStatusCondition(&nbSetupKey.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.InvalidSpecReason, Message: "secret key ref needs to contain both name and key"}) {
+			err := r.Client.Status().Update(ctx, &nbSetupKey)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		return ctrl.Result{}, nil
 	}
 
 	// Handle updated secret name
@@ -81,53 +77,46 @@ func (r *NBSetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	err = r.Get(ctx, types.NamespacedName{Namespace: nbSetupKey.Namespace, Name: nbSetupKey.Spec.SecretKeyRef.Name}, &secret)
 	if err != nil {
 		if !errors.IsNotFound(err) {
-			logger.Error(fmt.Errorf("internalError"), "error getting secret", "err", err)
 			return ctrl.Result{}, err
 		}
-		logger.Error(fmt.Errorf("invalid NBSetupKey"), "secret referenced not found", "err", err)
-		return ctrl.Result{}, r.setStatus(ctx, &nbSetupKey, netbirdiov1.NBSetupKeyStatus{Conditions: []netbirdiov1.NBCondition{{
-			Type:          netbirdiov1.NBSetupKeyReady,
-			Status:        corev1.ConditionFalse,
-			LastProbeTime: v1.Now(),
-			Reason:        "SecretNotExists",
-			Message:       "Referenced secret does not exist",
-		}}})
+		if meta.SetStatusCondition(&nbSetupKey.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.InvalidSpecReason, Message: "secret reference not found"}) {
+			err := r.Client.Status().Update(ctx, &nbSetupKey)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		return ctrl.Result{}, nil
 	}
 
 	uuidBytes, ok := secret.Data[nbSetupKey.Spec.SecretKeyRef.Key]
 	if !ok {
-		logger.Error(fmt.Errorf("invalid NBSetupKey"), "secret key referenced not found")
-		return ctrl.Result{}, r.setStatus(ctx, &nbSetupKey, netbirdiov1.NBSetupKeyStatus{Conditions: []netbirdiov1.NBCondition{{
-			Type:          netbirdiov1.NBSetupKeyReady,
-			Status:        corev1.ConditionFalse,
-			LastProbeTime: v1.Now(),
-			Reason:        "SecretKeyNotExists",
-			Message:       "Referenced secret key does not exist",
-		}}})
+		if meta.SetStatusCondition(&nbSetupKey.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.InvalidSpecReason, Message: "key in secret not found"}) {
+			err := r.Client.Status().Update(ctx, &nbSetupKey)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		return ctrl.Result{}, nil
 	}
 
 	_, err = uuid.Parse(string(uuidBytes))
 	if err != nil {
-		logger.Error(fmt.Errorf("invalid NBSetupKey"), "setupKey is not a valid UUID", "err", err)
-		return ctrl.Result{}, r.setStatus(ctx, &nbSetupKey, netbirdiov1.NBSetupKeyStatus{Conditions: []netbirdiov1.NBCondition{{
-			Type:          netbirdiov1.NBSetupKeyReady,
-			Status:        corev1.ConditionFalse,
-			LastProbeTime: v1.Now(),
-			Reason:        "InvalidSetupKey",
-			Message:       "Referenced secret is not a valid SetupKey",
-		}}})
+		if meta.SetStatusCondition(&nbSetupKey.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionFalse, Reason: netbirdiov1.InvalidSpecReason, Message: "key is not a valid UUID"}) {
+			err := r.Client.Status().Update(ctx, &nbSetupKey)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		return ctrl.Result{}, nil
 	}
-	return ctrl.Result{}, r.setStatus(ctx, &nbSetupKey, netbirdiov1.NBSetupKeyStatus{Conditions: []netbirdiov1.NBCondition{{
-		Type:          netbirdiov1.NBSetupKeyReady,
-		Status:        corev1.ConditionTrue,
-		LastProbeTime: v1.Now(),
-	}}})
-}
 
-func (r *NBSetupKeyReconciler) setStatus(ctx context.Context, nbsetupkey *netbirdiov1.NBSetupKey, status netbirdiov1.NBSetupKeyStatus) error {
-	nbsetupkey.Status = status
-	err := r.Status().Update(ctx, nbsetupkey)
-	return err
+	if meta.SetStatusCondition(&nbSetupKey.Status.Conditions, metav1.Condition{Type: netbirdiov1.ReadyCondition, Status: metav1.ConditionTrue}) {
+		err := r.Client.Status().Update(ctx, &nbSetupKey)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

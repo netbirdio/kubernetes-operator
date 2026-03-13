@@ -24,7 +24,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var _ = Describe("Pod Webhook", func() {
@@ -35,7 +35,7 @@ var _ = Describe("Pod Webhook", func() {
 
 	BeforeEach(func() {
 		obj = &corev1.Pod{
-			ObjectMeta: v1.ObjectMeta{
+			ObjectMeta: metav1.ObjectMeta{
 				Name:        "test",
 				Namespace:   "test",
 				Annotations: make(map[string]string),
@@ -83,7 +83,7 @@ var _ = Describe("Pod Webhook", func() {
 		When("NBSetupKey exists", Ordered, func() {
 			BeforeAll(func() {
 				sk := netbirdiov1.NBSetupKey{
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test",
 						Namespace: "test",
 					},
@@ -98,7 +98,7 @@ var _ = Describe("Pod Webhook", func() {
 				}
 
 				err := k8sClient.Create(context.Background(), &corev1.Namespace{
-					ObjectMeta: v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name: "test",
 					},
 				})
@@ -108,10 +108,10 @@ var _ = Describe("Pod Webhook", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				sk.Status = netbirdiov1.NBSetupKeyStatus{
-					Conditions: []netbirdiov1.NBCondition{
+					Conditions: []metav1.Condition{
 						{
-							Type:   netbirdiov1.NBSetupKeyReady,
-							Status: corev1.ConditionTrue,
+							Type:   netbirdiov1.ReadyCondition,
+							Status: metav1.ConditionTrue,
 						},
 					},
 				}

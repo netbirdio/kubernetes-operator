@@ -149,7 +149,6 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 					},
 				},
 				Labels:      labels,
-				Annotations: nbrp.Spec.Annotations,
 			},
 			Spec: appsv1.DeploymentSpec{
 				Replicas: &replicas,
@@ -161,6 +160,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 				Template: corev1.PodTemplateSpec{
 					ObjectMeta: v1.ObjectMeta{
 						Labels: podLabels,
+						Annotations: nbrp.Spec.Annotations,
 					},
 					Spec: corev1.PodSpec{
 						NodeSelector: nbrp.Spec.NodeSelector,
@@ -218,7 +218,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 		}
 		updatedDeployment.ObjectMeta.Labels = labels
 		for k, v := range nbrp.Spec.Annotations {
-			updatedDeployment.ObjectMeta.Annotations[k] = nbrp.Spec.Annotations[v]
+			updatedDeployment.ObjectMeta.Annotations[k] = v
 		}
 		var replicas int32 = 3
 		if nbrp.Spec.Replicas != nil {
@@ -233,6 +233,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 		updatedDeployment.Spec.Template.Spec.Tolerations = nbrp.Spec.Tolerations
 		updatedDeployment.Spec.Template.Spec.NodeSelector = nbrp.Spec.NodeSelector
 		updatedDeployment.Spec.Template.ObjectMeta.Labels = podLabels
+		updatedDeployment.Spec.Template.ObjectMeta.Annotations = nbrp.Spec.Annotations
 		updatedDeployment.Spec.Template.Spec.Volumes = nbrp.Spec.Volumes
 		if len(updatedDeployment.Spec.Template.Spec.Containers) != 1 {
 			updatedDeployment.Spec.Template.Spec.Containers = []corev1.Container{{}}

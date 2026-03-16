@@ -21,9 +21,7 @@ import (
 type NBGroupReconciler struct {
 	client.Client
 
-	APIKey        string
-	ManagementURL string
-	netbird       *netbird.Client
+	Netbird *netbird.Client
 }
 
 const (
@@ -82,7 +80,7 @@ func (r *NBGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 // syncNetBirdGroup reconciliation logic for non-deleted objects.
 func (r *NBGroupReconciler) syncNetBirdGroup(ctx context.Context, nbGroup *netbirdiov1.NBGroup, logger logr.Logger) (ctrl.Result, error) {
 	// Get all NetBird groups to ensure no group duplication
-	groups, err := r.netbird.Groups.List(ctx)
+	groups, err := r.Netbird.Groups.List(ctx)
 	if err != nil {
 		logger.Error(errNetBirdAPI, "error listing groups", "err", err)
 		return ctrl.Result{}, err
@@ -97,7 +95,7 @@ func (r *NBGroupReconciler) syncNetBirdGroup(ctx context.Context, nbGroup *netbi
 	// Create group if not exists, and update status.groupId
 	if nbGroup.Status.GroupID == nil && group == nil {
 		logger.Info("NBGroup: Creating group on NetBird", "name", nbGroup.Spec.Name)
-		group, err := r.netbird.Groups.Create(ctx, api.GroupRequest{
+		group, err := r.Netbird.Groups.Create(ctx, api.GroupRequest{
 			Name: nbGroup.Spec.Name,
 		})
 		if err != nil {
@@ -144,7 +142,7 @@ func (r *NBGroupReconciler) handleDelete(ctx context.Context, nbGroup netbirdiov
 		return nil
 	}
 
-	err := r.netbird.Groups.Delete(ctx, *nbGroup.Status.GroupID)
+	err := r.Netbird.Groups.Delete(ctx, *nbGroup.Status.GroupID)
 	if err != nil && !strings.Contains(err.Error(), "not found") && !strings.Contains(err.Error(), "linked") {
 		logger.Error(errNetBirdAPI, "error deleting group", "err", err)
 		return err
@@ -193,8 +191,6 @@ func (r *NBGroupReconciler) handleDelete(ctx context.Context, nbGroup netbirdiov
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *NBGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.netbird = netbird.New(r.ManagementURL, r.APIKey)
-
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&netbirdiov1.NBGroup{}).
 		Named("nbgroup").

@@ -48,7 +48,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 			netbirdClient = netbird.New(server.URL, "ABC")
 			controllerReconciler = &NBRoutingPeerReconciler{
 				Client:             k8sClient,
-				netbird:            netbirdClient,
+				Netbird:            netbirdClient,
 				ClientImage:        "netbirdio/netbird:latest",
 				ClusterName:        "kubernetes",
 				DefaultLabels:      make(map[string]string),

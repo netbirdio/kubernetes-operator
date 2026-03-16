@@ -33,12 +33,10 @@ var (
 type NBResourceReconciler struct {
 	client.Client
 
-	APIKey                       string
-	ManagementURL                string
+	Netbird                      *netbird.Client
 	AllowAutomaticPolicyCreation bool
 	ClusterName                  string
 	DefaultLabels                map[string]string
-	netbird                      *netbird.Client
 }
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -377,7 +375,7 @@ func (r *NBResourceReconciler) handleGroupUpdate(ctx context.Context, nbResource
 	}
 
 	if diffFound {
-		_, err := r.netbird.Networks.Resources(nbResource.Spec.NetworkID).Update(ctx, resource.Id, api.NetworkResourceRequest{
+		_, err := r.Netbird.Networks.Resources(nbResource.Spec.NetworkID).Update(ctx, resource.Id, api.NetworkResourceRequest{
 			Name:        nbResource.Spec.Name,
 			Description: &networkDescription,
 			Address:     nbResource.Spec.Address,
@@ -399,7 +397,7 @@ func (r *NBResourceReconciler) handleNetBirdResource(ctx context.Context, nbReso
 	var resource *api.NetworkResource
 	var err error
 	if nbResource.Status.NetworkResourceID != nil {
-		resource, err = r.netbird.Networks.Resources(nbResource.Spec.NetworkID).Get(ctx, *nbResource.Status.NetworkResourceID)
+		resource, err = r.Netbird.Networks.Resources(nbResource.Spec.NetworkID).Get(ctx, *nbResource.Status.NetworkResourceID)
 		if err != nil && !strings.Contains(err.Error(), "not found") {
 			logger.Error(errNetBirdAPI, "error getting network resource", "err", err)
 			return nil, err
@@ -408,7 +406,7 @@ func (r *NBResourceReconciler) handleNetBirdResource(ctx context.Context, nbReso
 
 	// Create/Update upstream network resource
 	if nbResource.Status.NetworkResourceID == nil && resource == nil {
-		resource, err := r.netbird.Networks.Resources(nbResource.Spec.NetworkID).Create(ctx, api.NetworkResourceRequest{
+		resource, err := r.Netbird.Networks.Resources(nbResource.Spec.NetworkID).Create(ctx, api.NetworkResourceRequest{
 			Address:     nbResource.Spec.Address,
 			Enabled:     true,
 			Groups:      groupIDs,
@@ -442,7 +440,7 @@ func (r *NBResourceReconciler) handleNetBirdResource(ctx context.Context, nbReso
 			!util.Equivalent(resourceGroups, groupIDs) ||
 			*resource.Description != networkDescription ||
 			resource.Name != nbResource.Spec.Name {
-			_, err = r.netbird.Networks.Resources(nbResource.Spec.NetworkID).Update(ctx, *nbResource.Status.NetworkResourceID, api.NetworkResourceRequest{
+			_, err = r.Netbird.Networks.Resources(nbResource.Spec.NetworkID).Update(ctx, *nbResource.Status.NetworkResourceID, api.NetworkResourceRequest{
 				Address:     nbResource.Spec.Address,
 				Enabled:     true,
 				Groups:      groupIDs,
@@ -615,7 +613,7 @@ func (r *NBResourceReconciler) handleDelete(ctx context.Context, req ctrl.Reques
 	}
 
 	if nbResource.Status.NetworkResourceID != nil {
-		err := r.netbird.Networks.Resources(nbResource.Spec.NetworkID).Delete(ctx, *nbResource.Status.NetworkResourceID)
+		err := r.Netbird.Networks.Resources(nbResource.Spec.NetworkID).Delete(ctx, *nbResource.Status.NetworkResourceID)
 		if err != nil && !strings.Contains(err.Error(), "not found") {
 			logger.Error(errNetBirdAPI, "error deleting resource", "err", err)
 			return err
@@ -671,8 +669,6 @@ func (r *NBResourceReconciler) handleDelete(ctx context.Context, req ctrl.Reques
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *NBResourceReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.netbird = netbird.New(r.ManagementURL, r.APIKey)
-
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&netbirdiov1.NBResource{}).
 		Named("nbresource").

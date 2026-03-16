@@ -27,13 +27,12 @@ import (
 type NBRoutingPeerReconciler struct {
 	client.Client
 
+	Netbird            *netbird.Client
 	ClientImage        string
 	ClusterName        string
-	APIKey             string
 	ManagementURL      string
 	NamespacedNetworks bool
 	DefaultLabels      map[string]string
-	netbird            *netbird.Client
 }
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -281,7 +280,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 // handleRouter reconcile network routing peer in NetBird management API
 func (r *NBRoutingPeerReconciler) handleRouter(ctx context.Context, nbrp *netbirdiov1.NBRoutingPeer, nbGroup netbirdiov1.NBGroup, logger logr.Logger) error {
 	// Check NetworkRouter exists
-	routers, err := r.netbird.Networks.Routers(*nbrp.Status.NetworkID).List(ctx)
+	routers, err := r.Netbird.Networks.Routers(*nbrp.Status.NetworkID).List(ctx)
 
 	if err != nil {
 		logger.Error(errNetBirdAPI, "error listing network routers", "err", err)
@@ -295,7 +294,7 @@ func (r *NBRoutingPeerReconciler) handleRouter(ctx context.Context, nbrp *netbir
 			nbrp.Status.RouterID = &routers[0].Id
 		} else {
 			// Create network router
-			router, err := r.netbird.Networks.Routers(*nbrp.Status.NetworkID).Create(ctx, api.NetworkRouterRequest{
+			router, err := r.Netbird.Networks.Routers(*nbrp.Status.NetworkID).Create(ctx, api.NetworkRouterRequest{
 				Enabled:    true,
 				Masquerade: true,
 				Metric:     9999,
@@ -313,7 +312,7 @@ func (r *NBRoutingPeerReconciler) handleRouter(ctx context.Context, nbrp *netbir
 	} else {
 		// Ensure network router settings are correct
 		if !routers[0].Enabled || !routers[0].Masquerade || routers[0].Metric != 9999 || len(*routers[0].PeerGroups) != 1 || (*routers[0].PeerGroups)[0] != *nbGroup.Status.GroupID {
-			_, err = r.netbird.Networks.Routers(*nbrp.Status.NetworkID).Update(ctx, routers[0].Id, api.NetworkRouterRequest{
+			_, err = r.Netbird.Networks.Routers(*nbrp.Status.NetworkID).Update(ctx, routers[0].Id, api.NetworkRouterRequest{
 				Enabled:    true,
 				Masquerade: true,
 				Metric:     9999,
@@ -341,7 +340,7 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 	// Check if setup key exists
 	if nbrp.Status.SetupKeyID == nil {
 		// Create new setup key with group Status.GroupID
-		setupKey, err := r.netbird.SetupKeys.Create(ctx, api.CreateSetupKeyRequest{
+		setupKey, err := r.Netbird.SetupKeys.Create(ctx, api.CreateSetupKeyRequest{
 			AutoGroups: []string{*nbGroup.Status.GroupID},
 			Ephemeral:  util.Ptr(true),
 			Name:       networkName,
@@ -395,7 +394,7 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 		}
 	} else {
 		// Check SetupKey is not revoked
-		setupKey, err := r.netbird.SetupKeys.Get(ctx, *nbrp.Status.SetupKeyID)
+		setupKey, err := r.Netbird.SetupKeys.Get(ctx, *nbrp.Status.SetupKeyID)
 		if err != nil && !strings.Contains(err.Error(), "not found") {
 			logger.Error(errNetBirdAPI, "error getting setup key", "err", err)
 			nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("error getting setup key: %v", err))
@@ -404,7 +403,7 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 
 		if (err != nil && strings.Contains(err.Error(), "not found")) || setupKey == nil || setupKey.Revoked {
 			if setupKey != nil && setupKey.Revoked {
-				err = r.netbird.SetupKeys.Delete(ctx, *nbrp.Status.SetupKeyID)
+				err = r.Netbird.SetupKeys.Delete(ctx, *nbrp.Status.SetupKeyID)
 
 				if err != nil {
 					logger.Error(errNetBirdAPI, "error deleting setup key", "err", err)
@@ -430,7 +429,7 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 		if _, ok := skSecret.Data["setupKey"]; errors.IsNotFound(err) || !ok {
 			// Someone deleted setup key secret
 			// Revoke SK from NetBird and re-generate
-			err = r.netbird.SetupKeys.Delete(ctx, *nbrp.Status.SetupKeyID)
+			err = r.Netbird.SetupKeys.Delete(ctx, *nbrp.Status.SetupKeyID)
 
 			if err != nil {
 				logger.Error(errNetBirdAPI, "error deleting setup key", "err", err)
@@ -516,7 +515,7 @@ func (r *NBRoutingPeerReconciler) handleNetwork(ctx context.Context, req ctrl.Re
 
 	if nbrp.Status.NetworkID == nil {
 		// Check if network exists
-		networks, err := r.netbird.Networks.List(ctx)
+		networks, err := r.Netbird.Networks.List(ctx)
 		if err != nil {
 			logger.Error(errNetBirdAPI, "error listing networks", "err", err)
 			nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("error listing networks: %v", err))
@@ -534,7 +533,7 @@ func (r *NBRoutingPeerReconciler) handleNetwork(ctx context.Context, req ctrl.Re
 			nbrp.Status.NetworkID = &network.Id
 		} else {
 			logger.Info("creating network", "name", networkName)
-			network, err := r.netbird.Networks.Create(ctx, api.NetworkRequest{
+			network, err := r.Netbird.Networks.Create(ctx, api.NetworkRequest{
 				Name:        networkName,
 				Description: &networkDescription,
 			})
@@ -567,7 +566,7 @@ func (r *NBRoutingPeerReconciler) handleDelete(ctx context.Context, req ctrl.Req
 
 	if nbrp.Status.SetupKeyID != nil {
 		logger.Info("Deleting setup key", "id", *nbrp.Status.SetupKeyID)
-		err = r.netbird.SetupKeys.Delete(ctx, *nbrp.Status.SetupKeyID)
+		err = r.Netbird.SetupKeys.Delete(ctx, *nbrp.Status.SetupKeyID)
 		if err != nil && !strings.Contains(err.Error(), "not found") {
 			logger.Error(errNetBirdAPI, "error deleting setupKey", "err", err)
 			return ctrl.Result{}, err
@@ -606,7 +605,7 @@ func (r *NBRoutingPeerReconciler) handleDelete(ctx context.Context, req ctrl.Req
 
 		if len(nbResourceList.Items) == 0 {
 			logger.Info("Deleting NetBird Network", "id", *nbrp.Status.NetworkID)
-			err = r.netbird.Networks.Delete(ctx, *nbrp.Status.NetworkID)
+			err = r.Netbird.Networks.Delete(ctx, *nbrp.Status.NetworkID)
 			if err != nil && !strings.Contains(err.Error(), "not found") {
 				logger.Error(errNetBirdAPI, "error deleting Network", "err", err)
 				return ctrl.Result{}, err
@@ -664,8 +663,6 @@ func (r *NBRoutingPeerReconciler) buildSecurityContext(nbrp *netbirdiov1.NBRouti
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *NBRoutingPeerReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.netbird = netbird.New(r.ManagementURL, r.APIKey)
-
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&netbirdiov1.NBRoutingPeer{}).
 		Named("nbroutingpeer").

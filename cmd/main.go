@@ -112,9 +112,7 @@ func main() {
 		webhookCertKey       string
 		enableLeaderElection bool
 		probeAddr            string
-		enableHTTP2          bool
 		enableWebhooks       bool
-		tlsOpts              []func(*tls.Config)
 	)
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
@@ -126,14 +124,14 @@ func main() {
 	flag.StringVar(&webhookCertPath, "webhook-cert-path", "", "The directory that contains the webhook certificate.")
 	flag.StringVar(&webhookCertName, "webhook-cert-name", "tls.crt", "The name of the webhook certificate file.")
 	flag.StringVar(&webhookCertKey, "webhook-cert-key", "tls.key", "The name of the webhook key file.")
-	flag.BoolVar(&enableHTTP2, "enable-http2", false,
-		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 	flag.BoolVar(&enableWebhooks, "enable-webhooks", true, "If set, enable Mutating and Validating webhooks.")
 	opts := zap.Options{
 		Development: true,
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
+
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	defaultLabelsMap := make(map[string]string)
 	if defaultLabels != "" {
@@ -146,54 +144,39 @@ func main() {
 		}
 	}
 
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	// Setup webhook server.
+	type TLSOption = func(*tls.Config)
+	certWatcher, tlsOpt, err := func() (*certwatcher.CertWatcher, TLSOption, error) {
+		if webhookCertPath == "" {
+			return nil, nil, nil
+		}
 
-	disableHTTP2 := func(c *tls.Config) {
-		setupLog.Info("disabling http/2")
-		c.NextProtos = []string{"http/1.1"}
-	}
-
-	if !enableHTTP2 {
-		tlsOpts = append(tlsOpts, disableHTTP2)
-	}
-
-	// Create watcher for webhooks certificates
-	var webhookCertWatcher *certwatcher.CertWatcher
-
-	// Initial webhook TLS options
-	webhookTLSOpts := tlsOpts
-
-	if len(webhookCertPath) > 0 {
-		setupLog.Info("Initializing webhook certificate watcher using provided certificates",
-			"webhook-cert-path", webhookCertPath, "webhook-cert-name", webhookCertName, "webhook-cert-key", webhookCertKey)
-
-		var err error
-		webhookCertWatcher, err = certwatcher.New(
+		certWatcher, err := certwatcher.New(
 			filepath.Join(webhookCertPath, webhookCertName),
 			filepath.Join(webhookCertPath, webhookCertKey),
 		)
 		if err != nil {
-			setupLog.Error(err, "Failed to initialize webhook certificate watcher")
-			os.Exit(1)
+			return nil, nil, err
 		}
 
-		webhookTLSOpts = append(webhookTLSOpts, func(config *tls.Config) {
-			config.GetCertificate = webhookCertWatcher.GetCertificate
-		})
+		tlsOpt := func(config *tls.Config) {
+			config.GetCertificate = certWatcher.GetCertificate
+		}
+
+		return certWatcher, tlsOpt, nil
+	}()
+	if err != nil {
+		setupLog.Error(err, "Failed to initialize webhook certificate watcher")
+		os.Exit(1)
 	}
+	webhookServer := webhook.NewServer(webhook.Options{TLSOpts: []TLSOption{tlsOpt}})
 
-	webhookServer := webhook.NewServer(webhook.Options{
-		TLSOpts: webhookTLSOpts,
-	})
-
-	metricsServerOptions := metricsserver.Options{
-		BindAddress: metricsAddr,
-		TLSOpts:     tlsOpts,
-	}
-
+	// Setup controller manager.
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                 scheme,
-		Metrics:                metricsServerOptions,
+		Scheme: scheme,
+		Metrics: metricsserver.Options{
+			BindAddress: metricsAddr,
+		},
 		WebhookServer:          webhookServer,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
@@ -296,9 +279,9 @@ func main() {
 	}
 	// +kubebuilder:scaffold:builder
 
-	if webhookCertWatcher != nil {
+	if certWatcher != nil {
 		setupLog.Info("Adding webhook certificate watcher to manager")
-		if err := mgr.Add(webhookCertWatcher); err != nil {
+		if err := mgr.Add(certWatcher); err != nil {
 			setupLog.Error(err, "unable to add webhook certificate watcher to manager")
 			os.Exit(1)
 		}
@@ -308,7 +291,11 @@ func main() {
 		setupLog.Error(err, "unable to set up health check")
 		os.Exit(1)
 	}
-	if err := mgr.AddReadyzCheck("readyz", mgr.GetWebhookServer().StartedChecker()); err != nil {
+	readyChecker := healthz.Ping
+	if certWatcher != nil {
+		readyChecker = mgr.GetWebhookServer().StartedChecker()
+	}
+	if err := mgr.AddReadyzCheck("readyz", readyChecker); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}

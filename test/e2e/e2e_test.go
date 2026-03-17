@@ -192,11 +192,12 @@ var _ = Describe("Manager", Ordered, func() {
 			Eventually(verifyMetricsServerStarted).Should(Succeed())
 
 			By("creating the curl-metrics pod to access the metrics endpoint")
-			cmd = exec.Command("kubectl", "run", "curl-metrics", "--restart=Never",
-				"--namespace", namespace,
-				"--image=curlimages/curl:latest",
-				"--overrides",
-				fmt.Sprintf(`{
+			Eventually(func(g Gomega) {
+				cmd = exec.Command("kubectl", "run", "curl-metrics", "--restart=Never",
+					"--namespace", namespace,
+					"--image=curlimages/curl:latest",
+					"--overrides",
+					fmt.Sprintf(`{
 					"spec": {
 						"containers": [{
 							"name": "curl",
@@ -217,8 +218,9 @@ var _ = Describe("Manager", Ordered, func() {
 						}]
 					}
 				}`, metricsServiceName, namespace))
-			_, err = utils.Run(cmd)
-			Expect(err).NotTo(HaveOccurred(), "Failed to create curl-metrics pod")
+				_, err = utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred(), "Failed to create curl-metrics pod")
+			}).Should(Succeed())
 
 			By("waiting for the curl-metrics pod to complete.")
 			verifyCurlUp := func(g Gomega) {

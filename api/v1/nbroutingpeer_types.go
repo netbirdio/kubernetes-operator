@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"github.com/netbirdio/kubernetes-operator/internal/util"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -41,10 +42,10 @@ type NBRoutingPeerStatus struct {
 
 // Equal returns if NBRoutingPeerStatus is equal to this one
 func (a NBRoutingPeerStatus) Equal(b NBRoutingPeerStatus) bool {
-	return ptrStrEqual(a.NetworkID, b.NetworkID) &&
-		ptrStrEqual(a.SetupKeyID, b.SetupKeyID) &&
-		ptrStrEqual(a.RouterID, b.RouterID) &&
-		ConditionsEqual(a.Conditions, b.Conditions)
+	return util.PtrEqual(a.NetworkID, b.NetworkID) &&
+		util.PtrEqual(a.SetupKeyID, b.SetupKeyID) &&
+		util.PtrEqual(a.RouterID, b.RouterID) &&
+		util.EquivalentBy(a.Conditions, b.Conditions, conditionKey)
 }
 
 // +kubebuilder:object:root=true

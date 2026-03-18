@@ -32,6 +32,28 @@ func Equivalent[T comparable](x, y []T) bool {
 	return true
 }
 
+// EquivalentBy returns true if x and y contain the same elements (order-independent)
+// using keyFn to extract a comparable key from each element.
+func EquivalentBy[T any, K comparable](x, y []T, keyFn func(T) K) bool {
+	if len(x) != len(y) {
+		return false
+	}
+
+	mp := make(map[K]int, len(x))
+	for _, v := range x {
+		mp[keyFn(v)]++
+	}
+	for _, v := range y {
+		k := keyFn(v)
+		if mp[k] <= 0 {
+			return false
+		}
+		mp[k]--
+	}
+
+	return true
+}
+
 // SplitTrim split string and trim whitespace
 func SplitTrim(str, sep string) []string {
 	if len(str) == 0 {

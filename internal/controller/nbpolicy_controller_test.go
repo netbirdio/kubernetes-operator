@@ -548,6 +548,32 @@ var _ = Describe("NBPolicy Controller", func() {
 				policyUpdated := false
 				mux.HandleFunc("/api/policies/policyid", func(w http.ResponseWriter, r *http.Request) {
 					defer GinkgoRecover()
+					if r.Method == http.MethodGet {
+						// Return a policy that differs from desired state so policyNeedsUpdate returns true
+						resp := api.Policy{
+							Name:        "Test TCP",
+							Enabled:     true,
+							Description: util.Ptr(""),
+							Rules: []api.PolicyRule{
+								{
+									Enabled:       true,
+									Name:          "Outdated Name",
+									Action:        api.PolicyRuleActionAccept,
+									Protocol:      api.PolicyRuleProtocolTcp,
+									Bidirectional: true,
+									Description:   util.Ptr(""),
+									Sources:       &[]api.GroupMinimum{{Id: "meow"}},
+									Destinations:  &[]api.GroupMinimum{{Id: "test"}},
+									Ports:         &[]string{"443"},
+								},
+							},
+						}
+						bs, err := json.Marshal(resp)
+						Expect(err).NotTo(HaveOccurred())
+						_, err = w.Write(bs)
+						Expect(err).NotTo(HaveOccurred())
+						return
+					}
 					if r.Method == http.MethodPut {
 						policyUpdated = true
 
@@ -589,6 +615,162 @@ var _ = Describe("NBPolicy Controller", func() {
 				})
 				Expect(err).NotTo(HaveOccurred())
 				Expect(policyUpdated).To(BeTrue())
+			})
+		})
+
+		When("Policy already up-to-date", func() {
+			It("should skip the update", func() {
+				controllerReconciler := &NBPolicyReconciler{
+					Client:      k8sClient,
+					Netbird:     netbirdClient,
+					ClusterName: "Kubernetes",
+				}
+
+				nbResource := &netbirdiov1.NBResource{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: "default",
+					},
+					Spec: netbirdiov1.NBResourceSpec{
+						Name:       "meow",
+						Groups:     []string{"test"},
+						NetworkID:  "test",
+						Address:    "test.default.svc.cluster.local",
+						PolicyName: resourceName,
+						TCPPorts:   []int32{443},
+					},
+				}
+				Expect(k8sClient.Create(ctx, nbResource)).To(Succeed())
+
+				nbResource.Status = netbirdiov1.NBResourceStatus{
+					TCPPorts:   []int32{443},
+					PolicyName: &resourceName,
+					Groups:     []string{"test"},
+				}
+				Expect(k8sClient.Status().Update(ctx, nbResource)).To(Succeed())
+
+				nbpolicy.Status.ManagedServiceList = append(nbpolicy.Status.ManagedServiceList, "default/test")
+				nbpolicy.Status.TCPPolicyID = util.Ptr("policyid")
+				Expect(k8sClient.Status().Update(ctx, nbpolicy)).To(Succeed())
+
+				mux.HandleFunc("/api/groups", func(w http.ResponseWriter, r *http.Request) {
+					resp := []api.Group{
+						{
+							Id:   "meow",
+							Name: "All",
+						},
+					}
+					bs, err := json.Marshal(resp)
+					Expect(err).NotTo(HaveOccurred())
+					_, err = w.Write(bs)
+					Expect(err).NotTo(HaveOccurred())
+				})
+
+				policyUpdated := false
+				mux.HandleFunc("/api/policies/policyid", func(w http.ResponseWriter, r *http.Request) {
+					defer GinkgoRecover()
+					if r.Method == http.MethodGet {
+						desc := ""
+						resp := api.Policy{
+							Name:        "Test TCP",
+							Enabled:     true,
+							Description: &desc,
+							Rules: []api.PolicyRule{
+								{
+									Enabled:       true,
+									Name:          "Test TCP",
+									Action:        api.PolicyRuleActionAccept,
+									Protocol:      api.PolicyRuleProtocolTcp,
+									Bidirectional: true,
+									Description:   &desc,
+									Sources:       &[]api.GroupMinimum{{Id: "meow"}},
+									Destinations:  &[]api.GroupMinimum{{Id: "test"}},
+									Ports:         &[]string{"443"},
+								},
+							},
+						}
+						bs, err := json.Marshal(resp)
+						Expect(err).NotTo(HaveOccurred())
+						_, err = w.Write(bs)
+						Expect(err).NotTo(HaveOccurred())
+						return
+					}
+					if r.Method == http.MethodPut {
+						policyUpdated = true
+						_, err := w.Write([]byte("{}"))
+						Expect(err).NotTo(HaveOccurred())
+					}
+				})
+
+				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+					NamespacedName: typeNamespacedName,
+				})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(policyUpdated).To(BeFalse())
+			})
+		})
+
+		When("Policy deleted between GET and PUT", func() {
+			It("should clear policyID and requeue", func() {
+				controllerReconciler := &NBPolicyReconciler{
+					Client:      k8sClient,
+					Netbird:     netbirdClient,
+					ClusterName: "Kubernetes",
+				}
+
+				nbResource := &netbirdiov1.NBResource{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: "default",
+					},
+					Spec: netbirdiov1.NBResourceSpec{
+						Name:       "meow",
+						Groups:     []string{"test"},
+						NetworkID:  "test",
+						Address:    "test.default.svc.cluster.local",
+						PolicyName: resourceName,
+						TCPPorts:   []int32{443},
+					},
+				}
+				Expect(k8sClient.Create(ctx, nbResource)).To(Succeed())
+
+				nbResource.Status = netbirdiov1.NBResourceStatus{
+					TCPPorts:   []int32{443},
+					PolicyName: &resourceName,
+					Groups:     []string{"test"},
+				}
+				Expect(k8sClient.Status().Update(ctx, nbResource)).To(Succeed())
+
+				nbpolicy.Status.ManagedServiceList = append(nbpolicy.Status.ManagedServiceList, "default/test")
+				nbpolicy.Status.TCPPolicyID = util.Ptr("policyid")
+				Expect(k8sClient.Status().Update(ctx, nbpolicy)).To(Succeed())
+
+				mux.HandleFunc("/api/groups", func(w http.ResponseWriter, r *http.Request) {
+					resp := []api.Group{
+						{
+							Id:   "meow",
+							Name: "All",
+						},
+					}
+					bs, err := json.Marshal(resp)
+					Expect(err).NotTo(HaveOccurred())
+					_, err = w.Write(bs)
+					Expect(err).NotTo(HaveOccurred())
+				})
+
+				mux.HandleFunc("/api/policies/policyid", func(w http.ResponseWriter, r *http.Request) {
+					defer GinkgoRecover()
+					if r.Method == http.MethodGet {
+						w.WriteHeader(http.StatusNotFound)
+						_, err := w.Write([]byte(`{"message":"not found"}`))
+						Expect(err).NotTo(HaveOccurred())
+					}
+				})
+
+				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+					NamespacedName: typeNamespacedName,
+				})
+				Expect(err).NotTo(HaveOccurred())
 			})
 		})
 

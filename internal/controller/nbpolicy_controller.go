@@ -183,6 +183,12 @@ func policyNeedsUpdate(policy *api.Policy, policyName, description, protocol str
 	if rule.Bidirectional != bidirectional {
 		return true
 	}
+	if rule.Action != api.PolicyRuleActionAccept {
+		return true
+	}
+	if rule.Description == nil || *rule.Description != description {
+		return true
+	}
 
 	// Compare sources
 	var remoteSources []string
@@ -257,6 +263,11 @@ func (r *NBPolicyReconciler) updatePolicy(ctx context.Context, policyID *string,
 		},
 	})
 
+	if err != nil && strings.Contains(err.Error(), "not found") {
+		logger.Info("Policy deleted between GET and PUT, recreating", "protocol", protocol)
+		nbPolicy.Status.Conditions = netbirdiov1.NBConditionFalse("Gone", "Policy deleted from NetBird API")
+		return nil, true, nil
+	}
 	if err != nil {
 		logger.Error(errNetBirdAPI, "Error updating Policy", "err", err)
 		nbPolicy.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("Error updating policy: %v", err))

@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"github.com/netbirdio/kubernetes-operator/internal/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -21,7 +22,7 @@ type NBGroupStatus struct {
 
 // Equal returns if NBGroupStatus is equal to this one
 func (a NBGroupStatus) Equal(b NBGroupStatus) bool {
-	return (a.GroupID == b.GroupID || (a.GroupID != nil && b.GroupID != nil && *a.GroupID == *b.GroupID)) && ConditionsEqual(a.Conditions, b.Conditions)
+	return util.PtrEqual(a.GroupID, b.GroupID) && util.EquivalentBy(a.Conditions, b.Conditions, conditionKey)
 }
 
 // +kubebuilder:object:root=true

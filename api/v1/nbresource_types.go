@@ -65,12 +65,12 @@ type NBResourceStatus struct {
 
 // Equal returns if NBResourceStatus is equal to this one
 func (a NBResourceStatus) Equal(b NBResourceStatus) bool {
-	return ptrStrEqual(a.NetworkResourceID, b.NetworkResourceID) &&
-		ptrStrEqual(a.PolicyName, b.PolicyName) &&
+	return util.PtrEqual(a.NetworkResourceID, b.NetworkResourceID) &&
+		util.PtrEqual(a.PolicyName, b.PolicyName) &&
 		util.Equivalent(a.TCPPorts, b.TCPPorts) &&
 		util.Equivalent(a.UDPPorts, b.UDPPorts) &&
 		util.Equivalent(a.Groups, b.Groups) &&
-		ConditionsEqual(a.Conditions, b.Conditions) &&
+		util.EquivalentBy(a.Conditions, b.Conditions, conditionKey) &&
 		util.Equivalent(a.PolicySourceGroups, b.PolicySourceGroups) &&
 		maps.Equal(a.PolicyFriendlyName, b.PolicyFriendlyName) &&
 		maps.Equal(a.PolicyNameMapping, b.PolicyNameMapping)

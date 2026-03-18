@@ -18,6 +18,7 @@ package main
 
 import (
 	"crypto/tls"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -46,10 +47,6 @@ import (
 	// +kubebuilder:scaffold:imports
 )
 
-const (
-	inClusterNamespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
-)
-
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
@@ -67,6 +64,7 @@ func init() {
 func main() {
 	// NB Specific flags
 	var (
+		runtimeNamespace             string
 		managementURL                string
 		clientImage                  string
 		clusterName                  string
@@ -76,6 +74,7 @@ func main() {
 		allowAutomaticPolicyCreation bool
 		defaultLabels                string
 	)
+	flag.StringVar(&runtimeNamespace, "runtime-namespace", "", "Namespace the controller is running in")
 	flag.StringVar(&managementURL, "netbird-management-url", "https://api.netbird.io", "Management service URL")
 	flag.StringVar(&clientImage, "netbird-client-image", "netbirdio/netbird:latest", "Image for netbird client container")
 	flag.StringVar(
@@ -133,6 +132,12 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
+	runtimeNamespace, err := getRuntimeNamespace(runtimeNamespace)
+	if err != nil {
+		setupLog.Error(err, "unable to get runtime namespace")
+		os.Exit(1)
+	}
+
 	defaultLabelsMap := make(map[string]string)
 	if defaultLabels != "" {
 		for s := range strings.SplitSeq(defaultLabels, ",") {
@@ -177,10 +182,11 @@ func main() {
 		Metrics: metricsserver.Options{
 			BindAddress: metricsAddr,
 		},
-		WebhookServer:          webhookServer,
-		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "operator.netbird.io",
+		WebhookServer:           webhookServer,
+		HealthProbeBindAddress:  probeAddr,
+		LeaderElectionNamespace: runtimeNamespace,
+		LeaderElection:          enableLeaderElection,
+		LeaderElectionID:        "operator.netbird.io",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -223,18 +229,12 @@ func main() {
 			os.Exit(1)
 		}
 
-		controllerNamespace, err := getInClusterNamespace()
-		if err != nil {
-			setupLog.Error(err, "unable to get main namespace", "controller", "Service")
-			os.Exit(1)
-		}
-
 		if err = (&controller.ServiceReconciler{
 			Client:              mgr.GetClient(),
 			ClusterName:         clusterName,
 			ClusterDNS:          clusterDNS,
 			NamespacedNetworks:  namespacedNetworks,
-			ControllerNamespace: controllerNamespace,
+			ControllerNamespace: runtimeNamespace,
 			DefaultLabels:       defaultLabelsMap,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "Service")
@@ -307,19 +307,17 @@ func main() {
 	}
 }
 
-func getInClusterNamespace() (string, error) {
-	// Check whether the namespace file exists.
-	// If not, we are not running in cluster so can't guess the namespace.
-	if _, err := os.Stat(inClusterNamespacePath); os.IsNotExist(err) {
-		return "", fmt.Errorf("not running in-cluster, please specify LeaderElectionNamespace")
-	} else if err != nil {
-		return "", fmt.Errorf("error checking namespace file: %w", err)
+func getRuntimeNamespace(runtimeNamespace string) (string, error) {
+	if runtimeNamespace != "" {
+		return runtimeNamespace, nil
 	}
-
-	// Load the namespace file and return its content
-	namespace, err := os.ReadFile(inClusterNamespacePath)
+	inClusterNamespacePath := "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+	b, err := os.ReadFile(inClusterNamespacePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("not running in-cluster, runtime namespace needs to be set")
+	}
 	if err != nil {
 		return "", fmt.Errorf("error reading namespace file: %w", err)
 	}
-	return string(namespace), nil
+	return string(b), nil
 }

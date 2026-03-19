@@ -1,0 +1,13 @@
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: TCPRoute
+metadata:
+  name: kubernetes
+  namespace: default
+spec:
+  parentRefs:
+  - name: private
+    namespace: netbird
+  rules:
+  - backendRefs:
+    - name: kubernetes
+      port: 443

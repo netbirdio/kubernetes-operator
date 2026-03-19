@@ -1,0 +1,19 @@
+{{- if .Values.gatewayAPI.enabled }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: netbird-private
+  labels:
+    {{- include "kubernetes-operator.labels" . | nindent 4 }}
+spec:
+  controllerName: "gateway.netbird.io/controller"
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: netbird-public
+  labels:
+    {{- include "kubernetes-operator.labels" . | nindent 4 }}
+spec:
+  controllerName: "gateway.netbird.io/controller"
+{{- end }}

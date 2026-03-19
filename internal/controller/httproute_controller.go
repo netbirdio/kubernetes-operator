@@ -11,13 +11,13 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
+	"github.com/netbirdio/kubernetes-operator/internal/gatewayutil"
 	"github.com/netbirdio/kubernetes-operator/internal/util"
 )
 
@@ -47,36 +47,18 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	for _, parent := range hr.Spec.ParentRefs {
-		// Check if controller is responsible for route.
-		parentNamespace := hr.Namespace
-		if parent.Namespace != nil {
-			parentNamespace = string(*parent.Namespace)
-		}
-		gw := &gatewayv1.Gateway{}
-		err = r.Client.Get(ctx, types.NamespacedName{Namespace: parentNamespace, Name: string(parent.Name)}, gw)
+		gw, err := gatewayutil.GetParentGateway(ctx, r.Client, parent, hr.Namespace, GatewayControllerName)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		gwc := &gatewayv1.GatewayClass{}
-		err := r.Get(ctx, client.ObjectKey{Name: string(gw.Spec.GatewayClassName)}, gwc)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		if gwc.Spec.ControllerName != GatewayControllerName {
+		if gw == nil {
 			continue
 		}
-
 		if !meta.IsStatusConditionTrue(gw.Status.Conditions, string(gatewayv1.GatewayConditionProgrammed)) {
 			logger.Info("gateway is not ready", "name", gw.ObjectMeta.Name)
-			return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
+			continue
 		}
-
-		routingPeerName, err := getRoutingPeerName(gw.Spec.Listeners)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		nbrp := &netbirdiov1.NBRoutingPeer{}
-		err = r.Get(ctx, types.NamespacedName{Namespace: gw.Namespace, Name: routingPeerName}, nbrp)
+		nbrp, err := gatewayutil.GetGatewayRoutingPeer(ctx, r.Client, *gw)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -92,7 +74,6 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		svcIdx := map[string]corev1.Service{}
 		for _, rule := range hr.Spec.Rules {
 			for _, ref := range rule.BackendRefs {
-				// TODO (phillebaba): Support reference grants.
 				key := client.ObjectKey{Namespace: hr.Namespace, Name: string(ref.Name)}
 				var svc corev1.Service
 				err := r.Client.Get(ctx, key, &svc)
@@ -214,21 +195,11 @@ func (r *HTTPRouteReconciler) reconcileDelete(ctx context.Context, hr gatewayv1.
 	}
 
 	for _, parent := range hr.Spec.ParentRefs {
-		parentNamespace := hr.Namespace
-		if parent.Namespace != nil {
-			parentNamespace = string(*parent.Namespace)
-		}
-		gw := &gatewayv1.Gateway{}
-		err := r.Client.Get(ctx, types.NamespacedName{Namespace: parentNamespace, Name: string(parent.Name)}, gw)
+		gw, err := gatewayutil.GetParentGateway(ctx, r.Client, parent, hr.Namespace, GatewayControllerName)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		gwc := &gatewayv1.GatewayClass{}
-		err = r.Get(ctx, client.ObjectKey{Name: string(gw.Spec.GatewayClassName)}, gwc)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		if gwc.Spec.ControllerName != GatewayControllerName {
+		if gw == nil {
 			continue
 		}
 
@@ -236,7 +207,6 @@ func (r *HTTPRouteReconciler) reconcileDelete(ctx context.Context, hr gatewayv1.
 		svcIdx := map[string]corev1.Service{}
 		for _, rule := range hr.Spec.Rules {
 			for _, ref := range rule.BackendRefs {
-				// TODO (phillebaba): Support reference grants.
 				key := client.ObjectKey{Namespace: hr.Namespace, Name: string(ref.Name)}
 				var svc corev1.Service
 				err := r.Client.Get(ctx, key, &svc)

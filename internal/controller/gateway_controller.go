@@ -18,10 +18,8 @@ package controller
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
@@ -35,6 +33,7 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
+	"github.com/netbirdio/kubernetes-operator/internal/gatewayutil"
 )
 
 const (
@@ -74,7 +73,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// Verify Gateway configuration.
-	routingPeerName, err := getRoutingPeerName(gw.Spec.Listeners)
+	routingPeerName, err := gatewayutil.GetRoutingPeerName(gw.Spec.Listeners)
 	if err != nil {
 		cond := metav1.Condition{
 			Type:    string(gatewayv1.GatewayConditionAccepted),
@@ -111,8 +110,8 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// Ensure routing peer is ready.
-	nbrp := &netbirdiov1.NBRoutingPeer{}
-	err = r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: routingPeerName}, nbrp)
+	// TODO (phillebaba): Should watch routing peer instead of retrying when not found.
+	nbrp, err := gatewayutil.GetGatewayRoutingPeer(ctx, r.Client, gw)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -194,18 +193,4 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.Gateway{}).
 		Complete(r)
-}
-
-func getRoutingPeerName(listeners []gatewayv1.Listener) (string, error) {
-	if len(listeners) > 1 {
-		return "", errors.New("netbird Gateway only supports a single listener")
-	}
-	group, kind, ok := strings.Cut(string(listeners[0].Protocol), "/")
-	if !ok {
-		return "", fmt.Errorf("invalid protocol %s, expected gateway.netbird.io/NBRoutingPeer", listeners[0].Protocol)
-	}
-	if group != "gateway.netbird.io" || kind != "NBRoutingPeer" {
-		return "", fmt.Errorf("invalid group %s and kind %s, expected gateway.netbird.io/NBRoutingPeer", group, kind)
-	}
-	return string(listeners[0].Name), nil
 }

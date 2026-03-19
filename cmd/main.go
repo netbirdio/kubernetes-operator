@@ -75,6 +75,7 @@ func main() {
 		netbirdAPIKey                string
 		allowAutomaticPolicyCreation bool
 		defaultLabels                string
+		gatewayAPIEnabled            bool
 	)
 	flag.StringVar(&runtimeNamespace, "runtime-namespace", "", "Namespace the controller is running in")
 	flag.StringVar(&managementURL, "netbird-management-url", "https://api.netbird.io", "Management service URL")
@@ -105,6 +106,8 @@ func main() {
 		"",
 		"Default labels used for all resources, in format key=value,key=value",
 	)
+	flag.BoolVar(&gatewayAPIEnabled, "gateway-api-enabled", false, "When true Gateway API resources will be reconciled.")
+
 	// Controller generic flags
 	var (
 		metricsAddr          string
@@ -272,25 +275,27 @@ func main() {
 			}
 		}
 
-		if err = (&controller.GatewayClassReconciler{
-			Client: mgr.GetClient(),
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "GatewayClass")
-			os.Exit(1)
-		}
-		if err = (&controller.GatewayReconciler{
-			Client: mgr.GetClient(),
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "Gateway")
-			os.Exit(1)
-		}
-		if err = (&controller.HTTPRouteReconciler{
-			Client:     mgr.GetClient(),
-			Netbird:    netbird,
-			ClusterDNS: clusterDNS,
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "HTTPRoute")
-			os.Exit(1)
+		if gatewayAPIEnabled {
+			if err = (&controller.GatewayClassReconciler{
+				Client: mgr.GetClient(),
+			}).SetupWithManager(mgr); err != nil {
+				setupLog.Error(err, "unable to create controller", "controller", "GatewayClass")
+				os.Exit(1)
+			}
+			if err = (&controller.GatewayReconciler{
+				Client: mgr.GetClient(),
+			}).SetupWithManager(mgr); err != nil {
+				setupLog.Error(err, "unable to create controller", "controller", "Gateway")
+				os.Exit(1)
+			}
+			if err = (&controller.HTTPRouteReconciler{
+				Client:     mgr.GetClient(),
+				Netbird:    netbird,
+				ClusterDNS: clusterDNS,
+			}).SetupWithManager(mgr); err != nil {
+				setupLog.Error(err, "unable to create controller", "controller", "HTTPRoute")
+				os.Exit(1)
+			}
 		}
 	} else {
 		setupLog.Info("netbird API key not provided, ingress capabilities disabled")

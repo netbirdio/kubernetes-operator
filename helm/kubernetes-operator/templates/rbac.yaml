@@ -124,6 +124,27 @@ rules:
   - delete
 {{- end }}
 {{- end }}
+{{- if .Values.gatewayAPI.enabled }}
+- apiGroups: ["gateway.networking.k8s.io"]
+  resources:
+    - gatewayclasses
+    - gateways
+    - httproutes
+  verbs:
+    - get
+    - list
+    - watch
+    - update
+    - patch
+- apiGroups: ["gateway.networking.k8s.io"]
+  resources:
+    - gatewayclasses/status
+    - gateways/status
+    - httproutes/status
+  verbs:
+    - update
+    - patch
+{{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

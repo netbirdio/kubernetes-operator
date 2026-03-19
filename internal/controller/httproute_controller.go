@@ -2,13 +2,14 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"strings"
+	"time"
 
 	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
 	"github.com/netbirdio/netbird/shared/management/http/api"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -20,9 +21,7 @@ import (
 )
 
 const (
-	HTTPRouteFinalizer      = "gateway.netbird.io/httproute"
-	ResourceIDAnnotationKey = "gateway.netbird.io/resource-ids"
-	ProxyIDAnnotationKey    = "gateway.netbird.io/proxy-ids"
+	HTTPRouteFinalizer = "gateway.netbird.io/httproute"
 )
 
 type HTTPRouteReconciler struct {
@@ -68,9 +67,8 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 		if !meta.IsStatusConditionTrue(gw.Status.Conditions, string(gatewayv1.GatewayConditionProgrammed)) {
 			logger.Info("gateway is not ready", "name", gw.ObjectMeta.Name)
-			return ctrl.Result{Requeue: true}, nil
+			return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
 		}
-
 		nbrp := &netbirdiov1.NBRoutingPeer{}
 		err = r.Get(ctx, types.NamespacedName{Namespace: gw.Namespace, Name: gw.Spec.Infrastructure.ParametersRef.Name}, nbrp)
 		if err != nil {
@@ -85,75 +83,85 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 
 		// Create network resources.
-		oldResourceIDs := map[string]string{}
-		if s, ok := hr.Annotations[ResourceIDAnnotationKey]; ok {
-			err := json.Unmarshal([]byte(s), &oldResourceIDs)
-			if err != nil {
-				return ctrl.Result{}, err
-			}
-		}
-		resourceIDs := map[string]string{}
-		targets := []api.ServiceTarget{}
+		svcIdx := map[string]corev1.Service{}
 		for _, rule := range hr.Spec.Rules {
 			for _, ref := range rule.BackendRefs {
 				// TODO (phillebaba): Support reference grants.
-				refNamespace := hr.Namespace
-
-				key := strings.Join([]string{string(ref.Name), refNamespace}, "/")
-				networkResourceReq := api.NetworkResourceRequest{
-					Name:    fmt.Sprintf("%s/%s/%s/%s", refNamespace, gw.Name, hr.Name, ref.Name),
-					Enabled: true,
-					Address: fmt.Sprintf("%s.%s.%s", ref.Name, refNamespace, r.ClusterDNS),
-					Groups:  []string{},
-				}
-
-				id, err := func() (string, error) {
-					if id, ok := oldResourceIDs[key]; ok {
-						_, err := r.Netbird.Networks.Resources(*nbrp.Status.NetworkID).Get(ctx, id)
-						if err != nil && !netbird.IsNotFound(err) {
-							return "", err
-						}
-						if err == nil {
-							_, err = r.Netbird.Networks.Resources(*nbrp.Status.NetworkID).Update(ctx, id, networkResourceReq)
-							if err != nil {
-								return "", err
-							}
-							delete(oldResourceIDs, key)
-							return id, nil
-						}
-					}
-					resource, err := r.Netbird.Networks.Resources(*nbrp.Status.NetworkID).Create(ctx, networkResourceReq)
-					if err != nil {
-						return "", err
-					}
-					return resource.Id, nil
-				}()
+				key := client.ObjectKey{Namespace: hr.Namespace, Name: string(ref.Name)}
+				var svc corev1.Service
+				err := r.Client.Get(ctx, key, &svc)
 				if err != nil {
 					return ctrl.Result{}, err
 				}
-				resourceIDs[key] = id
-				target := api.ServiceTarget{
-					Enabled:    true,
-					Path:       nil,
-					TargetId:   id,
-					Protocol:   "http",
-					TargetType: "domain",
-				}
-				targets = append(targets, target)
+				svcIdx[svc.Name] = svc
 			}
 		}
 
-		// Create proxy service.
-		oldProxyIDs := map[string]string{}
-		if s, ok := hr.Annotations[ProxyIDAnnotationKey]; ok {
-			err := json.Unmarshal([]byte(s), &oldProxyIDs)
+		for _, svc := range svcIdx {
+			nbResource := netbirdiov1.NBResource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      svc.Name,
+					Namespace: svc.Namespace,
+				},
+			}
+			_, err := controllerutil.CreateOrUpdate(ctx, r.Client, &nbResource, func() error {
+				err = controllerutil.SetControllerReference(&svc, &nbResource, r.Scheme(), controllerutil.WithBlockOwnerDeletion(false))
+				if err != nil {
+					return err
+				}
+				err = controllerutil.SetOwnerReference(&hr, &nbResource, r.Scheme())
+				if err != nil {
+					return err
+				}
+				nbResource.Spec = netbirdiov1.NBResourceSpec{
+					Name:      svc.Name,
+					NetworkID: *nbrp.Status.NetworkID,
+					Address:   fmt.Sprintf("%s.%s.%s", svc.Name, svc.Namespace, r.ClusterDNS),
+					Groups:    []string{},
+				}
+				return nil
+			})
 			if err != nil {
 				return ctrl.Result{}, err
 			}
 		}
-		proxyIDs := map[string]string{}
+
+		targets := []api.ServiceTarget{}
+		for _, svc := range svcIdx {
+			var nbResource netbirdiov1.NBResource
+			err := r.Client.Get(ctx, client.ObjectKeyFromObject(&svc), &nbResource)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			ready := func() bool {
+				for _, cond := range nbResource.Status.Conditions {
+					if cond.Type == netbirdiov1.NBSetupKeyReady && cond.Status == corev1.ConditionTrue {
+						return true
+					}
+				}
+				return false
+			}()
+			if !ready {
+				return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
+			}
+
+			target := api.ServiceTarget{
+				Enabled:    true,
+				Path:       nil,
+				TargetId:   *nbResource.Status.NetworkResourceID,
+				Protocol:   "http",
+				TargetType: "domain",
+			}
+			targets = append(targets, target)
+		}
+
+		// Create proxy service.
+		proxyServices, err := r.Netbird.ReverseProxyServices.List(ctx)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 		for _, hostname := range hr.Spec.Hostnames {
-			proxyCreate := api.PostApiReverseProxiesServicesJSONRequestBody{
+			proxyReq := api.PostApiReverseProxiesServicesJSONRequestBody{
 				Auth:             api.ServiceAuthConfig{},
 				Domain:           string(hostname),
 				Enabled:          true,
@@ -163,59 +171,25 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				Targets:          targets,
 			}
 
-			id, err := func() (string, error) {
-				if id, ok := oldProxyIDs[string(hostname)]; ok {
-					_, err := r.Netbird.ReverseProxyServices.Get(ctx, id)
-					if err != nil && !netbird.IsNotFound(err) {
-						return "", err
+			err := func() error {
+				for _, proxyService := range proxyServices {
+					if proxyService.Domain != string(hostname) {
+						continue
 					}
-					if err == nil {
-						_, err := r.Netbird.ReverseProxyServices.Update(ctx, id, proxyCreate)
-						if err != nil {
-							return "", nil
-						}
-						delete(oldProxyIDs, string(hostname))
-						return id, nil
+					_, err := r.Netbird.ReverseProxyServices.Update(ctx, proxyService.Id, proxyReq)
+					if err != nil {
+						return err
 					}
 				}
-				proxy, err := r.Netbird.ReverseProxyServices.Create(ctx, proxyCreate)
+				_, err := r.Netbird.ReverseProxyServices.Create(ctx, proxyReq)
 				if err != nil {
-					return "", err
+					return err
 				}
-				return proxy.Id, nil
+				return nil
 			}()
 			if err != nil {
 				return ctrl.Result{}, err
 			}
-			proxyIDs[string(hostname)] = id
-		}
-
-		for _, id := range oldResourceIDs {
-			err = r.Netbird.Networks.Resources(*nbrp.Status.NetworkID).Delete(ctx, id)
-			if err != nil && !netbird.IsNotFound(err) {
-				return ctrl.Result{}, err
-			}
-		}
-		for _, id := range oldProxyIDs {
-			err = r.Netbird.ReverseProxyServices.Delete(ctx, id)
-			if err != nil && !netbird.IsNotFound(err) {
-				return ctrl.Result{}, err
-			}
-		}
-
-		b, err := json.Marshal(resourceIDs)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		hr.Annotations[ResourceIDAnnotationKey] = string(b)
-		b, err = json.Marshal(proxyIDs)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		hr.Annotations[ProxyIDAnnotationKey] = string(b)
-		err = r.Client.Update(ctx, &hr)
-		if err != nil {
-			return ctrl.Result{}, err
 		}
 	}
 
@@ -223,6 +197,16 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 }
 
 func (r *HTTPRouteReconciler) reconcileDelete(ctx context.Context, hr gatewayv1.HTTPRoute) (ctrl.Result, error) {
+	// Index all proxy services.
+	proxyServices, err := r.Netbird.ReverseProxyServices.List(ctx)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	proxyIdx := map[string]string{}
+	for _, proxyService := range proxyServices {
+		proxyIdx[proxyService.Domain] = proxyService.Id
+	}
+
 	for _, parent := range hr.Spec.ParentRefs {
 		parentNamespace := hr.Namespace
 		if parent.Namespace != nil {
@@ -233,46 +217,71 @@ func (r *HTTPRouteReconciler) reconcileDelete(ctx context.Context, hr gatewayv1.
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-
-		nbrp := &netbirdiov1.NBRoutingPeer{}
-		err = r.Get(ctx, types.NamespacedName{Namespace: gw.Namespace, Name: gw.Spec.Infrastructure.ParametersRef.Name}, nbrp)
+		gwc := &gatewayv1.GatewayClass{}
+		err = r.Get(ctx, client.ObjectKey{Name: string(gw.Spec.GatewayClassName)}, gwc)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
+		if gwc.Spec.ControllerName != GatewayControllerName {
+			continue
+		}
 
-		proxyIDs := map[string]string{}
-		if s, ok := hr.Annotations[ProxyIDAnnotationKey]; ok {
-			err := json.Unmarshal([]byte(s), &proxyIDs)
+		// Remove the resource from the resource.
+		svcIdx := map[string]corev1.Service{}
+		for _, rule := range hr.Spec.Rules {
+			for _, ref := range rule.BackendRefs {
+				// TODO (phillebaba): Support reference grants.
+				key := client.ObjectKey{Namespace: hr.Namespace, Name: string(ref.Name)}
+				var svc corev1.Service
+				err := r.Client.Get(ctx, key, &svc)
+				if err != nil {
+					return ctrl.Result{}, err
+				}
+				svcIdx[svc.Name] = svc
+			}
+		}
+		for _, svc := range svcIdx {
+			var nbResource netbirdiov1.NBResource
+			err = r.Client.Get(ctx, client.ObjectKeyFromObject(&svc), &nbResource)
 			if err != nil {
 				return ctrl.Result{}, err
 			}
+			err = controllerutil.RemoveOwnerReference(&hr, &nbResource, r.Scheme())
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+
+			if len(nbResource.OwnerReferences) > 1 {
+				err = r.Client.Update(ctx, &nbResource)
+				if err != nil {
+					return ctrl.Result{}, err
+				}
+			} else {
+				// TODO: Precondition that nothing has changed.
+				err := r.Client.Delete(ctx, &nbResource)
+				if err != nil {
+					return ctrl.Result{}, err
+				}
+			}
 		}
-		for _, id := range proxyIDs {
+
+		// Remove the target from the proxy service.
+		for _, hostname := range hr.Spec.Hostnames {
+			id, ok := proxyIdx[string(hostname)]
+			if !ok {
+				continue
+			}
 			err = r.Netbird.ReverseProxyServices.Delete(ctx, id)
 			if err != nil && !netbird.IsNotFound(err) {
 				return ctrl.Result{}, err
 			}
 		}
+	}
 
-		resourceIDs := map[string]string{}
-		if s, ok := hr.Annotations[ResourceIDAnnotationKey]; ok {
-			err := json.Unmarshal([]byte(s), &resourceIDs)
-			if err != nil {
-				return ctrl.Result{}, err
-			}
-		}
-		for _, id := range resourceIDs {
-			err = r.Netbird.Networks.Resources(*nbrp.Status.NetworkID).Delete(ctx, id)
-			if err != nil && !netbird.IsNotFound(err) {
-				return ctrl.Result{}, err
-			}
-		}
-
-		if controllerutil.RemoveFinalizer(&hr, HTTPRouteFinalizer) {
-			err := r.Client.Update(ctx, &hr)
-			if err != nil {
-				return ctrl.Result{}, err
-			}
+	if controllerutil.RemoveFinalizer(&hr, HTTPRouteFinalizer) {
+		err := r.Client.Update(ctx, &hr)
+		if err != nil {
+			return ctrl.Result{}, err
 		}
 	}
 	return ctrl.Result{}, nil

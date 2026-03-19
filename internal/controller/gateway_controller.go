@@ -18,8 +18,10 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
@@ -72,36 +74,19 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// Verify Gateway configuration.
-	if gw.Spec.Infrastructure == nil || gw.Spec.Infrastructure.ParametersRef == nil {
+	routingPeerName, err := getRoutingPeerName(gw.Spec.Listeners)
+	if err != nil {
 		cond := metav1.Condition{
 			Type:    string(gatewayv1.GatewayConditionAccepted),
 			Status:  metav1.ConditionFalse,
 			Reason:  string(gatewayv1.GatewayReasonInvalidParameters),
-			Message: "Gateway expected to reference a NBRoutingPeer",
+			Message: err.Error(),
 		}
 		if meta.SetStatusCondition(&gw.Status.Conditions, cond) {
 			err = r.Status().Update(ctx, &gw)
 			if err != nil {
 				return ctrl.Result{}, err
 			}
-			return ctrl.Result{}, nil
-		}
-		return ctrl.Result{}, nil
-	}
-	parametersRef := gw.Spec.Infrastructure.ParametersRef
-	if parametersRef.Group != "netbird.io" && parametersRef.Kind != "NBRoutingPeer" {
-		cond := metav1.Condition{
-			Type:    string(gatewayv1.GatewayConditionAccepted),
-			Status:  metav1.ConditionFalse,
-			Reason:  string(gatewayv1.GatewayReasonInvalidParameters),
-			Message: fmt.Sprintf("unsupported parameter group and kind %s.%s", parametersRef.Group, parametersRef.Kind),
-		}
-		if meta.SetStatusCondition(&gw.Status.Conditions, cond) {
-			err = r.Status().Update(ctx, &gw)
-			if err != nil {
-				return ctrl.Result{}, err
-			}
-			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, nil
 	}
@@ -127,7 +112,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// Ensure routing peer is ready.
 	nbrp := &netbirdiov1.NBRoutingPeer{}
-	err = r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: parametersRef.Name}, nbrp)
+	err = r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: routingPeerName}, nbrp)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -139,7 +124,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			Type:    string(gatewayv1.GatewayConditionProgrammed),
 			Status:  metav1.ConditionFalse,
 			Reason:  string(gatewayv1.GatewayReasonProgrammed),
-			Message: fmt.Sprintf("NBRoutingPeer %s is not ready", parametersRef.Name),
+			Message: fmt.Sprintf("NBRoutingPeer %s is not ready", routingPeerName),
 		}
 		if meta.SetStatusCondition(&gw.Status.Conditions, cond) {
 			err = r.Status().Update(ctx, &gw)
@@ -209,4 +194,18 @@ func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.Gateway{}).
 		Complete(r)
+}
+
+func getRoutingPeerName(listeners []gatewayv1.Listener) (string, error) {
+	if len(listeners) > 1 {
+		return "", errors.New("netbird Gateway only supports a single listener")
+	}
+	group, kind, ok := strings.Cut(string(listeners[0].Protocol), "/")
+	if !ok {
+		return "", fmt.Errorf("invalid protocol %s, expected gateway.netbird.io/NBRoutingPeer", listeners[0].Protocol)
+	}
+	if group != "gateway.netbird.io" || kind != "NBRoutingPeer" {
+		return "", fmt.Errorf("invalid group %s and kind %s, expected gateway.netbird.io/NBRoutingPeer", group, kind)
+	}
+	return string(listeners[0].Name), nil
 }

@@ -40,6 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
 	"github.com/netbirdio/kubernetes-operator/internal/controller"
@@ -57,6 +58,7 @@ func init() {
 
 	utilruntime.Must(netbirdiov1.AddToScheme(scheme))
 	utilruntime.Must(corev1.AddToScheme(scheme))
+	utilruntime.Must(gatewayv1.Install(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -273,6 +275,27 @@ func main() {
 				setupLog.Error(err, "unable to create webhook", "webhook", "NBGroup")
 				os.Exit(1)
 			}
+		}
+
+		if err = (&controller.GatewayClassReconciler{
+			Client: mgr.GetClient(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "GatewayClass")
+			os.Exit(1)
+		}
+		if err = (&controller.GatewayReconciler{
+			Client: mgr.GetClient(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "Gateway")
+			os.Exit(1)
+		}
+		if err = (&controller.HTTPRouteReconciler{
+			Client:     mgr.GetClient(),
+			Netbird:    netbird,
+			ClusterDNS: clusterDNS,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "HTTPRoute")
+			os.Exit(1)
 		}
 	} else {
 		setupLog.Info("netbird API key not provided, ingress capabilities disabled")

@@ -5,8 +5,6 @@ ingress:
   enabled: true
 
 netbirdAPI:
-  # Replace with valid NetBird Service Account token (PAT)
-  # https://docs.netbird.io/how-to/access-netbird-public-api#creating-an-access-token
-  #key: "nbp_m0LM9yZvDUzF8fpY20iChDOTxJgKFM3DIqmZ"
-  # Use keyFromSecret instead of plain text secret
-  keyFromSecret: "netbird-mgmt-api-key"
+  keyFromSecret:
+    name: "netbird-mgmt-api-key"
+    key: "NB_API_KEY"

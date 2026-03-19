@@ -67,6 +67,11 @@ spec:
                 - key
                 type: object
                 x-kubernetes-map-type: atomic
+                x-kubernetes-validations:
+                - fieldPath: .name
+                  message: secret name needs to be set
+                  reason: FieldValueRequired
+                  rule: self.name.size() > 0
               volumeMounts:
                 description: VolumeMounts optional, additional volumeMounts for NetBird
                   container

@@ -46,6 +46,9 @@ spec:
           - --health-probe-bind-address=:{{ .Values.operator.livenessProbe.port }}
           - --webhook-cert-path=/tmp/k8s-webhook-server/serving-certs
           - --runtime-namespace=$(POD_NAMESPACE)
+          {{- if .Values.gatewayAPI.enabled }}
+          - --gateway-api-enabled=true
+          {{- end }}
           {{- if .Values.managementURL }}
           - --netbird-management-url={{.Values.managementURL}}
           {{- end }}

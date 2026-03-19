@@ -9,7 +9,7 @@ spec:
   hostnames:
   - nginx-test-app.eu1.netbird.services
   parentRefs:
-  - name: netbird
+  - name: public
     namespace: netbird
   rules:
     - backendRefs:

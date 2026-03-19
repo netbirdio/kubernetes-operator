@@ -8,7 +8,7 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: netbird
+  name: public
   namespace: netbird
 spec:
   gatewayClassName: public

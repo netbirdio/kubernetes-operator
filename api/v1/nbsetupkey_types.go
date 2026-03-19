@@ -33,6 +33,7 @@ const (
 // NBSetupKeySpec defines the desired state of NBSetupKey.
 type NBSetupKeySpec struct {
 	// SecretKeyRef is a reference to the secret containing the setup key
+	// +kubebuilder:validation:XValidation:rule="self.name.size() > 0",reason="FieldValueRequired",message="secret name needs to be set",fieldPath=".name"
 	SecretKeyRef corev1.SecretKeySelector `json:"secretKeyRef"`
 	// ManagementURL optional, override operator management URL
 	ManagementURL string `json:"managementURL,omitempty"`

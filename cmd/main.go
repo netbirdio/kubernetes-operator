@@ -208,11 +208,6 @@ func main() {
 			setupLog.Error(err, "unable to create webhook", "webhook", "Pod")
 			os.Exit(1)
 		}
-
-		if err = webhooknetbirdiov1.SetupNBSetupKeyWebhookWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create webhook", "webhook", "NBSetupKey")
-			os.Exit(1)
-		}
 	}
 
 	if len(netbirdAPIKey) > 0 {

@@ -121,9 +121,6 @@ var _ = BeforeSuite(func() {
 	err = SetupPodWebhookWithManager(mgr, "", "")
 	Expect(err).NotTo(HaveOccurred())
 
-	err = SetupNBSetupKeyWebhookWithManager(mgr)
-	Expect(err).NotTo(HaveOccurred())
-
 	err = SetupNBGroupWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 

@@ -13,14 +13,9 @@ metadata:
 spec:
   gatewayClassName: public
   listeners:
-  - protocol: HTTP
+  - protocol: gateway.netbird.io/NBRoutingPeer
+    name: netbird
     port: 80
-    name: dummy
-  infrastructure:
-    parametersRef:
-      group: netbird.io
-      kind: NBRoutingPeer
-      name: netbird
 ---
 apiVersion: netbird.io/v1
 kind: NBRoutingPeer

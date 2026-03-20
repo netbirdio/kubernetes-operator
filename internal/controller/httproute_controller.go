@@ -8,6 +8,7 @@ import (
 	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
 	"github.com/netbirdio/netbird/shared/management/http/api"
 	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -69,8 +70,13 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			logger.Info("gateway is not ready", "name", gw.ObjectMeta.Name)
 			return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
 		}
+
+		routingPeerName, err := getRoutingPeerName(gw.Spec.Listeners)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 		nbrp := &netbirdiov1.NBRoutingPeer{}
-		err = r.Get(ctx, types.NamespacedName{Namespace: gw.Namespace, Name: gw.Spec.Infrastructure.ParametersRef.Name}, nbrp)
+		err = r.Get(ctx, types.NamespacedName{Namespace: gw.Namespace, Name: routingPeerName}, nbrp)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -234,6 +240,9 @@ func (r *HTTPRouteReconciler) reconcileDelete(ctx context.Context, hr gatewayv1.
 				key := client.ObjectKey{Namespace: hr.Namespace, Name: string(ref.Name)}
 				var svc corev1.Service
 				err := r.Client.Get(ctx, key, &svc)
+				if kerrors.IsNotFound(err) {
+					continue
+				}
 				if err != nil {
 					return ctrl.Result{}, err
 				}

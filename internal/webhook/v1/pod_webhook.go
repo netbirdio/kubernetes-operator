@@ -118,7 +118,7 @@ func (d *PodNetbirdInjector) Default(ctx context.Context, pod *corev1.Pod) error
 	}
 
 	// Build the netbird container spec.
-	nbContainer := d.buildNetbirdContainer(envVars, nbSetupKey.Spec.VolumeMounts)
+	nbContainer := d.buildNetbirdContainer(envVars, nbSetupKey.Spec.VolumeMounts, nbSetupKey.Spec.Privileged)
 
 	// If sidecar mode is requested, inject as a sidecar (init container with restartPolicy: Always).
 	if pod.Annotations[sidecarAnnotation] == "true" {
@@ -136,16 +136,20 @@ func (d *PodNetbirdInjector) Default(ctx context.Context, pod *corev1.Pod) error
 
 // buildNetbirdContainer constructs the NetBird container spec with the given
 // environment variables and volume mounts.
-func (d *PodNetbirdInjector) buildNetbirdContainer(envVars []corev1.EnvVar, volumeMounts []corev1.VolumeMount) corev1.Container {
-	return corev1.Container{
-		Name:  "netbird",
-		Image: d.clientImage,
-		Env:   envVars,
-		SecurityContext: &corev1.SecurityContext{
-			Capabilities: &corev1.Capabilities{
-				Add: []corev1.Capability{"NET_ADMIN"},
-			},
+func (d *PodNetbirdInjector) buildNetbirdContainer(envVars []corev1.EnvVar, volumeMounts []corev1.VolumeMount, privileged *bool) corev1.Container {
+	securityContext := &corev1.SecurityContext{
+		Capabilities: &corev1.Capabilities{
+			Add: []corev1.Capability{"NET_ADMIN"},
 		},
-		VolumeMounts: volumeMounts,
+	}
+	if privileged != nil && *privileged {
+		securityContext.Privileged = privileged
+	}
+	return corev1.Container{
+		Name:            "netbird",
+		Image:           d.clientImage,
+		Env:             envVars,
+		SecurityContext: securityContext,
+		VolumeMounts:    volumeMounts,
 	}
 }

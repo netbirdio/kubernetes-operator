@@ -43,6 +43,10 @@ spec:
                 description: ManagementURL optional, override operator management
                   URL
                 type: string
+              privileged:
+                description: Privileged optional, run NetBird container in privileged
+                  mode
+                type: boolean
               secretKeyRef:
                 description: SecretKeyRef is a reference to the secret containing
                   the setup key

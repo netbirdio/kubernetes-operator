@@ -43,6 +43,9 @@ type NBSetupKeySpec struct {
 	// VolumeMounts optional, additional volumeMounts for NetBird container
 	// +optional
 	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
+	// Privileged optional, run NetBird container in privileged mode
+	// +optional
+	Privileged *bool `json:"privileged,omitempty"`
 }
 
 // NBSetupKeyStatus defines the observed state of NBSetupKey.

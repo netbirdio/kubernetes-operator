@@ -152,6 +152,60 @@ var _ = Describe("Pod Webhook", func() {
 				Expect(obj.Spec.InitContainers).To(BeEmpty())
 			})
 
+			It("Should not set privileged when NBSetupKey has no privileged field", func() {
+				Expect(defaulter.Default(context.Background(), obj)).NotTo(HaveOccurred())
+				Expect(obj.Spec.Containers).To(HaveLen(2))
+				nbContainer := obj.Spec.Containers[1]
+				Expect(nbContainer.SecurityContext).NotTo(BeNil())
+				Expect(nbContainer.SecurityContext.Privileged).To(BeNil())
+			})
+
+		})
+
+		When("NBSetupKey exists with privileged mode", Ordered, func() {
+			BeforeAll(func() {
+				privileged := true
+				sk := netbirdiov1.NBSetupKey{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "test-privileged",
+						Namespace: "test",
+					},
+					Spec: netbirdiov1.NBSetupKeySpec{
+						SecretKeyRef: corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "test",
+							},
+							Key: "test",
+						},
+						Privileged: &privileged,
+					},
+				}
+
+				err := k8sClient.Create(context.Background(), &sk)
+				Expect(err).NotTo(HaveOccurred())
+
+				sk.Status = netbirdiov1.NBSetupKeyStatus{
+					Conditions: []netbirdiov1.NBCondition{
+						{
+							Type:   netbirdiov1.NBSetupKeyReady,
+							Status: corev1.ConditionTrue,
+						},
+					},
+				}
+
+				err = k8sClient.Status().Update(context.Background(), &sk)
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			It("Should set privileged on NB container security context", func() {
+				obj.Annotations[setupKeyAnnotation] = "test-privileged"
+				Expect(defaulter.Default(context.Background(), obj)).NotTo(HaveOccurred())
+				Expect(obj.Spec.Containers).To(HaveLen(2))
+				nbContainer := obj.Spec.Containers[1]
+				Expect(nbContainer.SecurityContext).NotTo(BeNil())
+				Expect(nbContainer.SecurityContext.Privileged).NotTo(BeNil())
+				Expect(*nbContainer.SecurityContext.Privileged).To(BeTrue())
+			})
 		})
 	})
 })

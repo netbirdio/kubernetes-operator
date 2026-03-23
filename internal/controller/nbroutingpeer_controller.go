@@ -11,10 +11,9 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 
 	"github.com/go-logr/logr"
@@ -105,7 +104,7 @@ func (r *NBRoutingPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	logger.Info("NBRoutingPeer: Checking deployment")
-	err = r.handleDeployment(ctx, nbrp)
+	err = r.handleDeployment(ctx, req, nbrp, logger)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -115,93 +114,167 @@ func (r *NBRoutingPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 }
 
 // handleDeployment reconcile routing peer Deployment
-func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, nbrp *netbirdiov1.NBRoutingPeer) error {
+func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl.Request, nbrp *netbirdiov1.NBRoutingPeer, logger logr.Logger) error {
+	routingPeerDeployment := appsv1.Deployment{}
+	err := r.Client.Get(ctx, req.NamespacedName, &routingPeerDeployment)
+	if err != nil && !errors.IsNotFound(err) {
+		logger.Error(errKubernetesAPI, "error getting Deployment", "err", err)
+		nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("error getting Deployment: %v", err))
+		return err
+	}
+
 	labels := r.DefaultLabels
 	maps.Copy(labels, nbrp.Spec.Labels)
 	podLabels := labels
 	podLabels["app.kubernetes.io/name"] = "netbird-router"
 
-	var replicas int32 = 3
-	if nbrp.Spec.Replicas != nil {
-		replicas = *nbrp.Spec.Replicas
-	}
-
-	securityContext := &corev1.SecurityContext{
-		Capabilities: &corev1.Capabilities{
-			Add: []corev1.Capability{
-				"NET_ADMIN",
-			},
-		},
-	}
-	if nbrp.Spec.Privileged != nil && *nbrp.Spec.Privileged {
-		securityContext.Privileged = nbrp.Spec.Privileged
-	}
-
-	dep := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: nbrp.Namespace,
-			Name:      nbrp.Name,
-		},
-	}
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, dep, func() error {
-		dep.ObjectMeta.Labels = labels
-		dep.ObjectMeta.Annotations = nbrp.Spec.Annotations
-		dep.Spec = appsv1.DeploymentSpec{
-			Replicas: &replicas,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"app.kubernetes.io/name": "netbird-router",
+	// Create deployment
+	if errors.IsNotFound(err) {
+		var replicas int32 = 3
+		if nbrp.Spec.Replicas != nil {
+			replicas = *nbrp.Spec.Replicas
+		}
+		routingPeerDeployment = appsv1.Deployment{
+			ObjectMeta: v1.ObjectMeta{
+				Name:      nbrp.Name,
+				Namespace: nbrp.Namespace,
+				OwnerReferences: []v1.OwnerReference{
+					{
+						APIVersion:         netbirdiov1.GroupVersion.Identifier(),
+						Kind:               "NBRoutingPeer",
+						Name:               nbrp.Name,
+						UID:                nbrp.UID,
+						BlockOwnerDeletion: util.Ptr(true),
+					},
 				},
+				Labels:      labels,
+				Annotations: nbrp.Spec.Annotations,
 			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: podLabels,
+			Spec: appsv1.DeploymentSpec{
+				Replicas: &replicas,
+				Selector: &v1.LabelSelector{
+					MatchLabels: map[string]string{
+						"app.kubernetes.io/name": "netbird-router",
+					},
 				},
-				Spec: corev1.PodSpec{
-					NodeSelector: nbrp.Spec.NodeSelector,
-					Tolerations:  nbrp.Spec.Tolerations,
-					Containers: []corev1.Container{
-						{
-							Name:  "netbird",
-							Image: r.ClientImage,
-							Env: []corev1.EnvVar{
-								{
-									Name: "NB_SETUP_KEY",
-									ValueFrom: &corev1.EnvVarSource{
-										SecretKeyRef: &corev1.SecretKeySelector{
-											LocalObjectReference: corev1.LocalObjectReference{
-												Name: nbrp.Name,
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: v1.ObjectMeta{
+						Labels: podLabels,
+					},
+					Spec: corev1.PodSpec{
+						NodeSelector: nbrp.Spec.NodeSelector,
+						Tolerations:  nbrp.Spec.Tolerations,
+						Containers: []corev1.Container{
+							{
+								Name:  "netbird",
+								Image: r.ClientImage,
+								Env: []corev1.EnvVar{
+									{
+										Name: "NB_SETUP_KEY",
+										ValueFrom: &corev1.EnvVarSource{
+											SecretKeyRef: &corev1.SecretKeySelector{
+												LocalObjectReference: corev1.LocalObjectReference{
+													Name: nbrp.Name,
+												},
+												Key: "setupKey",
 											},
-											Key: "setupKey",
 										},
 									},
+									{
+										Name:  "NB_MANAGEMENT_URL",
+										Value: r.ManagementURL,
+									},
 								},
-								{
-									Name:  "NB_MANAGEMENT_URL",
-									Value: r.ManagementURL,
-								},
+								SecurityContext: r.buildSecurityContext(nbrp),
+								Resources:       nbrp.Spec.Resources,
+								VolumeMounts:    nbrp.Spec.VolumeMounts,
 							},
-							SecurityContext: securityContext,
-							Resources:       nbrp.Spec.Resources,
-							VolumeMounts:    nbrp.Spec.VolumeMounts,
 						},
+						Volumes: nbrp.Spec.Volumes,
 					},
-					Volumes: nbrp.Spec.Volumes,
 				},
 			},
 		}
 
-		err := controllerutil.SetControllerReference(nbrp, dep, r.Scheme())
+		err = r.Client.Create(ctx, &routingPeerDeployment)
 		if err != nil {
+			logger.Error(errKubernetesAPI, "error creating Deployment", "err", err)
+			nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("error creating Deployment: %v", err))
 			return err
 		}
+	} else if err == nil {
+		updatedDeployment := routingPeerDeployment.DeepCopy()
+		updatedDeployment.ObjectMeta.Name = nbrp.Name
+		updatedDeployment.ObjectMeta.Namespace = nbrp.Namespace
+		updatedDeployment.ObjectMeta.OwnerReferences = []v1.OwnerReference{
+			{
+				APIVersion:         netbirdiov1.GroupVersion.Identifier(),
+				Kind:               "NBRoutingPeer",
+				Name:               nbrp.Name,
+				UID:                nbrp.UID,
+				BlockOwnerDeletion: util.Ptr(true),
+			},
+		}
+		updatedDeployment.ObjectMeta.Labels = labels
+		for k, v := range nbrp.Spec.Annotations {
+			updatedDeployment.ObjectMeta.Annotations[k] = nbrp.Spec.Annotations[v]
+		}
+		var replicas int32 = 3
+		if nbrp.Spec.Replicas != nil {
+			replicas = *nbrp.Spec.Replicas
+		}
+		updatedDeployment.Spec.Replicas = &replicas
+		updatedDeployment.Spec.Selector = &v1.LabelSelector{
+			MatchLabels: map[string]string{
+				"app.kubernetes.io/name": "netbird-router",
+			},
+		}
+		updatedDeployment.Spec.Template.Spec.Tolerations = nbrp.Spec.Tolerations
+		updatedDeployment.Spec.Template.Spec.NodeSelector = nbrp.Spec.NodeSelector
+		updatedDeployment.Spec.Template.ObjectMeta.Labels = podLabels
+		updatedDeployment.Spec.Template.Spec.Volumes = nbrp.Spec.Volumes
+		if len(updatedDeployment.Spec.Template.Spec.Containers) != 1 {
+			updatedDeployment.Spec.Template.Spec.Containers = []corev1.Container{{}}
+		}
+		updatedDeployment.Spec.Template.Spec.Containers[0].Name = "netbird"
+		updatedDeployment.Spec.Template.Spec.Containers[0].Image = r.ClientImage
+		updatedDeployment.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{
+			{
+				Name: "NB_SETUP_KEY",
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: nbrp.Name,
+						},
+						Key: "setupKey",
+					},
+				},
+			},
+			{
+				Name:  "NB_MANAGEMENT_URL",
+				Value: r.ManagementURL,
+			},
+		}
+		updatedDeployment.Spec.Template.Spec.Containers[0].SecurityContext = r.buildSecurityContext(nbrp)
+		updatedDeployment.Spec.Template.Spec.Containers[0].Resources = nbrp.Spec.Resources
+		updatedDeployment.Spec.Template.Spec.Containers[0].VolumeMounts = nbrp.Spec.VolumeMounts
 
-		return nil
-	})
-	if err != nil {
-		return err
+		patch := client.StrategicMergeFrom(&routingPeerDeployment)
+		bs, _ := patch.Data(updatedDeployment)
+		// To ensure no useless patching is done to the deployment being watched
+		// Minimum patch size is 2 for "{}"
+		if len(bs) <= 2 {
+			return nil
+		}
+		err = r.Client.Patch(ctx, updatedDeployment, patch)
+		if err != nil {
+			logger.Error(errKubernetesAPI, "error updating Deployment", "err", err)
+			nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("error updating Deployment: %v", err))
+			return err
+		}
 	}
-	return nil
+
+	return err
 }
 
 // handleRouter reconcile network routing peer in NetBird management API
@@ -283,10 +356,10 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 		nbrp.Status.SetupKeyID = &setupKey.Id
 
 		skSecret := corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
+			ObjectMeta: v1.ObjectMeta{
 				Name:      nbrp.Name,
 				Namespace: nbrp.Namespace,
-				OwnerReferences: []metav1.OwnerReference{
+				OwnerReferences: []v1.OwnerReference{
 					{
 						APIVersion:         netbirdiov1.GroupVersion.Identifier(),
 						Kind:               "NBRoutingPeer",
@@ -393,10 +466,10 @@ func (r *NBRoutingPeerReconciler) handleGroup(ctx context.Context, req ctrl.Requ
 
 	if errors.IsNotFound(err) {
 		nbGroup = netbirdiov1.NBGroup{
-			ObjectMeta: metav1.ObjectMeta{
+			ObjectMeta: v1.ObjectMeta{
 				Name:      nbrp.Name,
 				Namespace: nbrp.Namespace,
-				OwnerReferences: []metav1.OwnerReference{
+				OwnerReferences: []v1.OwnerReference{
 					{
 						APIVersion:         netbirdiov1.GroupVersion.Identifier(),
 						Kind:               "NBRoutingPeer",
@@ -570,11 +643,30 @@ func (r *NBRoutingPeerReconciler) handleDelete(ctx context.Context, req ctrl.Req
 	return ctrl.Result{}, nil
 }
 
+// buildSecurityContext creates the appropriate SecurityContext based on the NBRoutingPeer spec
+func (r *NBRoutingPeerReconciler) buildSecurityContext(nbrp *netbirdiov1.NBRoutingPeer) *corev1.SecurityContext {
+	securityContext := &corev1.SecurityContext{
+		Capabilities: &corev1.Capabilities{
+			Add: []corev1.Capability{
+				"NET_ADMIN",
+			},
+		},
+	}
+
+	// Set privileged mode if specified
+	if nbrp.Spec.Privileged != nil && *nbrp.Spec.Privileged {
+		securityContext.Privileged = nbrp.Spec.Privileged
+	}
+
+	return securityContext
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *NBRoutingPeerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&netbirdiov1.NBRoutingPeer{}).
-		Owns(&appsv1.Deployment{}).
+		Named("nbroutingpeer").
+		Watches(&appsv1.Deployment{}, handler.EnqueueRequestForOwner(mgr.GetScheme(), mgr.GetRESTMapper(), &netbirdiov1.NBRoutingPeer{})).
 		Watches(&corev1.Secret{}, handler.EnqueueRequestForOwner(mgr.GetScheme(), mgr.GetRESTMapper(), &netbirdiov1.NBRoutingPeer{})).
 		Watches(&netbirdiov1.NBGroup{}, handler.EnqueueRequestForOwner(mgr.GetScheme(), mgr.GetRESTMapper(), &netbirdiov1.NBRoutingPeer{})).
 		Complete(r)

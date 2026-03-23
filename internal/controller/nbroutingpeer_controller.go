@@ -4,13 +4,12 @@ import (
 	"context"
 	"fmt"
 	"maps"
-	"slices"
 	"strings"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -22,6 +21,10 @@ import (
 	"github.com/netbirdio/kubernetes-operator/internal/util"
 	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
 	"github.com/netbirdio/netbird/shared/management/http/api"
+)
+
+const (
+	RoutingPeerFinalizer = "netbird.io/routingpeer"
 )
 
 // NBRoutingPeerReconciler reconciles a NBRoutingPeer object
@@ -45,15 +48,12 @@ func (r *NBRoutingPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	nbrp := &netbirdiov1.NBRoutingPeer{}
 	err = r.Get(ctx, req.NamespacedName, nbrp)
 	if err != nil {
-		if !errors.IsNotFound(err) {
-			logger.Error(errKubernetesAPI, "error getting NBRoutingPeer", "err", err)
-		}
-		return ctrl.Result{RequeueAfter: defaultRequeueAfter}, nil
+		return ctrl.Result{RequeueAfter: defaultRequeueAfter}, client.IgnoreNotFound(err)
 	}
 
 	originalNBRP := nbrp.DeepCopy()
 	defer func() {
-		if originalNBRP.DeletionTimestamp != nil && len(nbrp.Finalizers) == 0 {
+		if !originalNBRP.DeletionTimestamp.IsZero() {
 			return
 		}
 		if !originalNBRP.Status.Equal(nbrp.Status) {
@@ -73,11 +73,15 @@ func (r *NBRoutingPeerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 	}()
 
-	if nbrp.DeletionTimestamp != nil {
-		if len(nbrp.Finalizers) == 0 {
-			return ctrl.Result{}, nil
+	if !nbrp.DeletionTimestamp.IsZero() {
+		return r.reconcileDelete(ctx, nbrp)
+	}
+
+	if controllerutil.AddFinalizer(nbrp, RoutingPeerFinalizer) {
+		err = r.Client.Update(ctx, nbrp)
+		if err != nil {
+			return ctrl.Result{}, err
 		}
-		return r.handleDelete(ctx, req, nbrp, logger)
 	}
 
 	logger.Info("NBRoutingPeer: Checking network")
@@ -302,7 +306,7 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 			},
 		}
 		err = r.Client.Create(ctx, &skSecret)
-		if errors.IsAlreadyExists(err) {
+		if kerrors.IsAlreadyExists(err) {
 			err = r.Client.Get(ctx, req.NamespacedName, &skSecret)
 			if err != nil {
 				logger.Error(errNetBirdAPI, "error getting secret", "err", err)
@@ -347,13 +351,13 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 		// Check if secret is valid
 		skSecret := corev1.Secret{}
 		err = r.Client.Get(ctx, req.NamespacedName, &skSecret)
-		if err != nil && !errors.IsNotFound(err) {
+		if err != nil && !kerrors.IsNotFound(err) {
 			logger.Error(errKubernetesAPI, "error getting Secret", "err", err)
 			nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("error getting secret: %v", err))
 			return &ctrl.Result{}, err
 		}
 
-		if _, ok := skSecret.Data["setupKey"]; errors.IsNotFound(err) || !ok {
+		if _, ok := skSecret.Data["setupKey"]; kerrors.IsNotFound(err) || !ok {
 			// Someone deleted setup key secret
 			// Revoke SK from NetBird and re-generate
 			err = r.Netbird.SetupKeys.Delete(ctx, *nbrp.Status.SetupKeyID)
@@ -385,13 +389,13 @@ func (r *NBRoutingPeerReconciler) handleGroup(ctx context.Context, req ctrl.Requ
 	// Check if NetBird Group exists
 	nbGroup := netbirdiov1.NBGroup{}
 	err := r.Client.Get(ctx, req.NamespacedName, &nbGroup)
-	if err != nil && !errors.IsNotFound(err) {
+	if err != nil && !kerrors.IsNotFound(err) {
 		logger.Error(errKubernetesAPI, "error getting NBGroup", "err", err)
 		nbrp.Status.Conditions = netbirdiov1.NBConditionFalse("internalError", fmt.Sprintf("error getting NBGroup: %v", err))
 		return nil, &ctrl.Result{}, err
 	}
 
-	if errors.IsNotFound(err) {
+	if kerrors.IsNotFound(err) {
 		nbGroup = netbirdiov1.NBGroup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      nbrp.Name,
@@ -476,97 +480,54 @@ func (r *NBRoutingPeerReconciler) handleNetwork(ctx context.Context, req ctrl.Re
 	return nil
 }
 
-func (r *NBRoutingPeerReconciler) handleDelete(ctx context.Context, req ctrl.Request, nbrp *netbirdiov1.NBRoutingPeer, logger logr.Logger) (ctrl.Result, error) {
-	nbDeployment := appsv1.Deployment{}
-	err := r.Client.Get(ctx, req.NamespacedName, &nbDeployment)
-	if err != nil && !errors.IsNotFound(err) {
-		logger.Error(errKubernetesAPI, "error getting Deployment", "err", err)
-		return ctrl.Result{}, err
+func (r *NBRoutingPeerReconciler) reconcileDelete(ctx context.Context, nbrp *netbirdiov1.NBRoutingPeer) (ctrl.Result, error) {
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      nbrp.ObjectMeta.Name,
+			Namespace: nbrp.ObjectMeta.Namespace,
+		},
 	}
-	if err == nil {
-		err = r.Client.Delete(ctx, &nbDeployment)
-		if err != nil {
-			logger.Error(errKubernetesAPI, "error deleting Deployment", "err", err)
-			return ctrl.Result{}, err
-		}
+	err := r.Client.Delete(ctx, dep)
+	if err != nil && !kerrors.IsNotFound(err) {
+		return ctrl.Result{}, err
 	}
 
 	if nbrp.Status.SetupKeyID != nil {
-		logger.Info("Deleting setup key", "id", *nbrp.Status.SetupKeyID)
 		err = r.Netbird.SetupKeys.Delete(ctx, *nbrp.Status.SetupKeyID)
-		if err != nil && !strings.Contains(err.Error(), "not found") {
-			logger.Error(errNetBirdAPI, "error deleting setupKey", "err", err)
+		if err != nil && !netbird.IsNotFound(err) {
 			return ctrl.Result{}, err
 		}
+	}
 
-		setupKeyID := *nbrp.Status.SetupKeyID
-		nbrp.Status.SetupKeyID = nil
-		logger.Info("Setup key deleted", "id", setupKeyID)
+	if nbrp.Status.NetworkID != nil {
+		err = r.Netbird.Networks.Delete(ctx, *nbrp.Status.NetworkID)
+		if err != nil && !netbird.IsNotFound(err) {
+			return ctrl.Result{}, err
+		}
 	}
 
 	nbGroup := netbirdiov1.NBGroup{}
-	err = r.Client.Get(ctx, req.NamespacedName, &nbGroup)
-	if err != nil && !errors.IsNotFound(err) {
-		logger.Error(errKubernetesAPI, "error getting NBGroup", "err", err)
+	err = r.Client.Get(ctx, client.ObjectKeyFromObject(nbrp), &nbGroup)
+	if err != nil && !kerrors.IsNotFound(err) {
 		return ctrl.Result{}, err
 	}
-
-	if nbrp.Status.NetworkID != nil {
-		nbResourceList := netbirdiov1.NBResourceList{}
-		err = r.Client.List(ctx, &nbResourceList)
-		if err != nil {
-			logger.Error(errKubernetesAPI, "error listing NBResource", "err", err)
-			return ctrl.Result{}, err
-		}
-
-		for _, nbrs := range nbResourceList.Items {
-			if nbrs.Spec.NetworkID == *nbrp.Status.NetworkID {
-				logger.Info("Deleting NBResource", "namespace", nbrs.Namespace, "name", nbrs.Name)
-				err = r.Client.Delete(ctx, &nbrs)
-				if err != nil {
-					logger.Error(errKubernetesAPI, "error deleting NBResource", "err", err)
-					return ctrl.Result{}, err
-				}
-			}
-		}
-
-		if len(nbResourceList.Items) == 0 {
-			logger.Info("Deleting NetBird Network", "id", *nbrp.Status.NetworkID)
-			err = r.Netbird.Networks.Delete(ctx, *nbrp.Status.NetworkID)
-			if err != nil && !strings.Contains(err.Error(), "not found") {
-				logger.Error(errNetBirdAPI, "error deleting Network", "err", err)
+	if err == nil {
+		if controllerutil.RemoveFinalizer(&nbGroup, "netbird.io/routing-peer-cleanup") {
+			err = r.Client.Update(ctx, &nbGroup)
+			if err != nil {
 				return ctrl.Result{}, err
 			}
-
-			nbrp.Status.NetworkID = nil
-			nbrp.Status.RouterID = nil
 		}
 	}
 
-	if nbGroup.Spec.Name != "" && slices.Contains(nbGroup.Finalizers, "netbird.io/routing-peer-cleanup") {
-		nbGroup.Finalizers = util.Without(nbGroup.Finalizers, "netbird.io/routing-peer-cleanup")
-		logger.Info("Removing netbird.io/routing-peer-cleanup finalizer NBGroup", "namespace", nbGroup.Namespace, "name", nbGroup.Name)
-		err = r.Client.Update(ctx, &nbGroup)
-		if err != nil {
-			logger.Error(errKubernetesAPI, "error deleting NBGroup", "err", err)
-			return ctrl.Result{}, err
-		}
-	}
+	// This is needed because cleanup finalizers have been added outised of the controller.
+	controllerutil.RemoveFinalizer(nbrp, "netbird.io/cleanup")
 
-	if nbrp.Status.NetworkID != nil {
-		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+	controllerutil.RemoveFinalizer(nbrp, RoutingPeerFinalizer)
+	err = r.Client.Update(ctx, nbrp)
+	if err != nil {
+		return ctrl.Result{}, err
 	}
-
-	if len(nbrp.Finalizers) > 0 {
-		logger.Info("Removing finalizers", "namespace", nbrp.Namespace, "name", nbrp.Name)
-		nbrp.Finalizers = nil
-		err = r.Client.Update(ctx, nbrp)
-		if err != nil {
-			logger.Error(errKubernetesAPI, "error updating NBRoutingPeer finalizers", "err", err)
-			return ctrl.Result{}, err
-		}
-	}
-
 	return ctrl.Result{}, nil
 }
 

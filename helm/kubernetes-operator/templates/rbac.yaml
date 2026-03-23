@@ -130,6 +130,7 @@ rules:
     - gatewayclasses
     - gateways
     - httproutes
+    - tcproutes
   verbs:
     - get
     - list
@@ -141,6 +142,7 @@ rules:
     - gatewayclasses/status
     - gateways/status
     - httproutes/status
+    - tcproutes/status
   verbs:
     - update
     - patch

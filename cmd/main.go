@@ -41,6 +41,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
 	"github.com/netbirdio/kubernetes-operator/internal/controller"
@@ -59,6 +60,7 @@ func init() {
 	utilruntime.Must(netbirdiov1.AddToScheme(scheme))
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(gatewayv1.Install(scheme))
+	utilruntime.Must(gatewayv1alpha2.Install(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -294,6 +296,13 @@ func main() {
 				ClusterDNS: clusterDNS,
 			}).SetupWithManager(mgr); err != nil {
 				setupLog.Error(err, "unable to create controller", "controller", "HTTPRoute")
+				os.Exit(1)
+			}
+			if err = (&controller.TCPRouteReconciler{
+				Client:     mgr.GetClient(),
+				ClusterDNS: clusterDNS,
+			}).SetupWithManager(mgr); err != nil {
+				setupLog.Error(err, "unable to create controller", "controller", "TCPRoute")
 				os.Exit(1)
 			}
 		}

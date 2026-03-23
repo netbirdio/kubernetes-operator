@@ -14,9 +14,12 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
+	netbirdiov1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	"github.com/netbirdio/kubernetes-operator/internal/gatewayutil"
 	"github.com/netbirdio/kubernetes-operator/internal/util"
 )
@@ -44,6 +47,21 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	if !hr.DeletionTimestamp.IsZero() {
 		return r.reconcileDelete(ctx, hr)
+	}
+
+	// Get resource policies targeting rout.
+	rpList := &netbirdiov1alpha1.ResourcePolicyList{}
+	err = r.Client.List(ctx, rpList)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	groups := []string{}
+	for _, rp := range rpList.Items {
+		for _, ref := range rp.Spec.TargetRefs {
+			if ref.Group == "gateway.networking.k8s.io" && ref.Kind == "HTTPRoute" && string(ref.Name) == hr.Name {
+				groups = append(groups, rp.Spec.Groups...)
+			}
+		}
 	}
 
 	for _, parent := range hr.Spec.ParentRefs {
@@ -104,7 +122,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 					Name:      svc.Name,
 					NetworkID: *nbrp.Status.NetworkID,
 					Address:   fmt.Sprintf("%s.%s.%s", svc.Name, svc.Namespace, r.ClusterDNS),
-					Groups:    []string{},
+					Groups:    groups,
 				}
 				return nil
 			})
@@ -270,5 +288,20 @@ func (r *HTTPRouteReconciler) reconcileDelete(ctx context.Context, hr gatewayv1.
 func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.HTTPRoute{}).
+		Watches(&netbirdiov1alpha1.ResourcePolicy{}, handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
+			rp, ok := obj.(*netbirdiov1alpha1.ResourcePolicy)
+			if !ok {
+				return nil
+			}
+			reqs := []reconcile.Request{}
+			for _, ref := range rp.Spec.TargetRefs {
+				nn := client.ObjectKey{
+					Namespace: rp.Namespace,
+					Name:      string(ref.Name),
+				}
+				reqs = append(reqs, reconcile.Request{NamespacedName: nn})
+			}
+			return reqs
+		})).
 		Complete(r)
 }

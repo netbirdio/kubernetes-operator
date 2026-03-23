@@ -44,6 +44,7 @@ import (
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
+	netbirdiov1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	"github.com/netbirdio/kubernetes-operator/internal/controller"
 	webhooknetbirdiov1 "github.com/netbirdio/kubernetes-operator/internal/webhook/v1"
 	// +kubebuilder:scaffold:imports
@@ -61,6 +62,7 @@ func init() {
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(gatewayv1.Install(scheme))
 	utilruntime.Must(gatewayv1alpha2.Install(scheme))
+	utilruntime.Must(netbirdiov1alpha1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 

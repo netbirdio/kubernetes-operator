@@ -1,13 +1,13 @@
 module github.com/netbirdio/kubernetes-operator
 
-go 1.25.0
+go 1.25.5
 
 toolchain go1.26.1
 
 require (
 	github.com/go-logr/logr v1.4.3
 	github.com/google/uuid v1.6.0
-	github.com/netbirdio/netbird v0.66.4
+	github.com/netbirdio/netbird v0.67.0
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.39.1
 	k8s.io/api v0.35.2

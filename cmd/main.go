@@ -36,6 +36,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -44,6 +45,7 @@ import (
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
+	netbirdiov1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	"github.com/netbirdio/kubernetes-operator/internal/controller"
 	webhooknetbirdiov1 "github.com/netbirdio/kubernetes-operator/internal/webhook/v1"
 	// +kubebuilder:scaffold:imports
@@ -61,6 +63,7 @@ func init() {
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(gatewayv1.Install(scheme))
 	utilruntime.Must(gatewayv1alpha2.Install(scheme))
+	utilruntime.Must(netbirdiov1alpha1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -189,6 +192,9 @@ func main() {
 		Metrics: metricsserver.Options{
 			BindAddress: metricsAddr,
 		},
+		Client: client.Options{
+			FieldOwner: "netbird-operator",
+		},
 		WebhookServer:           webhookServer,
 		HealthProbeBindAddress:  probeAddr,
 		LeaderElectionNamespace: runtimeNamespace,
@@ -277,6 +283,13 @@ func main() {
 			}
 		}
 
+		if err := (&controller.SetupKeyReconciler{
+			Client:  mgr.GetClient(),
+			Netbird: netbird,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "Failed to create controller", "controller", "SetupKey")
+			os.Exit(1)
+		}
 		if gatewayAPIEnabled {
 			if err = (&controller.GatewayClassReconciler{
 				Client: mgr.GetClient(),

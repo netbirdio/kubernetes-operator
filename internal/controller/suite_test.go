@@ -35,6 +35,7 @@ import (
 	foobarv1 "k8s.io/api/core/v1"
 
 	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
+	netbirdiov1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -67,6 +68,9 @@ var _ = BeforeSuite(func() {
 	err = foobarv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
+	err = netbirdiov1alpha1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
 	// +kubebuilder:scaffold:scheme
 
 	By("bootstrapping test environment")
@@ -85,7 +89,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
-	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
+	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme, FieldOwner: "netbird-operator"})
+
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 })

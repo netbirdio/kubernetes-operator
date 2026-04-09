@@ -18,29 +18,23 @@ all: build
 
 ##@ Development
 
+## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 .PHONY: manifests
-manifests: ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+manifests:
 	go tool controller-gen crd paths="./..." output:crd:artifacts:config=helm/kubernetes-operator/crds
 	go tool crd-ref-docs --log-level error --output-path docs/api-reference.md --renderer markdown --source-path api/v1alpha1 --config docs/.crd-ref-docs.yaml
 
+## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 .PHONY: generate
-generate: ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
+generate:
 	go tool controller-gen applyconfiguration:headerFile="hack/boilerplate.go.txt" object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
-.PHONY: fmt
-fmt: ## Run go fmt against code.
-	go fmt ./...
-
-.PHONY: vet
-vet: ## Run go vet against code.
-	go vet ./...
-
 .PHONY: test
-test: manifests fmt vet setup-envtest ## Run tests.
+test: manifests setup-envtest
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -v $$(go list ./... | grep -v /e2e) -coverprofile cover.out
 
 .PHONY: test-e2e
-test-e2e: manifests fmt vet ## Run the e2e tests. Expected an isolated environment using Kind.
+test-e2e: manifests
 	@command -v kind >/dev/null 2>&1 || { \
 		echo "Kind is not installed. Please install Kind manually."; \
 		exit 1; \
@@ -52,35 +46,28 @@ test-e2e: manifests fmt vet ## Run the e2e tests. Expected an isolated environme
 	go test ./test/e2e/ -v -ginkgo.v
 
 .PHONY: lint
-lint: golangci-lint ## Run golangci-lint linter
-	$(GOLANGCI_LINT) run
-
-.PHONY: lint-fix
-lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
-	$(GOLANGCI_LINT) run --fix
-
-.PHONY: lint-config
-lint-config: golangci-lint ## Verify golangci-lint linter configuration
-	$(GOLANGCI_LINT) config verify
+lint:
+	@golangci-lint run ./...
 
 ##@ Build
 
 .PHONY: build
-build: manifests fmt vet ## Build manager binary.
+build: manifests
 	go build -o bin/manager cmd/main.go
 
 .PHONY: run
-run: manifests fmt vet ## Run a controller from your host.
+run: manifests
 	go run ./cmd/main.go
 
 .PHONY: docker-build
-docker-build: ## Build docker image with the manager.
+docker-build:
 	docker build -t ${IMG} .
 
+## Generate a consolidated YAML with CRDs and deployment.
 .PHONY: build-installer
-build-installer: manifests ## Generate a consolidated YAML with CRDs and deployment.
+build-installer: manifests
 	mkdir -p manifests
-	$(HELM) template --include-crds kubernetes-operator helm/kubernetes-operator > manifests/install.yaml
+	helm template --include-crds kubernetes-operator helm/kubernetes-operator > manifests/install.yaml
 
 ##@ Deployment
 
@@ -88,21 +75,25 @@ ifndef ignore-not-found
   ignore-not-found = false
 endif
 
+## Install CRDs into the K8s cluster specified in ~/.kube/config.
 .PHONY: install
-install: manifests ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	$(KUBECTL) apply --server-side -f helm/kubernetes-operator/crds
+install: manifests
+	kubectl apply --server-side -f helm/kubernetes-operator/crds
 
+## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 .PHONY: uninstall
-uninstall: manifests ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUBECTL) delete -f helm/kubernetes-operator/crds
+uninstall: manifests
+	kubectl delete -f helm/kubernetes-operator/crds
 
+## Deploy controller to the K8s cluster specified in ~/.kube/config.
 .PHONY: deploy
-deploy: manifests ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	$(HELM) install -n netbird --create-namespace kubernetes-operator --set operator.image.tag=$(word 2,$(subst :, ,${IMG})) helm/kubernetes-operator
+deploy: manifests
+	helm install -n netbird --create-namespace kubernetes-operator --set operator.image.tag=$(word 2,$(subst :, ,${IMG})) helm/kubernetes-operator
 
+## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 .PHONY: undeploy
-undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(HELM) uninstall -n netbird kubernetes-operator
+undeploy:
+	helm uninstall -n netbird kubernetes-operator
 
 ##@ Dependencies
 
@@ -112,16 +103,12 @@ $(LOCALBIN):
 	mkdir -p $(LOCALBIN)
 
 ## Tool Binaries
-KUBECTL ?= kubectl
 ENVTEST ?= $(LOCALBIN)/setup-envtest
-GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
-HELM ?= helm
 
 #ENVTEST_VERSION is the version of controller-runtime release branch to fetch the envtest setup script (i.e. release-0.20)
 ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
 #ENVTEST_K8S_VERSION is the version of Kubernetes to use for setting up ENVTEST binaries (i.e. 1.31)
 ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -F'[v.]' '{printf "1.%d", $$3}')
-GOLANGCI_LINT_VERSION ?= v1.63.4
 
 .PHONY: setup-envtest
 setup-envtest: envtest ## Download the binaries required for ENVTEST in the local bin directory.
@@ -132,14 +119,10 @@ setup-envtest: envtest ## Download the binaries required for ENVTEST in the loca
 	}
 
 .PHONY: envtest
+
 envtest: $(ENVTEST) ## Download setup-envtest locally if necessary.
 $(ENVTEST): $(LOCALBIN)
 	$(call go-install-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest,$(ENVTEST_VERSION))
-
-.PHONY: golangci-lint
-golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
-$(GOLANGCI_LINT): $(LOCALBIN)
-	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/cmd/golangci-lint,$(GOLANGCI_LINT_VERSION))
 
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
 # $1 - target path with name of binary

@@ -16,6 +16,14 @@ import (
 func ForKind(kind schema.GroupVersionKind) interface{} {
 	switch kind {
 	// Group=netbird.io, Version=v1alpha1
+	case v1alpha1.SchemeGroupVersion.WithKind("Group"):
+		return &apiv1alpha1.GroupApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("GroupSpec"):
+		return &apiv1alpha1.GroupSpecApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("GroupStatus"):
+		return &apiv1alpha1.GroupStatusApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("ResourceReference"):
+		return &apiv1alpha1.ResourceReferenceApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("SetupKey"):
 		return &apiv1alpha1.SetupKeyApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("SetupKeySpec"):

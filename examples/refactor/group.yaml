@@ -1,0 +1,7 @@
+apiVersion: netbird.io/v1alpha1
+kind: Group
+metadata:
+  name: test
+  namespace: default
+spec:
+  name: test

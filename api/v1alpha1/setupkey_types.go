@@ -14,6 +14,10 @@ type SetupKeySpec struct {
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="duration is immutable"
 	// +optional
 	Duration *metav1.Duration `json:"duration,omitempty"`
+
+	// Groups that will be automatically assigned to resources using setup key.
+	// +optional
+	AutoGroups []ResourceReference `json:"autoGroups,omitempty"`
 }
 
 // SetupKeyStatus defines the observed state of SetupKey.

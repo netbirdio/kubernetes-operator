@@ -3,12 +3,14 @@ package controller
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
 	"github.com/netbirdio/netbird/shared/management/http/api"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1ac "k8s.io/client-go/applyconfigurations/core/v1"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -42,6 +44,34 @@ func (r *SetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 	if !setupKey.DeletionTimestamp.IsZero() {
 		return r.reconcileDelete(ctx, setupKey)
+	}
+
+	// Get ids for auto groups.
+	autoGroupIDs := []string{}
+	for _, ref := range setupKey.Spec.AutoGroups {
+		switch {
+		case ref.ID != nil:
+			_, err := r.Netbird.Groups.Get(ctx, *ref.ID)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			autoGroupIDs = append(autoGroupIDs, *ref.ID)
+		case ref.LocalRef != nil:
+			group := nbv1alpha1.Group{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      ref.LocalRef.Name,
+					Namespace: setupKey.Namespace,
+				},
+			}
+			err = r.Client.Get(ctx, client.ObjectKeyFromObject(&group), &group)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			if group.Status.GroupID == nil {
+				return ctrl.Result{}, fmt.Errorf("group %s in auto groups list is not ready", group.Name)
+			}
+			autoGroupIDs = append(autoGroupIDs, *group.Status.GroupID)
+		}
 	}
 
 	// Set finalizer on the setup key.
@@ -89,7 +119,7 @@ func (r *SetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 		// Auto groups have not been changed.
 		setupKeyReq := api.PutApiSetupKeysKeyIdJSONRequestBody{
-			AutoGroups: []string{},
+			AutoGroups: autoGroupIDs,
 		}
 		_, err = r.Netbird.SetupKeys.Update(ctx, *setupKey.Status.SetupKeyID, setupKeyReq)
 		if err != nil {
@@ -113,7 +143,7 @@ func (r *SetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 	setupKeyReq := api.PostApiSetupKeysJSONRequestBody{
 		AllowExtraDnsLabels: ptr.To(false),
-		AutoGroups:          []string{},
+		AutoGroups:          autoGroupIDs,
 		Ephemeral:           ptr.To(setupKey.Spec.Ephemeral),
 		ExpiresIn:           expiresIn,
 		Name:                req.Name,
@@ -160,17 +190,15 @@ func (r *SetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 }
 
 func (r *SetupKeyReconciler) reconcileDelete(ctx context.Context, setupKey nbv1alpha1.SetupKey) (ctrl.Result, error) {
-	if setupKey.Status.SetupKeyID == nil {
-		return ctrl.Result{}, nil
-	}
-
-	err := r.Netbird.SetupKeys.Delete(ctx, *setupKey.Status.SetupKeyID)
-	if err != nil && !netbird.IsNotFound(err) {
-		return ctrl.Result{}, err
+	if setupKey.Status.SetupKeyID != nil {
+		err := r.Netbird.SetupKeys.Delete(ctx, *setupKey.Status.SetupKeyID)
+		if err != nil && !netbird.IsNotFound(err) {
+			return ctrl.Result{}, err
+		}
 	}
 
 	setupKeyAC := nbv1alpha1ac.SetupKey(setupKey.Name, setupKey.Namespace).WithFinalizers()
-	err = r.Client.Apply(ctx, setupKeyAC)
+	err := r.Client.Apply(ctx, setupKeyAC)
 	if err != nil {
 		return ctrl.Result{}, err
 	}

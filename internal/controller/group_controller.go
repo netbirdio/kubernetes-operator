@@ -7,6 +7,7 @@ import (
 	"github.com/netbirdio/netbird/shared/management/http/api"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	nbv1alpha1ac "github.com/netbirdio/kubernetes-operator/pkg/applyconfigurations/api/v1alpha1"
@@ -37,10 +38,11 @@ func (r *GroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return r.reconcileDelete(ctx, group)
 	}
 
-	groupAC := nbv1alpha1ac.Group(req.Name, req.Namespace).WithFinalizers(SetupKeyFinalizer)
-	err = r.Client.Apply(ctx, groupAC)
-	if err != nil {
-		return ctrl.Result{}, err
+	if controllerutil.AddFinalizer(&group, GroupFinalizer) {
+		err = r.Client.Update(ctx, &group)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	groupID, err := func() (string, error) {
@@ -70,7 +72,7 @@ func (r *GroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return ctrl.Result{}, err
 	}
 
-	groupAC = nbv1alpha1ac.Group(req.Name, req.Namespace).WithStatus(nbv1alpha1ac.GroupStatus().WithGroupID(groupID))
+	groupAC := nbv1alpha1ac.Group(req.Name, req.Namespace).WithStatus(nbv1alpha1ac.GroupStatus().WithGroupID(groupID))
 	err = r.Client.Status().Apply(ctx, groupAC)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -87,11 +89,13 @@ func (r *GroupReconciler) reconcileDelete(ctx context.Context, group nbv1alpha1.
 		}
 	}
 
-	groupAC := nbv1alpha1ac.Group(group.Name, group.Namespace).WithFinalizers()
-	err := r.Client.Apply(ctx, groupAC)
-	if err != nil {
-		return ctrl.Result{}, err
+	if controllerutil.RemoveFinalizer(&group, GroupFinalizer) {
+		err := r.Client.Update(ctx, &group)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 	}
+
 	return ctrl.Result{}, nil
 }
 

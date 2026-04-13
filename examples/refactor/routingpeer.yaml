@@ -1,8 +1,8 @@
 apiVersion: netbird.io/v1alpha1
-kind: SetupKey
+kind: RoutingPeer
 metadata:
   name: test
   namespace: default
 spec:
-  name: "test"
-  expiration: 0
+  networkRef:
+    id: "d7fm7pqfadhs73fi0820"

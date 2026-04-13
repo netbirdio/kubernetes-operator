@@ -91,4 +91,12 @@ resources:
   kind: Group
   path: github.com/netbirdio/kubernetes-operator/api/v1alpha1
   version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: netbird.io
+  kind: RoutingPeer
+  path: github.com/netbirdio/kubernetes-operator/api/v1alpha1
+  version: v1alpha1
 version: "3"

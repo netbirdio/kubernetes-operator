@@ -80,8 +80,13 @@ spec:
                 x-kubernetes-validations:
                 - message: ephemeral is immutable
                   rule: self == oldSelf
+              name:
+                description: name of the setup key.
+                minLength: 1
+                type: string
             required:
             - ephemeral
+            - name
             type: object
           status:
             description: status defines the observed state of SetupKey

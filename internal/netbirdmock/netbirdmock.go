@@ -31,16 +31,30 @@ func Client() *netbird.Client {
 		}
 		return output
 	})
+	addHandler(mux, "networks", func(id string, input api.NetworkRequest, output api.Network) api.Network {
+		output.Id = id
+		output.Name = input.Name
+		output.Description = input.Description
+		return output
+	})
+	addHandler(mux, "networks/{network}/routers", func(id string, input api.NetworkRouterRequest, output api.NetworkRouter) api.NetworkRouter {
+		output.Id = id
+		output.Enabled = input.Enabled
+		output.Masquerade = input.Enabled
+		output.Metric = input.Metric
+		output.PeerGroups = input.PeerGroups
+		return output
+	})
 
 	srv := httptest.NewServer(mux)
 	return netbird.New(srv.URL, "ABC")
 }
 
-func addHandler[T, U any](mux *http.ServeMux, resource string, convertFn func(string, U, T) T) {
+func addHandler[T, U any](mux *http.ServeMux, subPath string, convertFn func(string, U, T) T) {
 	var itemMx sync.RWMutex
 	items := map[string]T{}
 
-	mux.Handle(fmt.Sprintf("GET /api/%s/{id}", resource), http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+	mux.Handle(fmt.Sprintf("GET /api/%s/{id}", subPath), http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		itemMx.RLock()
 		defer itemMx.RUnlock()
 
@@ -61,7 +75,7 @@ func addHandler[T, U any](mux *http.ServeMux, resource string, convertFn func(st
 			return
 		}
 	}))
-	mux.Handle(fmt.Sprintf("POST /api/%s", resource), http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+	mux.Handle(fmt.Sprintf("POST /api/%s", subPath), http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		itemMx.Lock()
 		defer itemMx.Unlock()
 
@@ -91,7 +105,7 @@ func addHandler[T, U any](mux *http.ServeMux, resource string, convertFn func(st
 			return
 		}
 	}))
-	mux.Handle(fmt.Sprintf("PUT /api/%s/{id}", resource), http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+	mux.Handle(fmt.Sprintf("PUT /api/%s/{id}", subPath), http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		itemMx.Lock()
 		defer itemMx.Unlock()
 
@@ -126,7 +140,7 @@ func addHandler[T, U any](mux *http.ServeMux, resource string, convertFn func(st
 			return
 		}
 	}))
-	mux.Handle(fmt.Sprintf("DELETE /api/%s/{id}", resource), http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+	mux.Handle(fmt.Sprintf("DELETE /api/%s/{id}", subPath), http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		itemMx.Lock()
 		defer itemMx.Unlock()
 

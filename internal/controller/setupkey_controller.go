@@ -15,6 +15,7 @@ import (
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	"github.com/netbirdio/kubernetes-operator/internal/ssautil"
@@ -75,10 +76,11 @@ func (r *SetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	// Set finalizer on the setup key.
-	setupKeyAC := nbv1alpha1ac.SetupKey(req.Name, req.Namespace).WithFinalizers(SetupKeyFinalizer)
-	err = r.Client.Apply(ctx, setupKeyAC)
-	if err != nil {
-		return ctrl.Result{}, err
+	if controllerutil.AddFinalizer(&setupKey, SetupKeyFinalizer) {
+		err := r.Client.Update(ctx, &setupKey)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	// Check if setup key is up to date.
@@ -146,7 +148,7 @@ func (r *SetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		AutoGroups:          autoGroupIDs,
 		Ephemeral:           ptr.To(setupKey.Spec.Ephemeral),
 		ExpiresIn:           expiresIn,
-		Name:                req.Name,
+		Name:                setupKey.Spec.Name,
 		Type:                "reusable",
 		UsageLimit:          0,
 	}
@@ -156,7 +158,7 @@ func (r *SetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	// Update the status with the id.
-	setupKeyAC = nbv1alpha1ac.SetupKey(req.Name, req.Namespace).WithStatus(nbv1alpha1ac.SetupKeyStatus().WithSetupKeyID(resp.Id))
+	setupKeyAC := nbv1alpha1ac.SetupKey(req.Name, req.Namespace).WithStatus(nbv1alpha1ac.SetupKeyStatus().WithSetupKeyID(resp.Id))
 	err = r.Client.Status().Apply(ctx, setupKeyAC)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -197,10 +199,11 @@ func (r *SetupKeyReconciler) reconcileDelete(ctx context.Context, setupKey nbv1a
 		}
 	}
 
-	setupKeyAC := nbv1alpha1ac.SetupKey(setupKey.Name, setupKey.Namespace).WithFinalizers()
-	err := r.Client.Apply(ctx, setupKeyAC)
-	if err != nil {
-		return ctrl.Result{}, err
+	if controllerutil.RemoveFinalizer(&setupKey, SetupKeyFinalizer) {
+		err := r.Client.Update(ctx, &setupKey)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	return ctrl.Result{}, nil

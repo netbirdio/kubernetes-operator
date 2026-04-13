@@ -6,6 +6,10 @@ import (
 
 // SetupKeySpec defines the desired state of SetupKey
 type SetupKeySpec struct {
+	// name of the setup key.
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+
 	// Ephemeral decides if peers added with the key are ephemeral or not.
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="ephemeral is immutable"
 	Ephemeral bool `json:"ephemeral"`

@@ -2,15 +2,7 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"io"
-	"math/rand"
-	"net/http"
-	"net/http/httptest"
 
-	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
-	"github.com/netbirdio/netbird/shared/management/http/api"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -20,74 +12,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
+	"github.com/netbirdio/kubernetes-operator/internal/netbirdmock"
 )
 
 var _ = Describe("SetupKey Controller", func() {
 	Context("When reconciling a resource", func() {
 		ctx := context.Background()
-
-		r := rand.New(rand.NewSource(GinkgoRandomSeed()))
-		setupKeyStore := map[string]*api.SetupKey{}
-		mux := &http.ServeMux{}
-		mux.HandleFunc("/api/setup-keys", func(rw http.ResponseWriter, req *http.Request) {
-			switch req.Method {
-			case http.MethodPost:
-				resp := api.SetupKeyClear{
-					Id:    fmt.Sprintf("id-%d", r.Int63()),
-					Key:   fmt.Sprintf("%d", r.Int63()),
-					State: "valid",
-				}
-				b, err := json.Marshal(resp)
-				Expect(err).NotTo(HaveOccurred())
-				_, err = rw.Write(b)
-				Expect(err).NotTo(HaveOccurred())
-
-				setupKey := api.SetupKey{
-					Id:    resp.Id,
-					Key:   resp.Key,
-					State: resp.State,
-				}
-				setupKeyStore[resp.Id] = &setupKey
-			default:
-				rw.WriteHeader(http.StatusNotFound)
-			}
-		})
-		mux.HandleFunc("/api/setup-keys/{id}", func(rw http.ResponseWriter, req *http.Request) {
-			id := req.PathValue("id")
-			setupKey, ok := setupKeyStore[id]
-			if !ok {
-				rw.WriteHeader(http.StatusNotFound)
-				return
-			}
-
-			switch req.Method {
-			case http.MethodDelete:
-				delete(setupKeyStore, id)
-				rw.WriteHeader(http.StatusOK)
-			case http.MethodGet:
-				b, err := json.Marshal(setupKey)
-				Expect(err).NotTo(HaveOccurred())
-				_, err = rw.Write(b)
-				Expect(err).NotTo(HaveOccurred())
-			case http.MethodPut:
-				b, err := io.ReadAll(req.Body)
-				Expect(err).NotTo(HaveOccurred())
-				putReq := api.SetupKeyRequest{}
-				err = json.Unmarshal(b, &putReq)
-				Expect(err).NotTo(HaveOccurred())
-
-				setupKey.AutoGroups = putReq.AutoGroups
-
-				b, err = json.Marshal(setupKey)
-				Expect(err).NotTo(HaveOccurred())
-				_, err = rw.Write(b)
-				Expect(err).NotTo(HaveOccurred())
-			default:
-				rw.WriteHeader(http.StatusNotFound)
-			}
-		})
-		server := httptest.NewServer(mux)
-		nbClient := netbird.New(server.URL, "ABC")
 
 		var controllerReconciler *SetupKeyReconciler
 		nn := client.ObjectKey{
@@ -98,9 +28,8 @@ var _ = Describe("SetupKey Controller", func() {
 		BeforeEach(func() {
 			controllerReconciler = &SetupKeyReconciler{
 				Client:  k8sClient,
-				Netbird: nbClient,
+				Netbird: netbirdmock.Client(),
 			}
-			setupKeyStore = map[string]*api.SetupKey{}
 		})
 
 		AfterEach(func() {
@@ -138,7 +67,10 @@ var _ = Describe("SetupKey Controller", func() {
 			}
 			err = k8sClient.Get(ctx, client.ObjectKeyFromObject(secret), secret)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(string(secret.Data[SetupKeySecretKey])).To(Equal(setupKeyStore[*setupKey.Status.SetupKeyID].Key))
+
+			resp, err := controllerReconciler.Netbird.SetupKeys.Get(ctx, *setupKey.Status.SetupKeyID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(secret.Data[SetupKeySecretKey])).To(Equal(resp.Key))
 		})
 
 		It("creates a new setup key when the secret is deleted", func() {
@@ -182,7 +114,6 @@ var _ = Describe("SetupKey Controller", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(k8sClient.Delete(ctx, &secondSecret)).To(Succeed())
 
-			Expect(setupKeyStore).To(HaveLen(1))
 			Expect(*firstSetupKey.Status.SetupKeyID).ToNot(Equal(*secondSetupKey.Status.SetupKeyID))
 			Expect(firstSecret.Data[SetupKeySecretKey]).ToNot(BeEquivalentTo(secondSecret.Data[SetupKeySecretKey]))
 		})

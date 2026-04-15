@@ -15,6 +15,8 @@ type SetupKeySpecApplyConfiguration struct {
 	Ephemeral *bool `json:"ephemeral,omitempty"`
 	// Duration sets how long the setup key is valid for.
 	Duration *v1.Duration `json:"duration,omitempty"`
+	// Groups that will be automatically assigned to resources using setup key.
+	AutoGroups []ResourceReferenceApplyConfiguration `json:"autoGroups,omitempty"`
 }
 
 // SetupKeySpecApplyConfiguration constructs a declarative configuration of the SetupKeySpec type for use with
@@ -36,5 +38,18 @@ func (b *SetupKeySpecApplyConfiguration) WithEphemeral(value bool) *SetupKeySpec
 // If called multiple times, the Duration field is set to the value of the last call.
 func (b *SetupKeySpecApplyConfiguration) WithDuration(value v1.Duration) *SetupKeySpecApplyConfiguration {
 	b.Duration = &value
+	return b
+}
+
+// WithAutoGroups adds the given value to the AutoGroups field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the AutoGroups field.
+func (b *SetupKeySpecApplyConfiguration) WithAutoGroups(values ...*ResourceReferenceApplyConfiguration) *SetupKeySpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithAutoGroups")
+		}
+		b.AutoGroups = append(b.AutoGroups, *values[i])
+	}
 	return b
 }

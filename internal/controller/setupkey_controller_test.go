@@ -27,7 +27,6 @@ var _ = Describe("SetupKey Controller", func() {
 		ctx := context.Background()
 
 		r := rand.New(rand.NewSource(GinkgoRandomSeed()))
-
 		setupKeyStore := map[string]*api.SetupKey{}
 		mux := &http.ServeMux{}
 		mux.HandleFunc("/api/setup-keys", func(rw http.ResponseWriter, req *http.Request) {

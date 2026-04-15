@@ -4,20 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.1
-  name: setupkeys.netbird.io
+  name: groups.netbird.io
 spec:
   group: netbird.io
   names:
-    kind: SetupKey
-    listKind: SetupKeyList
-    plural: setupkeys
-    singular: setupkey
+    kind: Group
+    listKind: GroupList
+    plural: groups
+    singular: group
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: SetupKey is the Schema for the setupkeys API
+        description: Group is the Schema for the groups API
         properties:
           apiVersion:
             description: |-
@@ -37,54 +37,17 @@ spec:
           metadata:
             type: object
           spec:
-            description: spec defines the desired state of SetupKey
+            description: spec defines the desired state of Group
             properties:
-              autoGroups:
-                description: Groups that will be automatically assigned to resources
-                  using setup key.
-                items:
-                  properties:
-                    id:
-                      description: id of the resource in the Netbird API.
-                      type: string
-                    localRef:
-                      description: local reference to the object in the same namespace.
-                      properties:
-                        name:
-                          default: ""
-                          description: |-
-                            Name of the referent.
-                            This field is effectively required, but due to backwards compatibility is
-                            allowed to be empty. Instances of this type with an empty value here are
-                            almost certainly wrong.
-                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                          type: string
-                      type: object
-                      x-kubernetes-map-type: atomic
-                  type: object
-                  x-kubernetes-validations:
-                  - message: exactly one of id or localRef must be set
-                    rule: (has(self.id) && !has(self.localRef)) || (!has(self.id)
-                      && has(self.localRef))
-                type: array
-              duration:
-                description: Duration sets how long the setup key is valid for.
+              name:
+                description: name of the group.
+                minLength: 1
                 type: string
-                x-kubernetes-validations:
-                - message: duration is immutable
-                  rule: self == oldSelf
-              ephemeral:
-                description: Ephemeral decides if peers added with the key are ephemeral
-                  or not.
-                type: boolean
-                x-kubernetes-validations:
-                - message: ephemeral is immutable
-                  rule: self == oldSelf
             required:
-            - ephemeral
+            - name
             type: object
           status:
-            description: status defines the observed state of SetupKey
+            description: status defines the observed state of Group
             properties:
               conditions:
                 description: The status of each condition is one of True, False, or
@@ -147,8 +110,7 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
-              setupKeyID:
-                description: SetupKeyID of the setup key.
+              groupID:
                 type: string
             type: object
         required:

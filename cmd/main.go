@@ -290,6 +290,14 @@ func main() {
 			setupLog.Error(err, "Failed to create controller", "controller", "SetupKey")
 			os.Exit(1)
 		}
+		if err := (&controller.GroupReconciler{
+			Client:  mgr.GetClient(),
+			Netbird: netbird,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "Failed to create controller", "controller", "Group")
+			os.Exit(1)
+		}
+
 		if gatewayAPIEnabled {
 			if err = (&controller.GatewayClassReconciler{
 				Client: mgr.GetClient(),

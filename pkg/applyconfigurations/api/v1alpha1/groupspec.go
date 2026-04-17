@@ -5,9 +5,9 @@ package v1alpha1
 // GroupSpecApplyConfiguration represents a declarative configuration of the GroupSpec type for use
 // with apply.
 //
-// GroupSpec defines the desired state of Group
+// GroupSpec defines the desired state of Group.
 type GroupSpecApplyConfiguration struct {
-	// name of the group.
+	// Name of the group.
 	Name *string `json:"name,omitempty"`
 }
 

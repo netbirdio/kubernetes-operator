@@ -14,10 +14,17 @@ spec:
     singular: setupkey
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: SetupKey is the Schema for the setupkeys API
+        description: SetupKey is the Schema for the setupkeys API.
         properties:
           apiVersion:
             description: |-
@@ -37,11 +44,11 @@ spec:
           metadata:
             type: object
           spec:
-            description: spec defines the desired state of SetupKey
+            description: SetupKeySpec defines the desired state of SetupKey.
             properties:
               autoGroups:
-                description: Groups that will be automatically assigned to resources
-                  using setup key.
+                description: AutoGroups are groups that will be automatically assigned
+                  to peers using setup key.
                 items:
                   properties:
                     id:
@@ -84,11 +91,12 @@ spec:
             - ephemeral
             type: object
           status:
-            description: status defines the observed state of SetupKey
+            default:
+              observedGeneration: -1
+            description: SetupKeyStatus defines the observed state of SetupKey.
             properties:
               conditions:
-                description: The status of each condition is one of True, False, or
-                  Unknown.
+                description: Conditions holds the conditions for the SetupKey.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -147,8 +155,12 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              observedGeneration:
+                description: ObservedGeneration is the last reconciled generation.
+                format: int64
+                type: integer
               setupKeyID:
-                description: SetupKeyID of the setup key.
+                description: SetupKeyID is the id of the created setup key.
                 type: string
             type: object
         required:

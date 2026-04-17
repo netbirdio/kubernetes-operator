@@ -4,4 +4,4 @@ metadata:
   name: test
   namespace: default
 spec:
-  expiration: 0
+  ephemeral: true

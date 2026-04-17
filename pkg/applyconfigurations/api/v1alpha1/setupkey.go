@@ -11,15 +11,12 @@ import (
 // SetupKeyApplyConfiguration represents a declarative configuration of the SetupKey type for use
 // with apply.
 //
-// SetupKey is the Schema for the setupkeys API
+// SetupKey is the Schema for the setupkeys API.
 type SetupKeyApplyConfiguration struct {
-	v1.TypeMetaApplyConfiguration `json:",inline"`
-	// metadata is a standard object metadata
+	v1.TypeMetaApplyConfiguration    `json:",inline"`
 	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
-	// spec defines the desired state of SetupKey
-	Spec *SetupKeySpecApplyConfiguration `json:"spec,omitempty"`
-	// status defines the observed state of SetupKey
-	Status *SetupKeyStatusApplyConfiguration `json:"status,omitempty"`
+	Spec                             *SetupKeySpecApplyConfiguration   `json:"spec,omitempty"`
+	Status                           *SetupKeyStatusApplyConfiguration `json:"status,omitempty"`
 }
 
 // SetupKey constructs a declarative configuration of the SetupKey type for use with

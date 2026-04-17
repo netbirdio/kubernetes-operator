@@ -14,10 +14,17 @@ spec:
     singular: group
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Group is the Schema for the groups API
+        description: Group is the Schema for the groups API.
         properties:
           apiVersion:
             description: |-
@@ -37,21 +44,22 @@ spec:
           metadata:
             type: object
           spec:
-            description: spec defines the desired state of Group
+            description: GroupSpec defines the desired state of Group.
             properties:
               name:
-                description: name of the group.
+                description: Name of the group.
                 minLength: 1
                 type: string
             required:
             - name
             type: object
           status:
-            description: status defines the observed state of Group
+            default:
+              observedGeneration: -1
+            description: GroupStatus defines the observed state of Group.
             properties:
               conditions:
-                description: The status of each condition is one of True, False, or
-                  Unknown.
+                description: Conditions holds the conditions for the Group.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -111,7 +119,12 @@ spec:
                 - type
                 x-kubernetes-list-type: map
               groupID:
+                description: GroupID is the id of the created group.
                 type: string
+              observedGeneration:
+                description: ObservedGeneration is the last reconciled generation.
+                format: int64
+                type: integer
             type: object
         required:
         - spec

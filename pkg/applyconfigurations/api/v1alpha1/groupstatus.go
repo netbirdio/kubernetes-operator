@@ -11,9 +11,12 @@ import (
 //
 // GroupStatus defines the observed state of Group.
 type GroupStatusApplyConfiguration struct {
-	GroupID *string `json:"groupID,omitempty"`
-	// The status of each condition is one of True, False, or Unknown.
+	// ObservedGeneration is the last reconciled generation.
+	ObservedGeneration *int64 `json:"observedGeneration,omitempty"`
+	// Conditions holds the conditions for the Group.
 	Conditions []v1.ConditionApplyConfiguration `json:"conditions,omitempty"`
+	// GroupID is the id of the created group.
+	GroupID *string `json:"groupID,omitempty"`
 }
 
 // GroupStatusApplyConfiguration constructs a declarative configuration of the GroupStatus type for use with
@@ -22,11 +25,11 @@ func GroupStatus() *GroupStatusApplyConfiguration {
 	return &GroupStatusApplyConfiguration{}
 }
 
-// WithGroupID sets the GroupID field in the declarative configuration to the given value
+// WithObservedGeneration sets the ObservedGeneration field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the GroupID field is set to the value of the last call.
-func (b *GroupStatusApplyConfiguration) WithGroupID(value string) *GroupStatusApplyConfiguration {
-	b.GroupID = &value
+// If called multiple times, the ObservedGeneration field is set to the value of the last call.
+func (b *GroupStatusApplyConfiguration) WithObservedGeneration(value int64) *GroupStatusApplyConfiguration {
+	b.ObservedGeneration = &value
 	return b
 }
 
@@ -40,5 +43,13 @@ func (b *GroupStatusApplyConfiguration) WithConditions(values ...*v1.ConditionAp
 		}
 		b.Conditions = append(b.Conditions, *values[i])
 	}
+	return b
+}
+
+// WithGroupID sets the GroupID field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the GroupID field is set to the value of the last call.
+func (b *GroupStatusApplyConfiguration) WithGroupID(value string) *GroupStatusApplyConfiguration {
+	b.GroupID = &value
 	return b
 }

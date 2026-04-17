@@ -9,13 +9,13 @@ import (
 // SetupKeySpecApplyConfiguration represents a declarative configuration of the SetupKeySpec type for use
 // with apply.
 //
-// SetupKeySpec defines the desired state of SetupKey
+// SetupKeySpec defines the desired state of SetupKey.
 type SetupKeySpecApplyConfiguration struct {
 	// Ephemeral decides if peers added with the key are ephemeral or not.
 	Ephemeral *bool `json:"ephemeral,omitempty"`
 	// Duration sets how long the setup key is valid for.
 	Duration *v1.Duration `json:"duration,omitempty"`
-	// Groups that will be automatically assigned to resources using setup key.
+	// AutoGroups are groups that will be automatically assigned to peers using setup key.
 	AutoGroups []ResourceReferenceApplyConfiguration `json:"autoGroups,omitempty"`
 }
 

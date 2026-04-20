@@ -1,7 +1,8 @@
 apiVersion: netbird.io/v1alpha1
-kind: Group
+kind: NetworkRouter
 metadata:
   name: test
   namespace: netbird
 spec:
-  name: test
+  dnsZoneRef:
+    name: cluster.local

@@ -9,9 +9,9 @@ import (
 // ResourceReferenceApplyConfiguration represents a declarative configuration of the ResourceReference type for use
 // with apply.
 type ResourceReferenceApplyConfiguration struct {
-	// id of the resource in the Netbird API.
+	// ID is the id of a resource in the Netbird API.
 	ID *string `json:"id,omitempty"`
-	// local reference to the object in the same namespace.
+	// LocalReference is a reference to a object in the same namespace.
 	LocalRef *v1.LocalObjectReference `json:"localRef,omitempty"`
 }
 

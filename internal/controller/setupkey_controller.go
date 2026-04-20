@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/fluxcd/pkg/runtime/conditions"
@@ -12,7 +11,6 @@ import (
 	"github.com/netbirdio/netbird/shared/management/http/api"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1ac "k8s.io/client-go/applyconfigurations/core/v1"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -20,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
+	"github.com/netbirdio/kubernetes-operator/internal/netbirdutil"
 	"github.com/netbirdio/kubernetes-operator/internal/ssautil"
 )
 
@@ -52,32 +51,9 @@ func (r *SetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return r.reconcileDelete(ctx, sp, setupKey)
 	}
 
-	// Get ids for auto groups.
-	autoGroupIDs := []string{}
-	for _, ref := range setupKey.Spec.AutoGroups {
-		switch {
-		case ref.ID != nil:
-			_, err := r.Netbird.Groups.Get(ctx, *ref.ID)
-			if err != nil {
-				return ctrl.Result{}, err
-			}
-			autoGroupIDs = append(autoGroupIDs, *ref.ID)
-		case ref.LocalRef != nil:
-			group := nbv1alpha1.Group{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      ref.LocalRef.Name,
-					Namespace: setupKey.Namespace,
-				},
-			}
-			err = r.Client.Get(ctx, client.ObjectKeyFromObject(&group), &group)
-			if err != nil {
-				return ctrl.Result{}, err
-			}
-			if group.Status.GroupID == "" {
-				return ctrl.Result{}, fmt.Errorf("group %s in auto groups list is not ready", group.Name)
-			}
-			autoGroupIDs = append(autoGroupIDs, group.Status.GroupID)
-		}
+	autoGroupIDs, err := netbirdutil.GetGroupIDs(ctx, r.Client, r.Netbird, setupKey.Spec.AutoGroups, setupKey.Namespace)
+	if err != nil {
+		return ctrl.Result{}, err
 	}
 
 	controllerutil.AddFinalizer(setupKey, nbv1alpha1.NetbirdFinalizer)
@@ -151,7 +127,7 @@ func (r *SetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		AutoGroups:          autoGroupIDs,
 		Ephemeral:           ptr.To(setupKey.Spec.Ephemeral),
 		ExpiresIn:           expiresIn,
-		Name:                req.Name,
+		Name:                setupKey.Spec.Name,
 		Type:                "reusable",
 		UsageLimit:          0,
 	}

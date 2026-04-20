@@ -6,4 +6,5 @@ const ReadyCondition = "Ready"
 
 const (
 	ReconciledReason = "Reconciled"
+	DependencyReason = "Dependency"
 )

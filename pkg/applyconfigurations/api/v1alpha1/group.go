@@ -11,15 +11,12 @@ import (
 // GroupApplyConfiguration represents a declarative configuration of the Group type for use
 // with apply.
 //
-// Group is the Schema for the groups API
+// Group is the Schema for the groups API.
 type GroupApplyConfiguration struct {
-	v1.TypeMetaApplyConfiguration `json:",inline"`
-	// metadata is a standard object metadata
+	v1.TypeMetaApplyConfiguration    `json:",inline"`
 	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
-	// spec defines the desired state of Group
-	Spec *GroupSpecApplyConfiguration `json:"spec,omitempty"`
-	// status defines the observed state of Group
-	Status *GroupStatusApplyConfiguration `json:"status,omitempty"`
+	Spec                             *GroupSpecApplyConfiguration   `json:"spec,omitempty"`
+	Status                           *GroupStatusApplyConfiguration `json:"status,omitempty"`
 }
 
 // Group constructs a declarative configuration of the Group type for use with

@@ -57,7 +57,8 @@ var _ = Describe("SetupKey Controller", func() {
 
 			err = k8sClient.Get(ctx, nn, setupKey)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(*setupKey.Status.SetupKeyID).NotTo(BeEmpty())
+			Expect(setupKey.Status.ObservedGeneration).To(Equal(setupKey.Generation))
+			Expect(setupKey.Status.SetupKeyID).NotTo(BeEmpty())
 
 			secret := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
@@ -68,7 +69,7 @@ var _ = Describe("SetupKey Controller", func() {
 			err = k8sClient.Get(ctx, client.ObjectKeyFromObject(secret), secret)
 			Expect(err).NotTo(HaveOccurred())
 
-			resp, err := controllerReconciler.Netbird.SetupKeys.Get(ctx, *setupKey.Status.SetupKeyID)
+			resp, err := controllerReconciler.Netbird.SetupKeys.Get(ctx, setupKey.Status.SetupKeyID)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(string(secret.Data[SetupKeySecretKey])).To(Equal(resp.Key))
 		})
@@ -114,7 +115,7 @@ var _ = Describe("SetupKey Controller", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(k8sClient.Delete(ctx, &secondSecret)).To(Succeed())
 
-			Expect(*firstSetupKey.Status.SetupKeyID).ToNot(Equal(*secondSetupKey.Status.SetupKeyID))
+			Expect(firstSetupKey.Status.SetupKeyID).ToNot(Equal(secondSetupKey.Status.SetupKeyID))
 			Expect(firstSecret.Data[SetupKeySecretKey]).ToNot(BeEquivalentTo(secondSecret.Data[SetupKeySecretKey]))
 		})
 	})

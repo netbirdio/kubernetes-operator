@@ -1,0 +1,34 @@
+apiVersion: netbird.io/v1alpha1
+kind: SetupKey
+metadata:
+  name: sidecar
+  namespace: default
+spec:
+  name: sidecar
+  ephemeral: true
+---
+apiVersion: netbird.io/v1alpha1
+kind: SidecarProfile
+metadata:
+  name: test
+  namespace: default
+spec:
+  setupKeyRef:
+    name: sidecar
+  podSelector:
+    matchLabels:
+      app: ubuntu
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ubuntu
+  namespace: default
+  labels:
+    app: ubuntu
+spec:
+  containers:
+  - name: ubuntu
+    image: ubuntu:latest
+    command: ["sleep", "infinity"]
+

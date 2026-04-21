@@ -27,7 +27,6 @@ rules:
   - get
   - patch
   - update
-{{- if or .Values.netbirdAPI.key .Values.netbirdAPI.keyFromSecret }}
 - apiGroups:
   - netbird.io
   resources:
@@ -35,6 +34,11 @@ rules:
   - nbresources
   - nbroutingpeers
   - nbpolicies
+  - setupkeys
+  - groups
+  - networkrouters
+  - networkresources
+  - sidecarprofiles
   verbs:
   - get
   - patch
@@ -50,6 +54,11 @@ rules:
   - nbresources/status
   - nbroutingpeers/status
   - nbpolicies/status
+  - setupkeys/status
+  - groups/status
+  - networkrouters/status
+  - networkresources/status
+  - sidecarprofiles/status
   verbs:
   - get
   - patch
@@ -61,6 +70,11 @@ rules:
   - nbresources/finalizers
   - nbroutingpeers/finalizers
   - nbpolicies/finalizers
+  - setupkeys/finalizers
+  - groups/finalizers
+  - networkrouters/finalizers
+  - networkresources/finalizers
+  - sidecarprofiles/finalizers
   verbs:
   - update
 - apiGroups:
@@ -99,7 +113,6 @@ rules:
   - watch
   - create
   - delete
-{{- end }}
 - apiGroups:
   - ""
   resources:

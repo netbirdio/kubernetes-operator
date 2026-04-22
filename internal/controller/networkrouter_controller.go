@@ -55,7 +55,7 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return r.reconcileDelete(ctx, sp, netRouter)
 	}
 
-	ownerRef, err := ssautil.OwnerReference(netRouter, r.Scheme())
+	ownerRef, err := ssautil.ControllerReference(netRouter, r.Scheme())
 	if err != nil {
 		return ctrl.Result{}, err
 	}

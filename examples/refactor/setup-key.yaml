@@ -2,7 +2,7 @@ apiVersion: netbird.io/v1alpha1
 kind: SetupKey
 metadata:
   name: test
-  namespace: netbird
+  namespace: default
 spec:
   name: test
   ephemeral: true

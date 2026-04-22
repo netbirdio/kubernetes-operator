@@ -19,11 +19,10 @@ package controller
 import (
 	"context"
 	"fmt"
-	"slices"
 	"time"
 
-	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
-	corev1 "k8s.io/api/core/v1"
+	"github.com/fluxcd/pkg/runtime/conditions"
+	"github.com/fluxcd/pkg/runtime/patch"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -32,12 +31,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
+	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	"github.com/netbirdio/kubernetes-operator/internal/gatewayutil"
-)
-
-const (
-	GatewayFinalizer = "gateway.netbird.io/gateway"
 )
 
 type GatewayReconciler struct {
@@ -45,11 +40,12 @@ type GatewayReconciler struct {
 }
 
 func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	gw := gatewayv1.Gateway{}
-	err := r.Get(ctx, req.NamespacedName, &gw)
+	gw := &gatewayv1.Gateway{}
+	err := r.Get(ctx, req.NamespacedName, gw)
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+	sp := patch.NewSerialPatcher(gw, r.Client)
 
 	// Check if referenced class belongs to this controller.
 	gwc := &gatewayv1.GatewayClass{}
@@ -69,11 +65,11 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// Handle resource deletion.
 	if !gw.DeletionTimestamp.IsZero() {
-		return r.reconcileDelete(ctx, gw)
+		return r.reconcileDelete(ctx, sp, gw)
 	}
 
 	// Verify Gateway configuration.
-	routingPeerName, err := gatewayutil.GetRoutingPeerName(gw.Spec.Listeners)
+	routingPeerName, err := gatewayutil.GetNetworkRouterName(gw.Spec.Listeners)
 	if err != nil {
 		cond := metav1.Condition{
 			Type:    string(gatewayv1.GatewayConditionAccepted),
@@ -81,56 +77,42 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			Reason:  string(gatewayv1.GatewayReasonInvalidParameters),
 			Message: err.Error(),
 		}
-		if meta.SetStatusCondition(&gw.Status.Conditions, cond) {
-			err = r.Status().Update(ctx, &gw)
-			if err != nil {
-				return ctrl.Result{}, err
-			}
+		meta.SetStatusCondition(&gw.Status.Conditions, cond)
+		err = sp.Patch(ctx, gw)
+		if err != nil {
+			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
 	}
-
 	cond := metav1.Condition{
 		Type:   string(gatewayv1.GatewayConditionAccepted),
 		Status: metav1.ConditionTrue,
 		Reason: string(gatewayv1.GatewayReasonAccepted),
 	}
-	if meta.SetStatusCondition(&gw.Status.Conditions, cond) {
-		err = r.Status().Update(ctx, &gw)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{}, nil
-	}
-	if controllerutil.AddFinalizer(&gw, GatewayFinalizer) {
-		err = r.Client.Update(ctx, &gw)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-	}
-
-	// Ensure routing peer is ready.
-	// TODO (phillebaba): Should watch routing peer instead of retrying when not found.
-	nbrp, err := gatewayutil.GetGatewayRoutingPeer(ctx, r.Client, gw)
+	meta.SetStatusCondition(&gw.Status.Conditions, cond)
+	controllerutil.AddFinalizer(gw, nbv1alpha1.NetbirdFinalizer)
+	err = sp.Patch(ctx, gw)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	idx := slices.IndexFunc(nbrp.Status.Conditions, func(cond netbirdiov1.NBCondition) bool {
-		return cond.Type == netbirdiov1.NBSetupKeyReady
-	})
-	if idx == -1 || nbrp.Status.Conditions[idx].Status != corev1.ConditionStatus(metav1.ConditionTrue) {
+
+	// Ensure routing peer is ready.
+	netRouter, err := gatewayutil.GetGatewayNetworkRouter(ctx, r.Client, gw)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if !conditions.Has(netRouter, nbv1alpha1.ReadyCondition) {
+		// TODO (phillebaba): Should watch routing peer instead of retrying when not found.
 		cond := metav1.Condition{
 			Type:    string(gatewayv1.GatewayConditionProgrammed),
 			Status:  metav1.ConditionFalse,
 			Reason:  string(gatewayv1.GatewayReasonProgrammed),
 			Message: fmt.Sprintf("NBRoutingPeer %s is not ready", routingPeerName),
 		}
-		if meta.SetStatusCondition(&gw.Status.Conditions, cond) {
-			err = r.Status().Update(ctx, &gw)
-			if err != nil {
-				return ctrl.Result{}, err
-			}
-			return ctrl.Result{}, nil
+		meta.SetStatusCondition(&gw.Status.Conditions, cond)
+		err = sp.Patch(ctx, gw)
+		if err != nil {
+			return ctrl.Result{}, err
 		}
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 	}
@@ -141,18 +123,15 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		Status: metav1.ConditionTrue,
 		Reason: string(gatewayv1.GatewayReasonProgrammed),
 	}
-	if meta.SetStatusCondition(&gw.Status.Conditions, cond) {
-		err = r.Status().Update(ctx, &gw)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{}, nil
+	meta.SetStatusCondition(&gw.Status.Conditions, cond)
+	err = sp.Patch(ctx, gw)
+	if err != nil {
+		return ctrl.Result{}, err
 	}
-
 	return ctrl.Result{}, nil
 }
 
-func (r *GatewayReconciler) reconcileDelete(ctx context.Context, gw gatewayv1.Gateway) (ctrl.Result, error) {
+func (r *GatewayReconciler) reconcileDelete(ctx context.Context, sp *patch.SerialPatcher, gw *gatewayv1.Gateway) (ctrl.Result, error) {
 	var httpRouteList gatewayv1.HTTPRouteList
 	err := r.Client.List(ctx, &httpRouteList)
 	if err != nil {
@@ -179,16 +158,14 @@ func (r *GatewayReconciler) reconcileDelete(ctx context.Context, gw gatewayv1.Ga
 		}
 	}
 
-	if controllerutil.RemoveFinalizer(&gw, GatewayFinalizer) {
-		err := r.Client.Update(ctx, &gw)
-		if err != nil && !netbird.IsNotFound(err) {
-			return ctrl.Result{}, err
-		}
+	controllerutil.RemoveFinalizer(gw, nbv1alpha1.NetbirdFinalizer)
+	err = sp.Patch(ctx, gw)
+	if err != nil {
+		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
 }
 
-// SetupWithManager sets up the controller with the Manager.
 func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.Gateway{}).

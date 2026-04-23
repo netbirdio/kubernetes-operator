@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -14,32 +13,30 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
+	"github.com/fluxcd/pkg/runtime/patch"
+	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	"github.com/netbirdio/kubernetes-operator/internal/gatewayutil"
-)
-
-const (
-	TCPRouteFinalizer = "gateway.netbird.io/tcproute"
+	"github.com/netbirdio/kubernetes-operator/internal/ssautil"
+	nbv1alpha1ac "github.com/netbirdio/kubernetes-operator/pkg/applyconfigurations/api/v1alpha1"
 )
 
 type TCPRouteReconciler struct {
 	client.Client
-
-	ClusterDNS string
 }
 
 // nolint:gocyclo
 func (r *TCPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := ctrl.Log.WithName("TCPRoute").WithValues("namespace", req.Namespace, "name", req.Name)
 
-	tr := gatewayv1alpha2.TCPRoute{}
-	err := r.Get(ctx, req.NamespacedName, &tr)
+	tr := &gatewayv1alpha2.TCPRoute{}
+	err := r.Get(ctx, req.NamespacedName, tr)
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+	sp := patch.NewSerialPatcher(tr, r.Client)
 
 	if !tr.DeletionTimestamp.IsZero() {
-		return r.reconcileDelete(ctx, tr)
+		return r.reconcileDelete(ctx, sp, tr)
 	}
 
 	for _, parent := range tr.Spec.ParentRefs {
@@ -54,16 +51,15 @@ func (r *TCPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 			logger.Info("gateway is not ready", "name", gw.ObjectMeta.Name)
 			continue
 		}
-		nbrp, err := gatewayutil.GetGatewayRoutingPeer(ctx, r.Client, *gw)
+		netRouter, err := gatewayutil.GetGatewayNetworkRouter(ctx, r.Client, gw)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 
-		if controllerutil.AddFinalizer(&tr, TCPRouteFinalizer) {
-			err = r.Client.Update(ctx, &tr)
-			if err != nil {
-				return ctrl.Result{}, err
-			}
+		controllerutil.AddFinalizer(tr, nbv1alpha1.NetbirdFinalizer)
+		err = sp.Patch(ctx, tr)
+		if err != nil {
+			return ctrl.Result{}, err
 		}
 
 		// Create network resources.
@@ -81,29 +77,23 @@ func (r *TCPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		}
 
 		for _, svc := range svcIdx {
-			nbResource := netbirdiov1.NBResource{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      svc.Name,
-					Namespace: svc.Namespace,
-				},
+			controllerRef, err := ssautil.ControllerReference(&svc, r.Scheme())
+			if err != nil {
+				return ctrl.Result{}, err
 			}
-			_, err := controllerutil.CreateOrUpdate(ctx, r.Client, &nbResource, func() error {
-				err = controllerutil.SetControllerReference(&svc, &nbResource, r.Scheme(), controllerutil.WithBlockOwnerDeletion(false))
-				if err != nil {
-					return err
-				}
-				err = controllerutil.SetOwnerReference(&tr, &nbResource, r.Scheme())
-				if err != nil {
-					return err
-				}
-				nbResource.Spec = netbirdiov1.NBResourceSpec{
-					Name:      svc.Name,
-					NetworkID: *nbrp.Status.NetworkID,
-					Address:   fmt.Sprintf("%s.%s.%s", svc.Name, svc.Namespace, r.ClusterDNS),
-					Groups:    []string{},
-				}
-				return nil
-			})
+			controllerRef = controllerRef.WithBlockOwnerDeletion(false)
+			ownerRef, err := ssautil.OwnerReference(tr, r.Scheme())
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			netResourceAC := nbv1alpha1ac.NetworkResource(svc.Name, svc.Namespace).
+				WithOwnerReferences(controllerRef, ownerRef).
+				WithSpec(
+					nbv1alpha1ac.NetworkResourceSpec().
+						WithNetworkRouterRef(nbv1alpha1ac.CrossNamespaceReference().WithName(netRouter.Name).WithNamespace(netRouter.Namespace)).
+						WithServiceRef(corev1.LocalObjectReference{Name: svc.Name}),
+				)
+			err = r.Client.Apply(ctx, netResourceAC)
 			if err != nil {
 				return ctrl.Result{}, err
 			}
@@ -112,7 +102,7 @@ func (r *TCPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	return ctrl.Result{}, nil
 }
 
-func (r *TCPRouteReconciler) reconcileDelete(ctx context.Context, tr gatewayv1alpha2.TCPRoute) (ctrl.Result, error) {
+func (r *TCPRouteReconciler) reconcileDelete(ctx context.Context, sp *patch.SerialPatcher, tr *gatewayv1alpha2.TCPRoute) (ctrl.Result, error) {
 	for _, parent := range tr.Spec.ParentRefs {
 		gw, err := gatewayutil.GetParentGateway(ctx, r.Client, parent, tr.Namespace, GatewayControllerName)
 		if err != nil {
@@ -139,24 +129,29 @@ func (r *TCPRouteReconciler) reconcileDelete(ctx context.Context, tr gatewayv1al
 			}
 		}
 		for _, svc := range svcIdx {
-			var nbResource netbirdiov1.NBResource
-			err = r.Client.Get(ctx, client.ObjectKeyFromObject(&svc), &nbResource)
+			netResource := &nbv1alpha1.NetworkResource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      svc.Name,
+					Namespace: svc.Namespace,
+				},
+			}
+			err = r.Client.Get(ctx, client.ObjectKeyFromObject(netResource), netResource)
 			if err != nil {
 				return ctrl.Result{}, err
 			}
-			err = controllerutil.RemoveOwnerReference(&tr, &nbResource, r.Scheme())
+			err = controllerutil.RemoveOwnerReference(tr, netResource, r.Scheme())
 			if err != nil {
 				return ctrl.Result{}, err
 			}
 
-			if len(nbResource.OwnerReferences) > 1 {
-				err = r.Client.Update(ctx, &nbResource)
+			if len(netResource.OwnerReferences) > 1 {
+				err = r.Client.Update(ctx, netResource)
 				if err != nil {
 					return ctrl.Result{}, err
 				}
 			} else {
 				// TODO: Precondition that nothing has changed.
-				err := r.Client.Delete(ctx, &nbResource)
+				err := r.Client.Delete(ctx, netResource)
 				if err != nil {
 					return ctrl.Result{}, err
 				}
@@ -164,11 +159,10 @@ func (r *TCPRouteReconciler) reconcileDelete(ctx context.Context, tr gatewayv1al
 		}
 	}
 
-	if controllerutil.RemoveFinalizer(&tr, TCPRouteFinalizer) {
-		err := r.Client.Update(ctx, &tr)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
+	controllerutil.RemoveFinalizer(tr, nbv1alpha1.NetbirdFinalizer)
+	err := sp.Patch(ctx, tr)
+	if err != nil {
+		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
 }

@@ -1,9 +1,25 @@
-apiVersion: netbird.io/v1
-kind: NBRoutingPeer
+apiVersion: netbird.io/v1alpha1
+kind: NetworkRouter
 metadata:
   name: netbird
   namespace: netbird
-spec: {}
+spec:
+  dnsZoneRef:
+    name: cluster.local
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: netbird-public
+spec:
+  controllerName: "gateway.netbird.io/controller"
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: netbird-private
+spec:
+  controllerName: "gateway.netbird.io/controller"
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
@@ -13,7 +29,7 @@ metadata:
 spec:
   gatewayClassName: netbird-private
   listeners:
-  - protocol: gateway.netbird.io/NBRoutingPeer
+  - protocol: gateway.netbird.io/NetworkRouter
     name: netbird
     port: 1
 ---
@@ -25,6 +41,6 @@ metadata:
 spec:
   gatewayClassName: netbird-public
   listeners:
-  - protocol: gateway.netbird.io/NBRoutingPeer
+  - protocol: gateway.netbird.io/NetworkRouter
     name: netbird
     port: 1

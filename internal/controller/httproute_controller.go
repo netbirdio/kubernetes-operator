@@ -2,9 +2,10 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"time"
 
+	"github.com/fluxcd/pkg/runtime/conditions"
+	"github.com/fluxcd/pkg/runtime/patch"
 	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
 	"github.com/netbirdio/netbird/shared/management/http/api"
 	corev1 "k8s.io/api/core/v1"
@@ -16,9 +17,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
+	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	"github.com/netbirdio/kubernetes-operator/internal/gatewayutil"
+	"github.com/netbirdio/kubernetes-operator/internal/ssautil"
 	"github.com/netbirdio/kubernetes-operator/internal/util"
+	nbv1alpha1ac "github.com/netbirdio/kubernetes-operator/pkg/applyconfigurations/api/v1alpha1"
 )
 
 const (
@@ -28,22 +31,22 @@ const (
 type HTTPRouteReconciler struct {
 	client.Client
 
-	Netbird    *netbird.Client
-	ClusterDNS string
+	Netbird *netbird.Client
 }
 
 // nolint:gocyclo
 func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := ctrl.Log.WithName("HTTPRoute").WithValues("namespace", req.Namespace, "name", req.Name)
 
-	hr := gatewayv1.HTTPRoute{}
-	err := r.Get(ctx, req.NamespacedName, &hr)
+	hr := &gatewayv1.HTTPRoute{}
+	err := r.Get(ctx, req.NamespacedName, hr)
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+	sp := patch.NewSerialPatcher(hr, r.Client)
 
 	if !hr.DeletionTimestamp.IsZero() {
-		return r.reconcileDelete(ctx, hr)
+		return r.reconcileDelete(ctx, sp, hr)
 	}
 
 	for _, parent := range hr.Spec.ParentRefs {
@@ -58,16 +61,15 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			logger.Info("gateway is not ready", "name", gw.ObjectMeta.Name)
 			continue
 		}
-		nbrp, err := gatewayutil.GetGatewayRoutingPeer(ctx, r.Client, *gw)
+		netRouter, err := gatewayutil.GetGatewayNetworkRouter(ctx, r.Client, gw)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 
-		if controllerutil.AddFinalizer(&hr, HTTPRouteFinalizer) {
-			err = r.Client.Update(ctx, &hr)
-			if err != nil {
-				return ctrl.Result{}, err
-			}
+		controllerutil.AddFinalizer(hr, nbv1alpha1.NetbirdFinalizer)
+		err = sp.Patch(ctx, hr)
+		if err != nil {
+			return ctrl.Result{}, err
 		}
 
 		// Create network resources.
@@ -85,29 +87,23 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 
 		for _, svc := range svcIdx {
-			nbResource := netbirdiov1.NBResource{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      svc.Name,
-					Namespace: svc.Namespace,
-				},
+			controllerRef, err := ssautil.ControllerReference(&svc, r.Scheme())
+			if err != nil {
+				return ctrl.Result{}, err
 			}
-			_, err := controllerutil.CreateOrUpdate(ctx, r.Client, &nbResource, func() error {
-				err = controllerutil.SetControllerReference(&svc, &nbResource, r.Scheme(), controllerutil.WithBlockOwnerDeletion(false))
-				if err != nil {
-					return err
-				}
-				err = controllerutil.SetOwnerReference(&hr, &nbResource, r.Scheme())
-				if err != nil {
-					return err
-				}
-				nbResource.Spec = netbirdiov1.NBResourceSpec{
-					Name:      svc.Name,
-					NetworkID: *nbrp.Status.NetworkID,
-					Address:   fmt.Sprintf("%s.%s.%s", svc.Name, svc.Namespace, r.ClusterDNS),
-					Groups:    []string{},
-				}
-				return nil
-			})
+			controllerRef = controllerRef.WithBlockOwnerDeletion(false)
+			ownerRef, err := ssautil.OwnerReference(hr, r.Scheme())
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			netResourceAC := nbv1alpha1ac.NetworkResource(svc.Name, svc.Namespace).
+				WithOwnerReferences(controllerRef, ownerRef).
+				WithSpec(
+					nbv1alpha1ac.NetworkResourceSpec().
+						WithNetworkRouterRef(nbv1alpha1ac.CrossNamespaceReference().WithName(netRouter.Name).WithNamespace(netRouter.Namespace)).
+						WithServiceRef(corev1.LocalObjectReference{Name: svc.Name}),
+				)
+			err = r.Client.Apply(ctx, netResourceAC)
 			if err != nil {
 				return ctrl.Result{}, err
 			}
@@ -115,29 +111,26 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 		targets := []api.ServiceTarget{}
 		for _, svc := range svcIdx {
-			var nbResource netbirdiov1.NBResource
-			err := r.Client.Get(ctx, client.ObjectKeyFromObject(&svc), &nbResource)
+			netResource := &nbv1alpha1.NetworkResource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      svc.Name,
+					Namespace: svc.Namespace,
+				},
+			}
+			err := r.Client.Get(ctx, client.ObjectKeyFromObject(netResource), netResource)
 			if err != nil {
 				return ctrl.Result{}, err
 			}
-			ready := func() bool {
-				for _, cond := range nbResource.Status.Conditions {
-					if cond.Type == netbirdiov1.NBSetupKeyReady && cond.Status == corev1.ConditionTrue {
-						return true
-					}
-				}
-				return false
-			}()
-			if !ready {
+			if !conditions.Has(netResource, nbv1alpha1.ReadyCondition) {
 				return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
 			}
 
 			target := api.ServiceTarget{
 				Enabled:    true,
 				Path:       nil,
-				TargetId:   *nbResource.Status.NetworkResourceID,
-				Protocol:   "http",
-				TargetType: "domain",
+				TargetId:   netResource.Status.ResourceID,
+				Protocol:   api.ServiceTargetProtocolHttp,
+				TargetType: api.ServiceTargetTargetTypeHost,
 			}
 			targets = append(targets, target)
 		}
@@ -148,10 +141,11 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			return ctrl.Result{}, err
 		}
 		for _, hostname := range hr.Spec.Hostnames {
-			proxyReq := api.PostApiReverseProxiesServicesJSONRequestBody{
+			proxyReq := api.ServiceRequest{
 				Domain:           string(hostname),
 				Enabled:          true,
 				Name:             string(hostname),
+				Mode:             util.Ptr(api.ServiceRequestModeHttp),
 				PassHostHeader:   util.Ptr(false),
 				RewriteRedirects: util.Ptr(false),
 				Targets:          &targets,
@@ -182,7 +176,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return ctrl.Result{}, nil
 }
 
-func (r *HTTPRouteReconciler) reconcileDelete(ctx context.Context, hr gatewayv1.HTTPRoute) (ctrl.Result, error) {
+func (r *HTTPRouteReconciler) reconcileDelete(ctx context.Context, sp *patch.SerialPatcher, hr *gatewayv1.HTTPRoute) (ctrl.Result, error) {
 	// Index all proxy services.
 	proxyServices, err := r.Netbird.ReverseProxyServices.List(ctx)
 	if err != nil {
@@ -219,24 +213,29 @@ func (r *HTTPRouteReconciler) reconcileDelete(ctx context.Context, hr gatewayv1.
 			}
 		}
 		for _, svc := range svcIdx {
-			var nbResource netbirdiov1.NBResource
-			err = r.Client.Get(ctx, client.ObjectKeyFromObject(&svc), &nbResource)
+			netResource := &nbv1alpha1.NetworkResource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      svc.Name,
+					Namespace: svc.Namespace,
+				},
+			}
+			err = r.Client.Get(ctx, client.ObjectKeyFromObject(netResource), netResource)
 			if err != nil {
 				return ctrl.Result{}, err
 			}
-			err = controllerutil.RemoveOwnerReference(&hr, &nbResource, r.Scheme())
+			err = controllerutil.RemoveOwnerReference(hr, netResource, r.Scheme())
 			if err != nil {
 				return ctrl.Result{}, err
 			}
 
-			if len(nbResource.OwnerReferences) > 1 {
-				err = r.Client.Update(ctx, &nbResource)
+			if len(netResource.OwnerReferences) > 1 {
+				err = r.Client.Update(ctx, netResource)
 				if err != nil {
 					return ctrl.Result{}, err
 				}
 			} else {
 				// TODO: Precondition that nothing has changed.
-				err := r.Client.Delete(ctx, &nbResource)
+				err := r.Client.Delete(ctx, netResource)
 				if err != nil {
 					return ctrl.Result{}, err
 				}
@@ -256,11 +255,10 @@ func (r *HTTPRouteReconciler) reconcileDelete(ctx context.Context, hr gatewayv1.
 		}
 	}
 
-	if controllerutil.RemoveFinalizer(&hr, HTTPRouteFinalizer) {
-		err := r.Client.Update(ctx, &hr)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
+	controllerutil.RemoveFinalizer(hr, nbv1alpha1.NetbirdFinalizer)
+	err = sp.Patch(ctx, hr)
+	if err != nil {
+		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
 }

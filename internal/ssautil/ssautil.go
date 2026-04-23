@@ -7,7 +7,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 )
 
-func OwnerReference(owner client.Object, scheme *runtime.Scheme) (*metav1ac.OwnerReferenceApplyConfiguration, error) {
+func ControllerReference(owner client.Object, scheme *runtime.Scheme) (*metav1ac.OwnerReferenceApplyConfiguration, error) {
 	gvk, err := apiutil.GVKForObject(owner, scheme)
 	if err != nil {
 		return nil, err
@@ -19,4 +19,18 @@ func OwnerReference(owner client.Object, scheme *runtime.Scheme) (*metav1ac.Owne
 		WithUID(owner.GetUID()).
 		WithController(true).
 		WithBlockOwnerDeletion(true), nil
+}
+
+func OwnerReference(owner client.Object, scheme *runtime.Scheme) (*metav1ac.OwnerReferenceApplyConfiguration, error) {
+	gvk, err := apiutil.GVKForObject(owner, scheme)
+	if err != nil {
+		return nil, err
+	}
+	return metav1ac.OwnerReference().
+		WithAPIVersion(gvk.GroupVersion().String()).
+		WithKind(gvk.Kind).
+		WithName(owner.GetName()).
+		WithUID(owner.GetUID()).
+		WithController(false).
+		WithBlockOwnerDeletion(false), nil
 }

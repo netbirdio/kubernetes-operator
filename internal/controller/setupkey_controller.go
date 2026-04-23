@@ -41,7 +41,7 @@ func (r *SetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	owner, err := ssautil.OwnerReference(setupKey, r.Client.Scheme())
+	owner, err := ssautil.ControllerReference(setupKey, r.Client.Scheme())
 	if err != nil {
 		return ctrl.Result{}, err
 	}

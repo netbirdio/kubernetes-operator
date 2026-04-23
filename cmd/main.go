@@ -332,16 +332,14 @@ func main() {
 				os.Exit(1)
 			}
 			if err = (&controller.HTTPRouteReconciler{
-				Client:     mgr.GetClient(),
-				Netbird:    nbClient,
-				ClusterDNS: clusterDNS,
+				Client:  mgr.GetClient(),
+				Netbird: nbClient,
 			}).SetupWithManager(mgr); err != nil {
 				setupLog.Error(err, "unable to create controller", "controller", "HTTPRoute")
 				os.Exit(1)
 			}
 			if err = (&controller.TCPRouteReconciler{
-				Client:     mgr.GetClient(),
-				ClusterDNS: clusterDNS,
+				Client: mgr.GetClient(),
 			}).SetupWithManager(mgr); err != nil {
 				setupLog.Error(err, "unable to create controller", "controller", "TCPRoute")
 				os.Exit(1)

@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/fluxcd/pkg/runtime/patch"
+	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -13,7 +15,6 @@ import (
 )
 
 const (
-	GatewayClassFinalizer = "gateway.netbird.io/gatewayclass"
 	GatewayControllerName = "gateway.netbird.io/controller"
 )
 
@@ -22,11 +23,12 @@ type GatewayClassReconciler struct {
 }
 
 func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	gwc := gatewayv1.GatewayClass{}
-	err := r.Client.Get(ctx, req.NamespacedName, &gwc)
+	gwc := &gatewayv1.GatewayClass{}
+	err := r.Client.Get(ctx, req.NamespacedName, gwc)
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+	sp := patch.NewSerialPatcher(gwc, r.Client)
 
 	// Controller name does not match.
 	if gwc.Spec.ControllerName != GatewayControllerName {
@@ -35,7 +37,7 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	// Gateway class is being deleted.
 	if !gwc.GetDeletionTimestamp().IsZero() {
-		return r.reconcileDelete(ctx, gwc)
+		return r.reconcileDelete(ctx, sp, gwc)
 	}
 
 	// Validate configuration.
@@ -55,24 +57,16 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			Reason:  string(gatewayv1.GatewayClassReasonInvalidParameters),
 			Message: message,
 		}
-		if meta.SetStatusCondition(&gwc.Status.Conditions, cond) {
-			err = r.Client.Status().Update(ctx, &gwc)
-			if err != nil {
-				return ctrl.Result{}, err
-			}
-			return ctrl.Result{}, nil
-		}
-	}
-
-	// Add finalizer to validate deletion.
-	if controllerutil.AddFinalizer(&gwc, GatewayClassFinalizer) {
-		err = r.Client.Update(ctx, &gwc)
+		meta.SetStatusCondition(&gwc.Status.Conditions, cond)
+		err := sp.Patch(ctx, gwc)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
+		return ctrl.Result{}, nil
 	}
 
 	// Set condition to accepted.
+	controllerutil.AddFinalizer(gwc, nbv1alpha1.NetbirdFinalizer)
 	cond := metav1.Condition{
 		Type:    string(gatewayv1.GatewayClassConditionStatusAccepted),
 		Status:  metav1.ConditionTrue,
@@ -80,15 +74,14 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		Message: "Reconciled by Netbird Operator.",
 	}
 	meta.SetStatusCondition(&gwc.Status.Conditions, cond)
-	err = r.Client.Status().Update(ctx, &gwc)
+	err = sp.Patch(ctx, gwc)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-
 	return ctrl.Result{}, nil
 }
 
-func (r *GatewayClassReconciler) reconcileDelete(ctx context.Context, gwc gatewayv1.GatewayClass) (ctrl.Result, error) {
+func (r *GatewayClassReconciler) reconcileDelete(ctx context.Context, sp *patch.SerialPatcher, gwc *gatewayv1.GatewayClass) (ctrl.Result, error) {
 	var gatewayList gatewayv1.GatewayList
 	err := r.Client.List(ctx, &gatewayList)
 	if err != nil {
@@ -99,11 +92,11 @@ func (r *GatewayClassReconciler) reconcileDelete(ctx context.Context, gwc gatewa
 			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 		}
 	}
-	if controllerutil.RemoveFinalizer(&gwc, GatewayClassFinalizer) {
-		err = r.Client.Update(ctx, &gwc)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
+
+	controllerutil.RemoveFinalizer(gwc, nbv1alpha1.NetbirdFinalizer)
+	err = sp.Patch(ctx, gwc)
+	if err != nil {
+		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
 }

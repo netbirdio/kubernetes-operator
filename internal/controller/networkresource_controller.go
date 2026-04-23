@@ -14,6 +14,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -120,10 +121,11 @@ func (r *NetworkResourceReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	resourceID, err := func() (string, error) {
 		netReq := api.NetworkResourceRequest{
-			Name:    svc.Name + "/" + svc.Namespace,
-			Address: svc.Spec.ClusterIP,
-			Enabled: true,
-			Groups:  groupIDs,
+			Name:        string(netResource.UID),
+			Description: ptr.To(svc.Name + "/" + svc.Namespace),
+			Address:     svc.Spec.ClusterIP,
+			Enabled:     true,
+			Groups:      groupIDs,
 		}
 		if netResource.Status.ResourceID != "" {
 			netResp, err := r.Netbird.Networks.Resources(netRouter.Status.NetworkID).Update(ctx, netResource.Status.ResourceID, netReq)

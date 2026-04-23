@@ -16,7 +16,7 @@ import (
 	"github.com/fluxcd/pkg/runtime/patch"
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	"github.com/netbirdio/kubernetes-operator/internal/gatewayutil"
-	"github.com/netbirdio/kubernetes-operator/internal/ssautil"
+	"github.com/netbirdio/kubernetes-operator/internal/k8sutil"
 	nbv1alpha1ac "github.com/netbirdio/kubernetes-operator/pkg/applyconfigurations/api/v1alpha1"
 )
 
@@ -56,7 +56,7 @@ func (r *TCPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 			return ctrl.Result{}, err
 		}
 
-		controllerutil.AddFinalizer(tr, nbv1alpha1.NetbirdFinalizer)
+		controllerutil.AddFinalizer(tr, k8sutil.Finalizer("tcproute"))
 		err = sp.Patch(ctx, tr)
 		if err != nil {
 			return ctrl.Result{}, err
@@ -77,12 +77,12 @@ func (r *TCPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		}
 
 		for _, svc := range svcIdx {
-			controllerRef, err := ssautil.ControllerReference(&svc, r.Scheme())
+			controllerRef, err := k8sutil.ControllerReference(&svc, r.Scheme())
 			if err != nil {
 				return ctrl.Result{}, err
 			}
 			controllerRef = controllerRef.WithBlockOwnerDeletion(false)
-			ownerRef, err := ssautil.OwnerReference(tr, r.Scheme())
+			ownerRef, err := k8sutil.OwnerReference(tr, r.Scheme())
 			if err != nil {
 				return ctrl.Result{}, err
 			}
@@ -159,7 +159,7 @@ func (r *TCPRouteReconciler) reconcileDelete(ctx context.Context, sp *patch.Seri
 		}
 	}
 
-	controllerutil.RemoveFinalizer(tr, nbv1alpha1.NetbirdFinalizer)
+	controllerutil.RemoveFinalizer(tr, k8sutil.Finalizer("tcproute"))
 	err := sp.Patch(ctx, tr)
 	if err != nil {
 		return ctrl.Result{}, err

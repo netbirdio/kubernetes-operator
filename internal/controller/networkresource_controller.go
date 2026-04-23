@@ -24,6 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
+	"github.com/netbirdio/kubernetes-operator/internal/k8sutil"
 	"github.com/netbirdio/kubernetes-operator/internal/netbirdutil"
 )
 
@@ -117,7 +118,7 @@ func (r *NetworkResourceReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, err
 	}
 
-	controllerutil.AddFinalizer(netResource, nbv1alpha1.NetbirdFinalizer)
+	controllerutil.AddFinalizer(netResource, k8sutil.Finalizer("networkresource"))
 
 	resourceID, err := func() (string, error) {
 		netReq := api.NetworkResourceRequest{
@@ -218,7 +219,7 @@ func (r *NetworkResourceReconciler) reconcileDelete(ctx context.Context, sp *pat
 		}
 	}
 
-	controllerutil.RemoveFinalizer(netResource, nbv1alpha1.NetbirdFinalizer)
+	controllerutil.RemoveFinalizer(netResource, k8sutil.Finalizer("networkresource"))
 	err := sp.Patch(ctx, netResource)
 	if err != nil {
 		return ctrl.Result{}, err

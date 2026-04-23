@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/fluxcd/pkg/runtime/patch"
-	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
+	"github.com/netbirdio/kubernetes-operator/internal/k8sutil"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -66,7 +66,7 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	// Set condition to accepted.
-	controllerutil.AddFinalizer(gwc, nbv1alpha1.NetbirdFinalizer)
+	controllerutil.AddFinalizer(gwc, k8sutil.Finalizer("gatewayclass"))
 	cond := metav1.Condition{
 		Type:    string(gatewayv1.GatewayClassConditionStatusAccepted),
 		Status:  metav1.ConditionTrue,
@@ -93,7 +93,7 @@ func (r *GatewayClassReconciler) reconcileDelete(ctx context.Context, sp *patch.
 		}
 	}
 
-	controllerutil.RemoveFinalizer(gwc, nbv1alpha1.NetbirdFinalizer)
+	controllerutil.RemoveFinalizer(gwc, k8sutil.Finalizer("gatewayclass"))
 	err = sp.Patch(ctx, gwc)
 	if err != nil {
 		return ctrl.Result{}, err

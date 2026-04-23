@@ -52,10 +52,10 @@ spec:
                 items:
                   properties:
                     id:
-                      description: ID is the id of a resource in the Netbird API.
+                      description: ID is the id of the group.
                       type: string
                     localRef:
-                      description: LocalReference is a reference to a object in the
+                      description: LocalReference is a reference to a group in the
                         same namespace.
                       properties:
                         name:
@@ -69,11 +69,13 @@ spec:
                           type: string
                       type: object
                       x-kubernetes-map-type: atomic
+                    name:
+                      description: Name is the name of the group.
+                      type: string
                   type: object
                   x-kubernetes-validations:
-                  - message: exactly one of id or localRef must be set
-                    rule: (has(self.id) && !has(self.localRef)) || (!has(self.id)
-                      && has(self.localRef))
+                  - message: Exactly one of id, name, or localRef must be set
+                    rule: (has(self.id)?1:0)+(has(self.name)?1:0)+(has(self.localRef)?1:0)==1
                 type: array
               networkRouterRef:
                 description: NetworkRouterRef is a reference to the network and router

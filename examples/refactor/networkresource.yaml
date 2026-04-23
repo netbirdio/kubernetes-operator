@@ -53,3 +53,5 @@ spec:
     namespace: netbird
   serviceRef:
     name: nginx
+  groups:
+    - name: All

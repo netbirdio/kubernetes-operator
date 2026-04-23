@@ -11,16 +11,22 @@ import (
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 )
 
-func GetGroupIDs(ctx context.Context, k8sClient client.Client, nbClient *netbird.Client, refs []nbv1alpha1.ResourceReference, namespace string) ([]string, error) {
+func GetGroupIDs(ctx context.Context, k8sClient client.Client, nbClient *netbird.Client, refs []nbv1alpha1.GroupReference, namespace string) ([]string, error) {
 	groupIDs := []string{}
 	for _, ref := range refs {
 		switch {
-		case ref.ID != nil:
-			_, err := nbClient.Groups.Get(ctx, *ref.ID)
+		case ref.Name != nil:
+			group, err := nbClient.Groups.GetByName(ctx, *ref.Name)
 			if err != nil {
 				return nil, err
 			}
-			groupIDs = append(groupIDs, *ref.ID)
+			groupIDs = append(groupIDs, group.Id)
+		case ref.ID != nil:
+			group, err := nbClient.Groups.Get(ctx, *ref.ID)
+			if err != nil {
+				return nil, err
+			}
+			groupIDs = append(groupIDs, group.Id)
 		case ref.LocalRef != nil:
 			group := nbv1alpha1.Group{
 				ObjectMeta: metav1.ObjectMeta{

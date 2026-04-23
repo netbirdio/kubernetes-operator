@@ -132,7 +132,7 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			nbv1alpha1ac.SetupKeySpec().
 				WithName(fmt.Sprintf("networkrouter-%s", uniqueSuffix)).
 				WithEphemeral(true).
-				WithAutoGroups(nbv1alpha1ac.ResourceReference().WithID(group.Status.GroupID)),
+				WithAutoGroups(nbv1alpha1ac.GroupReference().WithID(group.Status.GroupID)),
 		)
 	err = r.Client.Apply(ctx, setupKeyAC)
 	if err != nil {

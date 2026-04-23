@@ -18,7 +18,7 @@ type SetupKeySpecApplyConfiguration struct {
 	// Duration sets how long the setup key is valid for.
 	Duration *v1.Duration `json:"duration,omitempty"`
 	// AutoGroups are groups that will be automatically assigned to peers using setup key.
-	AutoGroups []ResourceReferenceApplyConfiguration `json:"autoGroups,omitempty"`
+	AutoGroups []GroupReferenceApplyConfiguration `json:"autoGroups,omitempty"`
 }
 
 // SetupKeySpecApplyConfiguration constructs a declarative configuration of the SetupKeySpec type for use with
@@ -54,7 +54,7 @@ func (b *SetupKeySpecApplyConfiguration) WithDuration(value v1.Duration) *SetupK
 // WithAutoGroups adds the given value to the AutoGroups field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the AutoGroups field.
-func (b *SetupKeySpecApplyConfiguration) WithAutoGroups(values ...*ResourceReferenceApplyConfiguration) *SetupKeySpecApplyConfiguration {
+func (b *SetupKeySpecApplyConfiguration) WithAutoGroups(values ...*GroupReferenceApplyConfiguration) *SetupKeySpecApplyConfiguration {
 	for i := range values {
 		if values[i] == nil {
 			panic("nil value passed to WithAutoGroups")

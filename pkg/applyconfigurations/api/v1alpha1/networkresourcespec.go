@@ -16,7 +16,7 @@ type NetworkResourceSpecApplyConfiguration struct {
 	// ServiceRef is a reference to the service to expose in the Network.
 	ServiceRef *v1.LocalObjectReference `json:"serviceRef,omitempty"`
 	// Groups are references to groups that the resource will be a part of.
-	Groups []ResourceReferenceApplyConfiguration `json:"groups,omitempty"`
+	Groups []GroupReferenceApplyConfiguration `json:"groups,omitempty"`
 }
 
 // NetworkResourceSpecApplyConfiguration constructs a declarative configuration of the NetworkResourceSpec type for use with
@@ -44,7 +44,7 @@ func (b *NetworkResourceSpecApplyConfiguration) WithServiceRef(value v1.LocalObj
 // WithGroups adds the given value to the Groups field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the Groups field.
-func (b *NetworkResourceSpecApplyConfiguration) WithGroups(values ...*ResourceReferenceApplyConfiguration) *NetworkResourceSpecApplyConfiguration {
+func (b *NetworkResourceSpecApplyConfiguration) WithGroups(values ...*GroupReferenceApplyConfiguration) *NetworkResourceSpecApplyConfiguration {
 	for i := range values {
 		if values[i] == nil {
 			panic("nil value passed to WithGroups")

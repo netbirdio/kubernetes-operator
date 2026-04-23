@@ -16,6 +16,8 @@ import (
 func ForKind(kind schema.GroupVersionKind) interface{} {
 	switch kind {
 	// Group=netbird.io, Version=v1alpha1
+	case v1alpha1.SchemeGroupVersion.WithKind("ContainerOverride"):
+		return &apiv1alpha1.ContainerOverrideApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("CrossNamespaceReference"):
 		return &apiv1alpha1.CrossNamespaceReferenceApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("DNSZoneReference"):
@@ -46,6 +48,12 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &apiv1alpha1.SetupKeySpecApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("SetupKeyStatus"):
 		return &apiv1alpha1.SetupKeyStatusApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("SidecarProfile"):
+		return &apiv1alpha1.SidecarProfileApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("SidecarProfileSpec"):
+		return &apiv1alpha1.SidecarProfileSpecApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("SidecarProfileStatus"):
+		return &apiv1alpha1.SidecarProfileStatusApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("WorkloadOverride"):
 		return &apiv1alpha1.WorkloadOverrideApplyConfiguration{}
 

@@ -149,13 +149,12 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 		for _, hostname := range hr.Spec.Hostnames {
 			proxyReq := api.PostApiReverseProxiesServicesJSONRequestBody{
-				Auth:             api.ServiceAuthConfig{},
 				Domain:           string(hostname),
 				Enabled:          true,
 				Name:             string(hostname),
 				PassHostHeader:   util.Ptr(false),
 				RewriteRedirects: util.Ptr(false),
-				Targets:          targets,
+				Targets:          &targets,
 			}
 
 			err := func() error {

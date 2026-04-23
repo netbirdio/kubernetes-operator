@@ -15,8 +15,10 @@ type SetupKeySpec struct {
 	Ephemeral bool `json:"ephemeral"`
 
 	// Duration sets how long the setup key is valid for.
-	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="duration is immutable"
 	// +optional
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(m|h))+$"
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="duration is immutable"
 	Duration *metav1.Duration `json:"duration,omitempty"`
 
 	// AutoGroups are groups that will be automatically assigned to peers using setup key.

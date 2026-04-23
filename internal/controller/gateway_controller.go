@@ -33,6 +33,7 @@ import (
 
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	"github.com/netbirdio/kubernetes-operator/internal/gatewayutil"
+	"github.com/netbirdio/kubernetes-operator/internal/k8sutil"
 )
 
 type GatewayReconciler struct {
@@ -90,7 +91,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		Reason: string(gatewayv1.GatewayReasonAccepted),
 	}
 	meta.SetStatusCondition(&gw.Status.Conditions, cond)
-	controllerutil.AddFinalizer(gw, nbv1alpha1.NetbirdFinalizer)
+	controllerutil.AddFinalizer(gw, k8sutil.Finalizer("gateway"))
 	err = sp.Patch(ctx, gw)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -158,7 +159,7 @@ func (r *GatewayReconciler) reconcileDelete(ctx context.Context, sp *patch.Seria
 		}
 	}
 
-	controllerutil.RemoveFinalizer(gw, nbv1alpha1.NetbirdFinalizer)
+	controllerutil.RemoveFinalizer(gw, k8sutil.Finalizer("gateway"))
 	err = sp.Patch(ctx, gw)
 	if err != nil {
 		return ctrl.Result{}, err

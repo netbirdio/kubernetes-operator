@@ -19,7 +19,7 @@ import (
 
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	"github.com/netbirdio/kubernetes-operator/internal/gatewayutil"
-	"github.com/netbirdio/kubernetes-operator/internal/ssautil"
+	"github.com/netbirdio/kubernetes-operator/internal/k8sutil"
 	"github.com/netbirdio/kubernetes-operator/internal/util"
 	nbv1alpha1ac "github.com/netbirdio/kubernetes-operator/pkg/applyconfigurations/api/v1alpha1"
 )
@@ -66,7 +66,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			return ctrl.Result{}, err
 		}
 
-		controllerutil.AddFinalizer(hr, nbv1alpha1.NetbirdFinalizer)
+		controllerutil.AddFinalizer(hr, k8sutil.Finalizer("httproute"))
 		err = sp.Patch(ctx, hr)
 		if err != nil {
 			return ctrl.Result{}, err
@@ -87,12 +87,12 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 
 		for _, svc := range svcIdx {
-			controllerRef, err := ssautil.ControllerReference(&svc, r.Scheme())
+			controllerRef, err := k8sutil.ControllerReference(&svc, r.Scheme())
 			if err != nil {
 				return ctrl.Result{}, err
 			}
 			controllerRef = controllerRef.WithBlockOwnerDeletion(false)
-			ownerRef, err := ssautil.OwnerReference(hr, r.Scheme())
+			ownerRef, err := k8sutil.OwnerReference(hr, r.Scheme())
 			if err != nil {
 				return ctrl.Result{}, err
 			}
@@ -255,7 +255,7 @@ func (r *HTTPRouteReconciler) reconcileDelete(ctx context.Context, sp *patch.Ser
 		}
 	}
 
-	controllerutil.RemoveFinalizer(hr, nbv1alpha1.NetbirdFinalizer)
+	controllerutil.RemoveFinalizer(hr, k8sutil.Finalizer("httproute"))
 	err = sp.Patch(ctx, hr)
 	if err != nil {
 		return ctrl.Result{}, err

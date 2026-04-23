@@ -10,8 +10,8 @@ import (
 
 	"github.com/fluxcd/pkg/runtime/conditions"
 	"github.com/fluxcd/pkg/runtime/patch"
+	"github.com/netbirdio/kubernetes-operator/internal/k8sutil"
 	"github.com/netbirdio/kubernetes-operator/internal/netbirdutil"
-	"github.com/netbirdio/kubernetes-operator/internal/ssautil"
 	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
 	"github.com/netbirdio/netbird/shared/management/http/api"
 	appsv1 "k8s.io/api/apps/v1"
@@ -55,7 +55,7 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return r.reconcileDelete(ctx, sp, netRouter)
 	}
 
-	ownerRef, err := ssautil.ControllerReference(netRouter, r.Scheme())
+	ownerRef, err := k8sutil.ControllerReference(netRouter, r.Scheme())
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -66,7 +66,7 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
-	controllerutil.AddFinalizer(netRouter, nbv1alpha1.NetbirdFinalizer)
+	controllerutil.AddFinalizer(netRouter, k8sutil.Finalizer("networkrouter"))
 
 	networkID, err := func() (string, error) {
 		networkReq := api.NetworkRequest{
@@ -304,7 +304,7 @@ func (r *NetworkRouterReconciler) reconcileDelete(ctx context.Context, sp *patch
 		}
 	}
 
-	controllerutil.RemoveFinalizer(netRouter, nbv1alpha1.NetbirdFinalizer)
+	controllerutil.RemoveFinalizer(netRouter, k8sutil.Finalizer("networkrouter"))
 	err := sp.Patch(ctx, netRouter)
 	if err != nil {
 		return ctrl.Result{}, err

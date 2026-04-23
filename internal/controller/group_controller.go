@@ -12,6 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
+	"github.com/netbirdio/kubernetes-operator/internal/k8sutil"
 )
 
 type GroupReconciler struct {
@@ -35,7 +36,7 @@ func (r *GroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return r.reconcileDelete(ctx, sp, group)
 	}
 
-	controllerutil.AddFinalizer(group, nbv1alpha1.NetbirdFinalizer)
+	controllerutil.AddFinalizer(group, k8sutil.Finalizer("group"))
 	err = sp.Patch(ctx, group)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -81,7 +82,7 @@ func (r *GroupReconciler) reconcileDelete(ctx context.Context, sp *patch.SerialP
 		}
 	}
 
-	controllerutil.RemoveFinalizer(group, nbv1alpha1.NetbirdFinalizer)
+	controllerutil.RemoveFinalizer(group, k8sutil.Finalizer("group"))
 	err := sp.Patch(ctx, group)
 	if err != nil {
 		return ctrl.Result{}, err

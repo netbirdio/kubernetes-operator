@@ -18,8 +18,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
+	"github.com/netbirdio/kubernetes-operator/internal/k8sutil"
 	"github.com/netbirdio/kubernetes-operator/internal/netbirdutil"
-	"github.com/netbirdio/kubernetes-operator/internal/ssautil"
 )
 
 const (
@@ -41,7 +41,7 @@ func (r *SetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	owner, err := ssautil.ControllerReference(setupKey, r.Client.Scheme())
+	owner, err := k8sutil.ControllerReference(setupKey, r.Client.Scheme())
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -56,7 +56,7 @@ func (r *SetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, err
 	}
 
-	controllerutil.AddFinalizer(setupKey, nbv1alpha1.NetbirdFinalizer)
+	controllerutil.AddFinalizer(setupKey, k8sutil.Finalizer("setupkey"))
 	err = sp.Patch(ctx, setupKey)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -177,7 +177,7 @@ func (r *SetupKeyReconciler) reconcileDelete(ctx context.Context, sp *patch.Seri
 		}
 	}
 
-	controllerutil.RemoveFinalizer(setupKey, nbv1alpha1.NetbirdFinalizer)
+	controllerutil.RemoveFinalizer(setupKey, k8sutil.Finalizer("setupkey"))
 	err := sp.Patch(ctx, setupKey)
 	if err != nil {
 		return ctrl.Result{}, err

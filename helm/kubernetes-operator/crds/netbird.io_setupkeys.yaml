@@ -77,6 +77,7 @@ spec:
                 type: array
               duration:
                 description: Duration sets how long the setup key is valid for.
+                pattern: ^([0-9]+(\.[0-9]+)?(m|h))+$
                 type: string
                 x-kubernetes-validations:
                 - message: duration is immutable

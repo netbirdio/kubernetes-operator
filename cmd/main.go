@@ -29,7 +29,7 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
-	netbirdrest "github.com/netbirdio/netbird/shared/management/client/rest"
+	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -222,11 +222,15 @@ func main() {
 	}
 
 	if len(netbirdAPIKey) > 0 {
-		netbird := netbirdrest.New(managementURL, netbirdAPIKey)
+		nbClient := netbird.NewWithOptions(
+			netbird.WithManagementURL(managementURL),
+			netbird.WithBearerToken(netbirdAPIKey),
+			netbird.WithUserAgent("netbird-operator"),
+		)
 
 		if err = (&controller.NBRoutingPeerReconciler{
 			Client:             mgr.GetClient(),
-			Netbird:            netbird,
+			Netbird:            nbClient,
 			ClientImage:        clientImage,
 			ClusterName:        clusterName,
 			ManagementURL:      managementURL,
@@ -251,7 +255,7 @@ func main() {
 
 		if err = (&controller.NBResourceReconciler{
 			Client:                       mgr.GetClient(),
-			Netbird:                      netbird,
+			Netbird:                      nbClient,
 			AllowAutomaticPolicyCreation: allowAutomaticPolicyCreation,
 			ClusterName:                  clusterName,
 			DefaultLabels:                defaultLabelsMap,
@@ -262,7 +266,7 @@ func main() {
 
 		if err = (&controller.NBGroupReconciler{
 			Client:  mgr.GetClient(),
-			Netbird: netbird,
+			Netbird: nbClient,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "NBGroup")
 			os.Exit(1)
@@ -270,7 +274,7 @@ func main() {
 
 		if err = (&controller.NBPolicyReconciler{
 			Client:  mgr.GetClient(),
-			Netbird: netbird,
+			Netbird: nbClient,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "NBPolicy")
 			os.Exit(1)
@@ -285,16 +289,32 @@ func main() {
 
 		if err := (&controller.SetupKeyReconciler{
 			Client:  mgr.GetClient(),
-			Netbird: netbird,
+			Netbird: nbClient,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "Failed to create controller", "controller", "SetupKey")
 			os.Exit(1)
 		}
 		if err := (&controller.GroupReconciler{
 			Client:  mgr.GetClient(),
-			Netbird: netbird,
+			Netbird: nbClient,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "Failed to create controller", "controller", "Group")
+			os.Exit(1)
+		}
+		if err := (&controller.NetworkRouterReconciler{
+			Client:        mgr.GetClient(),
+			Netbird:       nbClient,
+			ClientImage:   clientImage,
+			ManagementURL: managementURL,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "Failed to create controller", "controller", "NetworkRouter")
+			os.Exit(1)
+		}
+		if err := (&controller.NetworkResourceReconciler{
+			Client:  mgr.GetClient(),
+			Netbird: nbClient,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "Failed to create controller", "controller", "NetworkResource")
 			os.Exit(1)
 		}
 
@@ -313,7 +333,7 @@ func main() {
 			}
 			if err = (&controller.HTTPRouteReconciler{
 				Client:     mgr.GetClient(),
-				Netbird:    netbird,
+				Netbird:    nbClient,
 				ClusterDNS: clusterDNS,
 			}).SetupWithManager(mgr); err != nil {
 				setupLog.Error(err, "unable to create controller", "controller", "HTTPRoute")

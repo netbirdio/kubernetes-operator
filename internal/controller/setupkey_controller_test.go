@@ -50,6 +50,9 @@ var _ = Describe("SetupKey Controller", func() {
 					Name:      nn.Name,
 					Namespace: nn.Namespace,
 				},
+				Spec: nbv1alpha1.SetupKeySpec{
+					Name: "test",
+				},
 			}
 			Expect(k8sClient.Create(ctx, setupKey)).To(Succeed())
 			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
@@ -79,6 +82,9 @@ var _ = Describe("SetupKey Controller", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      nn.Name,
 					Namespace: nn.Namespace,
+				},
+				Spec: nbv1alpha1.SetupKeySpec{
+					Name: "test",
 				},
 			}
 			Expect(k8sClient.Create(ctx, setupKey)).To(Succeed())

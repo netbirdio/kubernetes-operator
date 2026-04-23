@@ -16,12 +16,28 @@ import (
 func ForKind(kind schema.GroupVersionKind) interface{} {
 	switch kind {
 	// Group=netbird.io, Version=v1alpha1
+	case v1alpha1.SchemeGroupVersion.WithKind("CrossNamespaceReference"):
+		return &apiv1alpha1.CrossNamespaceReferenceApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("DNSZoneReference"):
+		return &apiv1alpha1.DNSZoneReferenceApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("Group"):
 		return &apiv1alpha1.GroupApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("GroupSpec"):
 		return &apiv1alpha1.GroupSpecApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("GroupStatus"):
 		return &apiv1alpha1.GroupStatusApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NetworkResource"):
+		return &apiv1alpha1.NetworkResourceApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NetworkResourceSpec"):
+		return &apiv1alpha1.NetworkResourceSpecApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NetworkResourceStatus"):
+		return &apiv1alpha1.NetworkResourceStatusApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NetworkRouter"):
+		return &apiv1alpha1.NetworkRouterApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NetworkRouterSpec"):
+		return &apiv1alpha1.NetworkRouterSpecApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NetworkRouterStatus"):
+		return &apiv1alpha1.NetworkRouterStatusApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("ResourceReference"):
 		return &apiv1alpha1.ResourceReferenceApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("SetupKey"):
@@ -30,6 +46,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &apiv1alpha1.SetupKeySpecApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("SetupKeyStatus"):
 		return &apiv1alpha1.SetupKeyStatusApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("WorkloadOverride"):
+		return &apiv1alpha1.WorkloadOverrideApplyConfiguration{}
 
 	}
 	return nil

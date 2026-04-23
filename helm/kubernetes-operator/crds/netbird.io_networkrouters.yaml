@@ -4,14 +4,14 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.1
-  name: setupkeys.netbird.io
+  name: networkrouters.netbird.io
 spec:
   group: netbird.io
   names:
-    kind: SetupKey
-    listKind: SetupKeyList
-    plural: setupkeys
-    singular: setupkey
+    kind: NetworkRouter
+    listKind: NetworkRouterList
+    plural: networkrouters
+    singular: networkrouter
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
@@ -24,7 +24,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: SetupKey is the Schema for the setupkeys API.
+        description: NetworkRouter is the Schema for the networkrouters API.
         properties:
           apiVersion:
             description: |-
@@ -44,65 +44,51 @@ spec:
           metadata:
             type: object
           spec:
-            description: SetupKeySpec defines the desired state of SetupKey.
+            description: NetworkRouterSpec defines the desired state of NetworkRouter.
             properties:
-              autoGroups:
-                description: AutoGroups are groups that will be automatically assigned
-                  to peers using setup key.
-                items:
-                  properties:
-                    id:
-                      description: ID is the id of a resource in the Netbird API.
+              dnsZoneRef:
+                description: DNSZoneRef is a reference to the DNS zone used to create
+                  records for resources.
+                properties:
+                  name:
+                    description: Name is the domain name of an existing Netbird DNS
+                      zone, e.g. "example.com".
+                    type: string
+                required:
+                - name
+                type: object
+              workloadOverride:
+                description: WorkloadOverride contains configuration that will override
+                  the default workload.
+                properties:
+                  annotations:
+                    additionalProperties:
                       type: string
-                    localRef:
-                      description: LocalReference is a reference to a object in the
-                        same namespace.
-                      properties:
-                        name:
-                          default: ""
-                          description: |-
-                            Name of the referent.
-                            This field is effectively required, but due to backwards compatibility is
-                            allowed to be empty. Instances of this type with an empty value here are
-                            almost certainly wrong.
-                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                          type: string
-                      type: object
-                      x-kubernetes-map-type: atomic
-                  type: object
-                  x-kubernetes-validations:
-                  - message: exactly one of id or localRef must be set
-                    rule: (has(self.id) && !has(self.localRef)) || (!has(self.id)
-                      && has(self.localRef))
-                type: array
-              duration:
-                description: Duration sets how long the setup key is valid for.
-                type: string
-                x-kubernetes-validations:
-                - message: duration is immutable
-                  rule: self == oldSelf
-              ephemeral:
-                description: Ephemeral decides if peers added with the key are ephemeral
-                  or not.
-                type: boolean
-                x-kubernetes-validations:
-                - message: ephemeral is immutable
-                  rule: self == oldSelf
-              name:
-                description: Name of the setup key.
-                minLength: 1
-                type: string
+                    description: Annotations that will be added.
+                    type: object
+                  labels:
+                    additionalProperties:
+                      type: string
+                    description: Labels that will be added.
+                    type: object
+                  podTemplate:
+                    description: PodTemplate overrides the pod template.
+                    x-kubernetes-preserve-unknown-fields: true
+                  replicas:
+                    description: Replicas sets the amount of client replicas.
+                    format: int32
+                    type: integer
+                type: object
             required:
-            - ephemeral
-            - name
+            - dnsZoneRef
             type: object
           status:
             default:
               observedGeneration: -1
-            description: SetupKeyStatus defines the observed state of SetupKey.
+            description: NetworkRouterStatus defines the observed state of NetworkRouter.
             properties:
               conditions:
-                description: Conditions holds the conditions for the SetupKey.
+                description: Conditions holds the conditions for the NetworkRouter.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -161,12 +147,16 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              networkID:
+                description: NetworkID is the id of the network the routing peer was
+                  created in.
+                type: string
               observedGeneration:
                 description: ObservedGeneration is the last reconciled generation.
                 format: int64
                 type: integer
-              setupKeyID:
-                description: SetupKeyID is the id of the created setup key.
+              routingPeerID:
+                description: RoutingPeerID is the id of the created routing peer.
                 type: string
             type: object
         required:

@@ -1,8 +1,24 @@
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+// +kubebuilder:validation:XValidation:rule="(has(self.id)?1:0)+(has(self.name)?1:0)+(has(self.localRef)?1:0)==1",message="Exactly one of id, name, or localRef must be set"
+type GroupReference struct {
+	// Name is the name of the group.
+	// +optional
+	Name *string `json:"name,omitempty"`
+
+	// ID is the id of the group.
+	// +optional
+	ID *string `json:"id,omitempty"`
+
+	// LocalReference is a reference to a group in the same namespace.
+	// +optional
+	LocalRef *corev1.LocalObjectReference `json:"localRef,omitempty"`
+}
 
 // GroupSpec defines the desired state of Group.
 type GroupSpec struct {

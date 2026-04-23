@@ -21,7 +21,7 @@ type SetupKeySpec struct {
 
 	// AutoGroups are groups that will be automatically assigned to peers using setup key.
 	// +optional
-	AutoGroups []ResourceReference `json:"autoGroups,omitempty"`
+	AutoGroups []GroupReference `json:"autoGroups,omitempty"`
 }
 
 // SetupKeyStatus defines the observed state of SetupKey.

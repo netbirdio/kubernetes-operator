@@ -16,7 +16,7 @@ type NetworkResourceSpec struct {
 
 	// Groups are references to groups that the resource will be a part of.
 	// +optional
-	Groups []ResourceReference `json:"groups,omitempty"`
+	Groups []GroupReference `json:"groups,omitempty"`
 }
 
 // NetworkResourceStatus defines the observed state of NetworkResource.

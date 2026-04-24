@@ -1,7 +1,0 @@
-router:
-  enabled: true
-policies:
-  default:
-    name: Kubernetes Default Policy
-    sourceGroups:
-      - All

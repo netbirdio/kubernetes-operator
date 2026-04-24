@@ -18,17 +18,3 @@ spec:
   podSelector:
     matchLabels:
       app: ubuntu
----
-apiVersion: v1
-kind: Pod
-metadata:
-  name: ubuntu
-  namespace: default
-  labels:
-    app: ubuntu
-spec:
-  containers:
-  - name: ubuntu
-    image: ubuntu:latest
-    command: ["sleep", "infinity"]
-

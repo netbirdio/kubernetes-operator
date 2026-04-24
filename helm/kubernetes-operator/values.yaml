@@ -148,12 +148,10 @@ cluster:
   # Cluster name (used for generating network and network resource names in NetBird)
   name: kubernetes
 
-netbirdAPI: {}
-  # NetBird Service Account Token
-  # key: "nbp_m0LM9ZZvDUzFO0pY50iChDOTxJgKFM3DIqmZ"
-  #keyFromSecret:
-  #  name: "Secret name"
-  #  key: "NB_API_KEY"
+netbirdAPI:
+  keyFromSecret:
+    name: "netbird-mgmt-api-key"
+    key: "NB_API_KEY"
 
 #routingClientImage: "netbirdio/netbird:latest"
 

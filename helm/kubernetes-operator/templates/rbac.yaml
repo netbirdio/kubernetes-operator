@@ -121,7 +121,7 @@ rules:
   - get
   - list
   - watch
-{{- if or (or .Values.netbirdAPI.key .Values.netbirdAPI.keyFromSecret) .Values.clusterSecretsPermissions.allowAllSecrets }}
+{{- if or .Values.netbirdAPI.keyFromSecret .Values.clusterSecretsPermissions.allowAllSecrets }}
 - apiGroups:
   - ""
   resources:
@@ -130,7 +130,7 @@ rules:
   - get
   - list
   - watch
-{{- if or .Values.netbirdAPI.key .Values.netbirdAPI.keyFromSecret }}
+{{- if .Values.netbirdAPI.keyFromSecret }}
   - patch
   - update
   - create

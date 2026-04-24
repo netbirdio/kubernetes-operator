@@ -61,7 +61,7 @@ spec:
           {{- if .Values.cluster.dns }}
           - --cluster-dns={{.Values.cluster.dns}}
           {{- end }}
-          {{- if or .Values.netbirdAPI.key .Values.netbirdAPI.keyFromSecret }}
+          {{- if .Values.netbirdAPI.keyFromSecret }}
           - --netbird-api-key=$(NB_API_KEY)
           {{- end }}
           {{- if .Values.ingress.allowAutomaticPolicyCreation }}
@@ -96,7 +96,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-          {{- if or .Values.netbirdAPI.key .Values.netbirdAPI.keyFromSecret }}
+          {{- if .Values.netbirdAPI.keyFromSecret }}
             - name: NB_API_KEY
               valueFrom:
                 secretKeyRef:

@@ -51,7 +51,7 @@ webhooks:
     resources:
     - pods
   sideEffects: None
-{{- if and $.Values.ingress.enabled (or .Values.netbirdAPI.key .Values.netbirdAPI.keyFromSecret) }}
+{{- if and $.Values.ingress.enabled .Values.netbirdAPI.keyFromSecret }}
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration

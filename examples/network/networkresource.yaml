@@ -1,10 +1,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  labels:
-    app: nginx
   name: nginx
   namespace: default
+  labels:
+    app: nginx
 spec:
   replicas: 1
   selector:
@@ -28,16 +28,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  annotations:
-    netbird.io/expose: "true"
-    netbird.io/policy: default
-    netbird.io/resource-name: nginx
-    netbird.io/groups: nginx-k8s-gke
-  labels:
-    app: nginx
   name: nginx
   namespace: default
+  labels:
+    app: nginx
 spec:
+  type: ClusterIP
   ports:
   - name: http
     port: 80
@@ -45,4 +41,17 @@ spec:
     targetPort: 80
   selector:
     app: nginx
-  type: ClusterIP
+---
+apiVersion: netbird.io/v1alpha1
+kind: NetworkResource
+metadata:
+  name: nginx
+  namespace: default
+spec:
+  networkRouterRef:
+    name: prod
+    namespace: netbird
+  serviceRef:
+    name: nginx
+  groups:
+    - name: All

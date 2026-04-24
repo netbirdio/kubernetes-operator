@@ -11,7 +11,7 @@
 Add the Helm repository.
 
 ```sh
-helm repo add netbirdio https://netbirdio.github.io/kubernetes-operator
+helm repo add netbirdio https://netbirdio.github.io/helms
 ```
 
 Install cert-manager, it is recommended so the Kubernetes API can communicate with the operator's admission webhooks. Skip this step if you already have cert-manager installed.

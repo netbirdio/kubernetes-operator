@@ -1,0 +1,15 @@
+server:
+  listenAddress: ":8080"
+  # exposedAddress: "http://127.0.0.1:8080"
+  stunPorts:
+    - 3478
+  logLevel: "info"
+  logFile: "console"
+  authSecret: "test"
+  dataDir: "/var/lib/netbird"
+  auth:
+    issuer: "https://example.com/oauth2"
+    dashboardRedirectURIs:
+      - "https://example.com/nb-auth"
+    cliRedirectURIs:
+      - "http://localhost:53000/"

@@ -13,7 +13,7 @@ endif
 IMG_REGISTRY ?= docker.io
 IMG_REPOSITORY ?= netbirdio/kubernetes-operator
 IMG_TAG ?= dev
-IMG := $(IMG_REGISTRY)/$(IMG_REPOSITORY):$(IMG_TAG)
+IMG_REF := $(IMG_REGISTRY)/$(IMG_REPOSITORY):$(IMG_TAG)
 
 .PHONY: generate
 generate: api/v1/zz_generated.deepcopy.go api/v1alpha1/zz_generated.deepcopy.go pkg/applyconfigurations helm/kubernetes-operator/crds docs/api-reference.md
@@ -40,17 +40,8 @@ lint:
 test: setup-envtest
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -v $$(go list ./... | grep -v /e2e) -coverprofile cover.out
 
-.PHONY: test-e2e
-test-e2e: generate
-	@command -v kind >/dev/null 2>&1 || { \
-		echo "Kind is not installed. Please install Kind manually."; \
-		exit 1; \
-	}
-	@kind get clusters | grep -q 'kind' || { \
-		echo "No Kind cluster is running. Please start a Kind cluster before running the e2e tests."; \
-		exit 1; \
-	}
-	go test ./test/e2e/ -v -ginkgo.v
+test-e2e: build-image
+	cd ./test/e2e && IMG_REF=${IMG_REF} go test ./... -v -count 1
 
 .PHONY: build
 build: generate bin/linux-$(GOARCH)/netbird-operator
@@ -60,13 +51,13 @@ bin/linux-%/netbird-operator: $(shell find api cmd internal pkg) go.mod go.sum
 
 .PHONY: build-image
 build-image: build
-	@docker buildx build -t ${IMG} .
-	@echo ${IMG}
+	@docker buildx build -t ${IMG_REF} .
+	@echo ${IMG_REF}
 
 .PHONY: build-image-multiarch
 build-image-multiarch: generate bin/linux-amd64/netbird-operator bin/linux-arm64/netbird-operator
-	@docker buildx build --platform linux/amd64,linux/arm64 -t ${IMG} .
-	@echo ${IMG}
+	@docker buildx build --platform linux/amd64,linux/arm64 -t ${IMG_REF} .
+	@echo ${IMG_REF}
 
 ## Generate a consolidated YAML with CRDs and deployment.
 .PHONY: build-installer

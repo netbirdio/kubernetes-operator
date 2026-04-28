@@ -16,11 +16,16 @@ import (
 	"github.com/netbirdio/netbird/shared/management/http/api"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	policyv1 "k8s.io/api/policy/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	appsv1ac "k8s.io/client-go/applyconfigurations/apps/v1"
 	corev1ac "k8s.io/client-go/applyconfigurations/core/v1"
 	metav1ac "k8s.io/client-go/applyconfigurations/meta/v1"
+	policyv1ac "k8s.io/client-go/applyconfigurations/policy/v1"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -190,12 +195,31 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		"app.kubernetes.io/instance": req.Name,
 	}
 
+	logLevel := "info"
+	if netRouter.Spec.LogLevel != "" {
+		logLevel = netRouter.Spec.LogLevel
+	}
+
+	clientImage := r.ClientImage
+	if netRouter.Spec.Image != "" {
+		clientImage = netRouter.Spec.Image
+	}
+
 	podTemplateSpecAC := corev1ac.PodTemplateSpec().
 		WithLabels(selectorLabels).
 		WithSpec(corev1ac.PodSpec().
+			WithTopologySpreadConstraints(
+				corev1ac.TopologySpreadConstraint().
+					WithMaxSkew(1).
+					WithTopologyKey(corev1.LabelHostname).
+					WithWhenUnsatisfiable(corev1.ScheduleAnyway).
+					WithLabelSelector(metav1ac.LabelSelector().
+						WithMatchLabels(selectorLabels),
+					),
+			).
 			WithContainers(corev1ac.Container().
 				WithName("netbird").
-				WithImage(r.ClientImage).
+				WithImage(clientImage).
 				WithEnv(
 					corev1ac.EnvVar().
 						WithName("NB_SETUP_KEY").
@@ -210,7 +234,13 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 						WithValue(r.ManagementURL),
 					corev1ac.EnvVar().
 						WithName("NB_LOG_LEVEL").
-						WithValue("info"),
+						WithValue(logLevel),
+					corev1ac.EnvVar().
+						WithName("NB_LOG_FILE").
+						WithValue("console"),
+					corev1ac.EnvVar().
+						WithName("NB_ENTRYPOINT_SERVICE_TIMEOUT").
+						WithValue("0"),
 				).
 				WithStartupProbe(corev1ac.Probe().WithExec(corev1ac.ExecAction().WithCommand("netbird", "status", "--check", "startup"))).
 				WithReadinessProbe(corev1ac.Probe().WithExec(corev1ac.ExecAction().WithCommand("netbird", "status", "--check", "ready"))).
@@ -221,19 +251,25 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 						WithAdd("SYS_ADMIN"),
 					).
 					WithPrivileged(true),
+				).
+				WithResources(corev1ac.ResourceRequirements().
+					WithRequests(corev1.ResourceList{
+						corev1.ResourceCPU:    resource.MustParse("100m"),
+						corev1.ResourceMemory: resource.MustParse("128Mi"),
+					}),
 				),
 			),
 		)
 
-	depLabels := map[string]string{}
-	depAnnotations := map[string]string{}
+	workloadLabels := map[string]string{}
+	workloadAnnotations := map[string]string{}
 	replicas := int32(3)
 	if netRouter.Spec.WorkloadOverride != nil {
 		if netRouter.Spec.WorkloadOverride.Labels != nil {
-			depLabels = netRouter.Spec.WorkloadOverride.Labels
+			workloadLabels = netRouter.Spec.WorkloadOverride.Labels
 		}
 		if netRouter.Spec.WorkloadOverride.Annotations != nil {
-			depAnnotations = netRouter.Spec.WorkloadOverride.Annotations
+			workloadAnnotations = netRouter.Spec.WorkloadOverride.Annotations
 		}
 		if netRouter.Spec.WorkloadOverride.Replicas != nil {
 			replicas = *netRouter.Spec.WorkloadOverride.Replicas
@@ -257,17 +293,46 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			}
 		}
 	}
-	maps.Copy(depLabels, selectorLabels)
+	maps.Copy(workloadLabels, selectorLabels)
 
 	depAC := appsv1ac.Deployment(fmt.Sprintf("networkrouter-%s", req.Name), req.Namespace).
 		WithOwnerReferences(ownerRef).
-		WithLabels(depLabels).
-		WithAnnotations(depAnnotations).
+		WithLabels(workloadLabels).
+		WithAnnotations(workloadAnnotations).
 		WithSpec(appsv1ac.DeploymentSpec().WithReplicas(replicas).WithSelector(metav1ac.LabelSelector().WithMatchLabels(selectorLabels)).WithTemplate(podTemplateSpecAC))
 	err = r.Client.Apply(ctx, depAC)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
+
+	if replicas > 1 {
+		pdbAC := policyv1ac.PodDisruptionBudget(fmt.Sprintf("networkrouter-%s", req.Name), req.Namespace).
+			WithOwnerReferences(ownerRef).
+			WithLabels(workloadLabels).
+			WithAnnotations(workloadAnnotations).
+			WithSpec(policyv1ac.PodDisruptionBudgetSpec().
+				WithMaxUnavailable(intstr.FromInt(1)).
+				WithSelector(metav1ac.LabelSelector().
+					WithMatchLabels(selectorLabels),
+				),
+			)
+		err = r.Client.Apply(ctx, pdbAC)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+	} else {
+		pdb := policyv1.PodDisruptionBudget{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("networkrouter-%s", req.Name),
+				Namespace: req.Namespace,
+			},
+		}
+		err = r.Client.Delete(ctx, &pdb)
+		if err != nil && !kerrors.IsNotFound(err) {
+			return ctrl.Result{}, err
+		}
+	}
+
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      *depAC.Name,

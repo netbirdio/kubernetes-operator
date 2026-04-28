@@ -57,6 +57,12 @@ spec:
                 required:
                 - name
                 type: object
+              image:
+                description: Netbird client image.
+                type: string
+              logLevel:
+                description: Log level for Netbird client.
+                type: string
               workloadOverride:
                 description: WorkloadOverride contains configuration that will override
                   the default workload.
@@ -75,8 +81,10 @@ spec:
                     description: PodTemplate overrides the pod template.
                     x-kubernetes-preserve-unknown-fields: true
                   replicas:
+                    default: 3
                     description: Replicas sets the amount of client replicas.
                     format: int32
+                    minimum: 1
                     type: integer
                 type: object
             required:

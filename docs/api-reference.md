@@ -255,6 +255,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `dnsZoneRef` _[DNSZoneReference](#dnszonereference)_ | DNSZoneRef is a reference to the DNS zone used to create records for resources. |  | Required: \{\} <br /> |
+| `image` _string_ | Netbird client image. |  | Optional: \{\} <br /> |
+| `logLevel` _string_ | Log level for Netbird client. |  | Optional: \{\} <br /> |
 | `workloadOverride` _[WorkloadOverride](#workloadoverride)_ | WorkloadOverride contains configuration that will override the default workload. |  | Optional: \{\} <br /> |
 
 
@@ -407,7 +409,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `labels` _object (keys:string, values:string)_ | Labels that will be added. |  | Optional: \{\} <br /> |
 | `annotations` _object (keys:string, values:string)_ | Annotations that will be added. |  | Optional: \{\} <br /> |
-| `replicas` _integer_ | Replicas sets the amount of client replicas. |  | Optional: \{\} <br /> |
+| `replicas` _integer_ | Replicas sets the amount of client replicas. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `podTemplate` _[PodTemplateSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#podtemplatespec-v1-core)_ | PodTemplate overrides the pod template. |  | Schemaless: \{\} <br />Optional: \{\} <br /> |
 
 

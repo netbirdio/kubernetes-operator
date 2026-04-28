@@ -219,6 +219,19 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 						WithMatchLabels(selectorLabels),
 					),
 			).
+			WithInitContainers(corev1ac.Container().
+				WithName("resolv-conf").
+				WithImage(clientImage).
+				WithCommand("sh", "-c", "cp /etc/resolv.conf /tmp/resolv.conf && cp /etc/resolv.conf /tmp/resolv.conf.original.netbird").
+				WithVolumeMounts(corev1ac.VolumeMount().
+					WithName("resolv-conf").
+					WithMountPath("/tmp"),
+				).
+				WithSecurityContext(corev1ac.SecurityContext().
+					WithCapabilities(corev1ac.Capabilities().WithDrop("ALL")).
+					WithReadOnlyRootFilesystem(true),
+				),
+			).
 			WithContainers(corev1ac.Container().
 				WithName("netbird").
 				WithImage(clientImage).
@@ -241,12 +254,29 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 						WithName("NB_LOG_FILE").
 						WithValue("console"),
 					corev1ac.EnvVar().
+						WithName("NB_DISABLE_PROFILES").
+						WithValue("true"),
+					corev1ac.EnvVar().
+						WithName("NB_DISABLE_UPDATE_SETTINGS").
+						WithValue("true"),
+					corev1ac.EnvVar().
+						WithName("NB_DAEMON_ADDR").
+						WithValue("unix:///var/run/netbird/netbird.sock"),
+					corev1ac.EnvVar().
 						WithName("NB_ENTRYPOINT_SERVICE_TIMEOUT").
 						WithValue("0"),
 				).
 				WithStartupProbe(corev1ac.Probe().WithExec(corev1ac.ExecAction().WithCommand("netbird", "status", "--check", "startup"))).
 				WithReadinessProbe(corev1ac.Probe().WithExec(corev1ac.ExecAction().WithCommand("netbird", "status", "--check", "ready"))).
+				WithVolumeMounts(
+					corev1ac.VolumeMount().WithName("netbird-run").WithMountPath("/var/run/netbird"),
+					corev1ac.VolumeMount().WithName("netbird-lib").WithMountPath("/var/lib/netbird"),
+					corev1ac.VolumeMount().WithName("ssh-etc").WithMountPath("/etc/ssh"),
+					corev1ac.VolumeMount().WithName("resolv-conf").WithMountPath("/etc/resolv.conf").WithSubPath("resolv.conf"),
+					corev1ac.VolumeMount().WithName("resolv-conf").WithMountPath("/etc/resolv.conf.original.netbird").WithSubPath("resolv.conf.original.netbird"),
+				).
 				WithSecurityContext(corev1ac.SecurityContext().
+					WithReadOnlyRootFilesystem(true).
 					WithCapabilities(corev1ac.Capabilities().
 						WithAdd("NET_ADMIN").
 						WithAdd("SYS_RESOURCE").
@@ -260,6 +290,12 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 						corev1.ResourceMemory: resource.MustParse("128Mi"),
 					}),
 				),
+			).
+			WithVolumes(
+				corev1ac.Volume().WithName("netbird-run").WithEmptyDir(corev1ac.EmptyDirVolumeSource()),
+				corev1ac.Volume().WithName("netbird-lib").WithEmptyDir(corev1ac.EmptyDirVolumeSource()),
+				corev1ac.Volume().WithName("ssh-etc").WithEmptyDir(corev1ac.EmptyDirVolumeSource()),
+				corev1ac.Volume().WithName("resolv-conf").WithEmptyDir(corev1ac.EmptyDirVolumeSource()),
 			),
 		)
 

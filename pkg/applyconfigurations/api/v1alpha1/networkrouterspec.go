@@ -9,6 +9,10 @@ package v1alpha1
 type NetworkRouterSpecApplyConfiguration struct {
 	// DNSZoneRef is a reference to the DNS zone used to create records for resources.
 	DNSZoneRef *DNSZoneReferenceApplyConfiguration `json:"dnsZoneRef,omitempty"`
+	// Netbird client image.
+	Image *string `json:"image,omitempty"`
+	// Log level for Netbird client.
+	LogLevel *string `json:"logLevel,omitempty"`
 	// WorkloadOverride contains configuration that will override the default workload.
 	WorkloadOverride *WorkloadOverrideApplyConfiguration `json:"workloadOverride,omitempty"`
 }
@@ -24,6 +28,22 @@ func NetworkRouterSpec() *NetworkRouterSpecApplyConfiguration {
 // If called multiple times, the DNSZoneRef field is set to the value of the last call.
 func (b *NetworkRouterSpecApplyConfiguration) WithDNSZoneRef(value *DNSZoneReferenceApplyConfiguration) *NetworkRouterSpecApplyConfiguration {
 	b.DNSZoneRef = value
+	return b
+}
+
+// WithImage sets the Image field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Image field is set to the value of the last call.
+func (b *NetworkRouterSpecApplyConfiguration) WithImage(value string) *NetworkRouterSpecApplyConfiguration {
+	b.Image = &value
+	return b
+}
+
+// WithLogLevel sets the LogLevel field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the LogLevel field is set to the value of the last call.
+func (b *NetworkRouterSpecApplyConfiguration) WithLogLevel(value string) *NetworkRouterSpecApplyConfiguration {
+	b.LogLevel = &value
 	return b
 }
 

@@ -11,6 +11,14 @@ type NetworkRouterSpec struct {
 	// +required
 	DNSZoneRef DNSZoneReference `json:"dnsZoneRef"`
 
+	// Netbird client image.
+	// +optional
+	Image string `json:"image,omitempty"`
+
+	// Log level for Netbird client.
+	// +optional
+	LogLevel string `json:"logLevel,omitempty"`
+
 	// WorkloadOverride contains configuration that will override the default workload.
 	// +optional
 	WorkloadOverride *WorkloadOverride `json:"workloadOverride,omitempty"`
@@ -34,6 +42,8 @@ type WorkloadOverride struct {
 
 	// Replicas sets the amount of client replicas.
 	// +optional
+	// +kubebuilder:default=3
+	// +kubebuilder:validation:Minimum=1
 	Replicas *int32 `json:"replicas"`
 
 	// PodTemplate overrides the pod template.

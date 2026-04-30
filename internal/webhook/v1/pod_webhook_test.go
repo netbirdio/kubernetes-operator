@@ -19,12 +19,13 @@ package v1
 import (
 	"context"
 
-	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
-	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	nbv1 "github.com/netbirdio/kubernetes-operator/api/v1"
+	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 )
 
 var _ = Describe("Pod Webhook", func() {
@@ -82,12 +83,12 @@ var _ = Describe("Pod Webhook", func() {
 
 		When("NBSetupKey exists", Ordered, func() {
 			BeforeAll(func() {
-				sk := netbirdiov1.NBSetupKey{
+				sk := nbv1.NBSetupKey{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test",
 						Namespace: "test",
 					},
-					Spec: netbirdiov1.NBSetupKeySpec{
+					Spec: nbv1.NBSetupKeySpec{
 						SecretKeyRef: corev1.SecretKeySelector{
 							LocalObjectReference: corev1.LocalObjectReference{
 								Name: "test",
@@ -107,10 +108,10 @@ var _ = Describe("Pod Webhook", func() {
 				err = k8sClient.Create(context.Background(), &sk)
 				Expect(err).NotTo(HaveOccurred())
 
-				sk.Status = netbirdiov1.NBSetupKeyStatus{
-					Conditions: []netbirdiov1.NBCondition{
+				sk.Status = nbv1.NBSetupKeyStatus{
+					Conditions: []nbv1.NBCondition{
 						{
-							Type:   netbirdiov1.NBSetupKeyReady,
+							Type:   nbv1.NBSetupKeyReady,
 							Status: corev1.ConditionTrue,
 						},
 					},

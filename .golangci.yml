@@ -1,6 +1,4 @@
 version: "2"
-run:
-  allow-parallel-runners: true
 linters:
   default: none
   enable:
@@ -21,12 +19,65 @@ linters:
     - unconvert
     - unparam
     - unused
+    - importas
   settings:
     revive:
       rules:
         - name: comment-spacings
     staticcheck:
       checks: ["all", "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022", "-QF1008", "-SA1019"]
+    importas:
+      alias:
+        - pkg: github.com/netbirdio/netbird/shared/management/client/rest
+          alias: netbird
+
+        - pkg: github.com/netbirdio/kubernetes-operator/internal/webhook/v1
+          alias: nbwebhookv1
+        - pkg: github.com/netbirdio/kubernetes-operator/api/v1
+          alias: nbv1
+        - pkg: github.com/netbirdio/kubernetes-operator/api/v1alpha1
+          alias: nbv1alpha1
+        - pkg: github.com/netbirdio/kubernetes-operator/pkg/applyconfigurations/api/v1alpha1
+          alias: nbv1alpha1ac
+
+        - pkg: sigs.k8s.io/controller-runtime
+          alias: ctrl
+        - pkg: sigs.k8s.io/controller-runtime/pkg/log
+          alias: logf
+        - pkg: k8s.io/apimachinery/pkg/api/errors
+          alias: kerrors
+        - pkg: k8s.io/client-go/kubernetes/scheme
+          alias: clientgoscheme
+        - pkg: k8s.io/apimachinery/pkg/runtime
+          alias: apimachineryruntime
+        - pkg: k8s.io/apimachinery/pkg/util/runtime
+          alias: utilruntime
+        - pkg: sigs.k8s.io/controller-runtime/pkg/metrics/server
+          alias: metricsserver
+        - pkg: k8s.io/apimachinery/pkg/apis/meta/v1
+          alias: metav1
+        - pkg: k8s.io/api/core/v1
+          alias: corev1
+        - pkg: k8s.io/api/apps/v1
+          alias: appsv1
+        - pkg: k8s.io/api/admission/v1
+          alias: admissionv1
+        - pkg: k8s.io/api/policy/v1
+          alias: policyv1
+        - pkg: k8s.io/client-go/applyconfigurations/meta/v1
+          alias: metav1ac
+        - pkg: k8s.io/client-go/applyconfigurations/core/v1
+          alias: corev1ac
+        - pkg: k8s.io/client-go/applyconfigurations/apps/v1
+          alias: appsv1ac
+        - pkg: k8s.io/client-go/applyconfigurations/policy/v1
+          alias: policyv1ac
+
+        - pkg: sigs.k8s.io/gateway-api/apis/v1
+          alias: gwv1
+        - pkg: sigs.k8s.io/gateway-api/apis/v1alpha2
+          alias: gwv1alpha2
+      no-extra-aliases: true
   exclusions:
     generated: lax
     rules:
@@ -43,11 +94,18 @@ linters:
       - examples$
 formatters:
   enable:
+    - gci
     - gofmt
-    - goimports
-  exclusions:
-    generated: lax
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
+  settings:
+    gci:
+      sections:
+        - blank
+        - standard
+        - prefix(golang.org/x)
+        - default
+        - prefix(github.com/netbirdio)
+        - localmodule
+      no-inline-comments: true
+      no-prefix-comments: true
+      custom-order: true
+

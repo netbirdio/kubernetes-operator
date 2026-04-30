@@ -4,22 +4,22 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
+	nbv1 "github.com/netbirdio/kubernetes-operator/api/v1"
 )
 
 var _ = Describe("NBGroup Webhook", func() {
 	var (
-		obj       *netbirdiov1.NBGroup
-		oldObj    *netbirdiov1.NBGroup
+		obj       *nbv1.NBGroup
+		oldObj    *nbv1.NBGroup
 		validator NBGroupCustomValidator
 	)
 
 	BeforeEach(func() {
-		obj = &netbirdiov1.NBGroup{}
-		oldObj = &netbirdiov1.NBGroup{}
+		obj = &nbv1.NBGroup{}
+		oldObj = &nbv1.NBGroup{}
 		validator = NBGroupCustomValidator{
 			client: k8sClient,
 		}
@@ -40,8 +40,8 @@ var _ = Describe("NBGroup Webhook", func() {
 		})
 		When("There are no owners", func() {
 			It("should allow deletion", func() {
-				obj = &netbirdiov1.NBGroup{
-					ObjectMeta: v1.ObjectMeta{
+				obj = &nbv1.NBGroup{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:            "test",
 						Namespace:       "default",
 						OwnerReferences: nil,
@@ -52,13 +52,13 @@ var _ = Describe("NBGroup Webhook", func() {
 		})
 		When("There deleted owners", func() {
 			It("should allow deletion", func() {
-				obj = &netbirdiov1.NBGroup{
-					ObjectMeta: v1.ObjectMeta{
+				obj = &nbv1.NBGroup{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test",
 						Namespace: "default",
-						OwnerReferences: []v1.OwnerReference{
+						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion: netbirdiov1.GroupVersion.Identifier(),
+								APIVersion: nbv1.GroupVersion.Identifier(),
 								Kind:       "NBResource",
 								Name:       "notexist",
 								UID:        obj.UID,
@@ -71,12 +71,12 @@ var _ = Describe("NBGroup Webhook", func() {
 		})
 		When("NBResource owner exists", func() {
 			BeforeEach(func() {
-				nbResource := &netbirdiov1.NBResource{
-					ObjectMeta: v1.ObjectMeta{
+				nbResource := &nbv1.NBResource{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "isexist",
 						Namespace: "default",
 					},
-					Spec: netbirdiov1.NBResourceSpec{
+					Spec: nbv1.NBResourceSpec{
 						Name:      "test1",
 						NetworkID: "test2",
 						Address:   "test3",
@@ -86,13 +86,13 @@ var _ = Describe("NBGroup Webhook", func() {
 
 				Expect(k8sClient.Create(ctx, nbResource)).To(Succeed())
 
-				obj = &netbirdiov1.NBGroup{
-					ObjectMeta: v1.ObjectMeta{
+				obj = &nbv1.NBGroup{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test",
 						Namespace: "default",
-						OwnerReferences: []v1.OwnerReference{
+						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion: netbirdiov1.GroupVersion.Identifier(),
+								APIVersion: nbv1.GroupVersion.Identifier(),
 								Kind:       nbResource.Kind,
 								Name:       nbResource.Name,
 								UID:        nbResource.UID,
@@ -102,7 +102,7 @@ var _ = Describe("NBGroup Webhook", func() {
 				}
 			})
 			AfterEach(func() {
-				nbResource := &netbirdiov1.NBResource{}
+				nbResource := &nbv1.NBResource{}
 				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "isexist"}, nbResource)
 				if !errors.IsNotFound(err) {
 					Expect(err).NotTo(HaveOccurred())
@@ -122,23 +122,23 @@ var _ = Describe("NBGroup Webhook", func() {
 		})
 		When("NBRoutingPeer owner exists", func() {
 			BeforeEach(func() {
-				nbrp := &netbirdiov1.NBRoutingPeer{
-					ObjectMeta: v1.ObjectMeta{
+				nbrp := &nbv1.NBRoutingPeer{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "isexist",
 						Namespace: "default",
 					},
-					Spec: netbirdiov1.NBRoutingPeerSpec{},
+					Spec: nbv1.NBRoutingPeerSpec{},
 				}
 
 				Expect(k8sClient.Create(ctx, nbrp)).To(Succeed())
 
-				obj = &netbirdiov1.NBGroup{
-					ObjectMeta: v1.ObjectMeta{
+				obj = &nbv1.NBGroup{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test",
 						Namespace: "default",
-						OwnerReferences: []v1.OwnerReference{
+						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion: netbirdiov1.GroupVersion.Identifier(),
+								APIVersion: nbv1.GroupVersion.Identifier(),
 								Kind:       nbrp.Kind,
 								Name:       nbrp.Name,
 								UID:        nbrp.UID,
@@ -148,7 +148,7 @@ var _ = Describe("NBGroup Webhook", func() {
 				}
 			})
 			AfterEach(func() {
-				nbrp := &netbirdiov1.NBRoutingPeer{}
+				nbrp := &nbv1.NBRoutingPeer{}
 				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "isexist"}, nbrp)
 				if !errors.IsNotFound(err) {
 					Expect(err).NotTo(HaveOccurred())

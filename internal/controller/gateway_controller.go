@@ -29,7 +29,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	"github.com/netbirdio/kubernetes-operator/internal/gatewayutil"
@@ -41,7 +41,7 @@ type GatewayReconciler struct {
 }
 
 func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	gw := &gatewayv1.Gateway{}
+	gw := &gwv1.Gateway{}
 	err := r.Get(ctx, req.NamespacedName, gw)
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -49,7 +49,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	sp := patch.NewSerialPatcher(gw, r.Client)
 
 	// Check if referenced class belongs to this controller.
-	gwc := &gatewayv1.GatewayClass{}
+	gwc := &gwv1.GatewayClass{}
 	nn := types.NamespacedName{
 		Name: string(gw.Spec.GatewayClassName),
 	}
@@ -60,7 +60,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if string(gwc.Spec.ControllerName) != GatewayControllerName {
 		return ctrl.Result{}, nil
 	}
-	if !meta.IsStatusConditionTrue(gwc.Status.Conditions, string(gatewayv1.GatewayClassConditionStatusAccepted)) {
+	if !meta.IsStatusConditionTrue(gwc.Status.Conditions, string(gwv1.GatewayClassConditionStatusAccepted)) {
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 	}
 
@@ -73,9 +73,9 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	routingPeerName, err := gatewayutil.GetNetworkRouterName(gw.Spec.Listeners)
 	if err != nil {
 		cond := metav1.Condition{
-			Type:    string(gatewayv1.GatewayConditionAccepted),
+			Type:    string(gwv1.GatewayConditionAccepted),
 			Status:  metav1.ConditionFalse,
-			Reason:  string(gatewayv1.GatewayReasonInvalidParameters),
+			Reason:  string(gwv1.GatewayReasonInvalidParameters),
 			Message: err.Error(),
 		}
 		meta.SetStatusCondition(&gw.Status.Conditions, cond)
@@ -86,9 +86,9 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 	cond := metav1.Condition{
-		Type:   string(gatewayv1.GatewayConditionAccepted),
+		Type:   string(gwv1.GatewayConditionAccepted),
 		Status: metav1.ConditionTrue,
-		Reason: string(gatewayv1.GatewayReasonAccepted),
+		Reason: string(gwv1.GatewayReasonAccepted),
 	}
 	meta.SetStatusCondition(&gw.Status.Conditions, cond)
 	controllerutil.AddFinalizer(gw, k8sutil.Finalizer("gateway"))
@@ -105,9 +105,9 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if !conditions.Has(netRouter, nbv1alpha1.ReadyCondition) {
 		// TODO (phillebaba): Should watch routing peer instead of retrying when not found.
 		cond := metav1.Condition{
-			Type:    string(gatewayv1.GatewayConditionProgrammed),
+			Type:    string(gwv1.GatewayConditionProgrammed),
 			Status:  metav1.ConditionFalse,
-			Reason:  string(gatewayv1.GatewayReasonProgrammed),
+			Reason:  string(gwv1.GatewayReasonProgrammed),
 			Message: fmt.Sprintf("NBRoutingPeer %s is not ready", routingPeerName),
 		}
 		meta.SetStatusCondition(&gw.Status.Conditions, cond)
@@ -120,9 +120,9 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// Signal Gateway is programmed.
 	cond = metav1.Condition{
-		Type:   string(gatewayv1.GatewayConditionProgrammed),
+		Type:   string(gwv1.GatewayConditionProgrammed),
 		Status: metav1.ConditionTrue,
-		Reason: string(gatewayv1.GatewayReasonProgrammed),
+		Reason: string(gwv1.GatewayReasonProgrammed),
 	}
 	meta.SetStatusCondition(&gw.Status.Conditions, cond)
 	err = sp.Patch(ctx, gw)
@@ -132,8 +132,8 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return ctrl.Result{}, nil
 }
 
-func (r *GatewayReconciler) reconcileDelete(ctx context.Context, sp *patch.SerialPatcher, gw *gatewayv1.Gateway) (ctrl.Result, error) {
-	var httpRouteList gatewayv1.HTTPRouteList
+func (r *GatewayReconciler) reconcileDelete(ctx context.Context, sp *patch.SerialPatcher, gw *gwv1.Gateway) (ctrl.Result, error) {
+	var httpRouteList gwv1.HTTPRouteList
 	err := r.Client.List(ctx, &httpRouteList)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -169,6 +169,6 @@ func (r *GatewayReconciler) reconcileDelete(ctx context.Context, sp *patch.Seria
 
 func (r *GatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&gatewayv1.Gateway{}).
+		For(&gwv1.Gateway{}).
 		Complete(r)
 }

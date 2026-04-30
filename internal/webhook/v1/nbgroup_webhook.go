@@ -11,7 +11,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
+	nbv1 "github.com/netbirdio/kubernetes-operator/api/v1"
 )
 
 // nolint:unused
@@ -20,7 +20,7 @@ var nbgrouplog = logf.Log.WithName("nbgroup-resource")
 
 // SetupNBGroupWebhookWithManager registers the webhook for NBGroup in the manager.
 func SetupNBGroupWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr, &netbirdiov1.NBGroup{}).
+	return ctrl.NewWebhookManagedBy(mgr, &nbv1.NBGroup{}).
 		WithValidator(&NBGroupCustomValidator{client: mgr.GetClient()}).
 		Complete()
 }
@@ -31,25 +31,25 @@ type NBGroupCustomValidator struct {
 	client client.Client
 }
 
-var _ admission.Validator[*netbirdiov1.NBGroup] = &NBGroupCustomValidator{}
+var _ admission.Validator[*nbv1.NBGroup] = &NBGroupCustomValidator{}
 
 // ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type NBGroup.
-func (v *NBGroupCustomValidator) ValidateCreate(ctx context.Context, group *netbirdiov1.NBGroup) (admission.Warnings, error) {
+func (v *NBGroupCustomValidator) ValidateCreate(ctx context.Context, group *nbv1.NBGroup) (admission.Warnings, error) {
 	return nil, nil
 }
 
 // ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type NBGroup.
-func (v *NBGroupCustomValidator) ValidateUpdate(ctx context.Context, old, new *netbirdiov1.NBGroup) (admission.Warnings, error) {
+func (v *NBGroupCustomValidator) ValidateUpdate(ctx context.Context, old, new *nbv1.NBGroup) (admission.Warnings, error) {
 	return nil, nil
 }
 
 // ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type NBGroup.
-func (v *NBGroupCustomValidator) ValidateDelete(ctx context.Context, nbgroup *netbirdiov1.NBGroup) (admission.Warnings, error) {
+func (v *NBGroupCustomValidator) ValidateDelete(ctx context.Context, nbgroup *nbv1.NBGroup) (admission.Warnings, error) {
 	nbgrouplog.Info("Validation for NBGroup upon deletion", "name", nbgroup.GetName())
 
 	for _, o := range nbgroup.OwnerReferences {
-		if o.Kind == (&netbirdiov1.NBResource{}).Kind {
-			var nbResource netbirdiov1.NBResource
+		if o.Kind == (&nbv1.NBResource{}).Kind {
+			var nbResource nbv1.NBResource
 			err := v.client.Get(ctx, types.NamespacedName{Namespace: nbgroup.Namespace, Name: o.Name}, &nbResource)
 			if err != nil && !errors.IsNotFound(err) {
 				return nil, err
@@ -58,8 +58,8 @@ func (v *NBGroupCustomValidator) ValidateDelete(ctx context.Context, nbgroup *ne
 				return nil, fmt.Errorf("group attached to NBResource %s/%s", nbgroup.Namespace, o.Name)
 			}
 		}
-		if o.Kind == (&netbirdiov1.NBRoutingPeer{}).Kind {
-			var nbResource netbirdiov1.NBRoutingPeer
+		if o.Kind == (&nbv1.NBRoutingPeer{}).Kind {
+			var nbResource nbv1.NBRoutingPeer
 			err := v.client.Get(ctx, types.NamespacedName{Namespace: nbgroup.Namespace, Name: o.Name}, &nbResource)
 			if err != nil && !errors.IsNotFound(err) {
 				return nil, err

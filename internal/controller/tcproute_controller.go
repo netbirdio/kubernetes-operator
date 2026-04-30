@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 
+	"github.com/fluxcd/pkg/runtime/patch"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -10,10 +11,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	"github.com/fluxcd/pkg/runtime/patch"
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	"github.com/netbirdio/kubernetes-operator/internal/gatewayutil"
 	"github.com/netbirdio/kubernetes-operator/internal/k8sutil"
@@ -28,7 +28,7 @@ type TCPRouteReconciler struct {
 func (r *TCPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := ctrl.Log.WithName("TCPRoute").WithValues("namespace", req.Namespace, "name", req.Name)
 
-	tr := &gatewayv1alpha2.TCPRoute{}
+	tr := &gwv1alpha2.TCPRoute{}
 	err := r.Get(ctx, req.NamespacedName, tr)
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -47,7 +47,7 @@ func (r *TCPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		if gw == nil {
 			continue
 		}
-		if !meta.IsStatusConditionTrue(gw.Status.Conditions, string(gatewayv1.GatewayConditionProgrammed)) {
+		if !meta.IsStatusConditionTrue(gw.Status.Conditions, string(gwv1.GatewayConditionProgrammed)) {
 			logger.Info("gateway is not ready", "name", gw.ObjectMeta.Name)
 			continue
 		}
@@ -102,7 +102,7 @@ func (r *TCPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	return ctrl.Result{}, nil
 }
 
-func (r *TCPRouteReconciler) reconcileDelete(ctx context.Context, sp *patch.SerialPatcher, tr *gatewayv1alpha2.TCPRoute) (ctrl.Result, error) {
+func (r *TCPRouteReconciler) reconcileDelete(ctx context.Context, sp *patch.SerialPatcher, tr *gwv1alpha2.TCPRoute) (ctrl.Result, error) {
 	for _, parent := range tr.Spec.ParentRefs {
 		gw, err := gatewayutil.GetParentGateway(ctx, r.Client, parent, tr.Namespace, GatewayControllerName)
 		if err != nil {
@@ -170,6 +170,6 @@ func (r *TCPRouteReconciler) reconcileDelete(ctx context.Context, sp *patch.Seri
 // SetupWithManager sets up the controller with the Manager.
 func (r *TCPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&gatewayv1alpha2.TCPRoute{}).
+		For(&gwv1alpha2.TCPRoute{}).
 		Complete(r)
 }

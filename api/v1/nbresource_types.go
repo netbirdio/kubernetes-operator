@@ -3,8 +3,9 @@ package v1
 import (
 	"maps"
 
-	"github.com/netbirdio/kubernetes-operator/internal/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/netbirdio/kubernetes-operator/internal/util"
 )
 
 // NBResourceSpec defines the desired state of NBResource.

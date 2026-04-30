@@ -17,6 +17,10 @@ limitations under the License.
 package main
 
 import (
+	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
+	// to ensure that exec-entrypoint and run can make use of them.
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
+
 	"crypto/tls"
 	"errors"
 	"flag"
@@ -25,11 +29,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
-	// to ensure that exec-entrypoint and run can make use of them.
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
-
-	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -41,14 +40,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
-	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
+	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
-	netbirdiov1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
+	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
+
+	nbv1 "github.com/netbirdio/kubernetes-operator/api/v1"
+	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	"github.com/netbirdio/kubernetes-operator/internal/controller"
-	webhooknetbirdiov1 "github.com/netbirdio/kubernetes-operator/internal/webhook/v1"
-	// +kubebuilder:scaffold:imports
+	nbwebhookv1 "github.com/netbirdio/kubernetes-operator/internal/webhook/v1"
 )
 
 var (
@@ -59,11 +59,11 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(netbirdiov1.AddToScheme(scheme))
+	utilruntime.Must(nbv1.AddToScheme(scheme))
 	utilruntime.Must(corev1.AddToScheme(scheme))
-	utilruntime.Must(gatewayv1.Install(scheme))
-	utilruntime.Must(gatewayv1alpha2.Install(scheme))
-	utilruntime.Must(netbirdiov1alpha1.AddToScheme(scheme))
+	utilruntime.Must(gwv1.Install(scheme))
+	utilruntime.Must(gwv1alpha2.Install(scheme))
+	utilruntime.Must(nbv1alpha1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -215,7 +215,7 @@ func main() {
 	}
 
 	if enableWebhooks {
-		if err = webhooknetbirdiov1.SetupPodWebhookWithManager(mgr, managementURL, clientImage); err != nil {
+		if err = nbwebhookv1.SetupPodWebhookWithManager(mgr, managementURL, clientImage); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "Pod")
 			os.Exit(1)
 		}
@@ -281,7 +281,7 @@ func main() {
 		}
 
 		if enableWebhooks {
-			if err = webhooknetbirdiov1.SetupNBGroupWebhookWithManager(mgr); err != nil {
+			if err = nbwebhookv1.SetupNBGroupWebhookWithManager(mgr); err != nil {
 				setupLog.Error(err, "unable to create webhook", "webhook", "NBGroup")
 				os.Exit(1)
 			}

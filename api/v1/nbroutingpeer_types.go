@@ -1,9 +1,10 @@
 package v1
 
 import (
-	"github.com/netbirdio/kubernetes-operator/internal/util"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/netbirdio/kubernetes-operator/internal/util"
 )
 
 // NBRoutingPeerSpec defines the desired state of NBRoutingPeer.

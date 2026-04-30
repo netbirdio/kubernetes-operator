@@ -21,13 +21,12 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
+	nbv1 "github.com/netbirdio/kubernetes-operator/api/v1"
 )
 
 var _ = Describe("NBSetupKey Controller", func() {
@@ -40,20 +39,20 @@ var _ = Describe("NBSetupKey Controller", func() {
 			Name:      resourceName,
 			Namespace: "default",
 		}
-		nbsetupkey := &netbirdiov1.NBSetupKey{}
-		secret := &v1.Secret{}
+		nbsetupkey := &nbv1.NBSetupKey{}
+		secret := &corev1.Secret{}
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind NBSetupKey")
 			err := k8sClient.Get(ctx, typeNamespacedName, nbsetupkey)
-			resource := &netbirdiov1.NBSetupKey{
+			resource := &nbv1.NBSetupKey{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      resourceName,
 					Namespace: "default",
 				},
-				Spec: netbirdiov1.NBSetupKeySpec{
-					SecretKeyRef: v1.SecretKeySelector{
-						LocalObjectReference: v1.LocalObjectReference{
+				Spec: nbv1.NBSetupKeySpec{
+					SecretKeyRef: corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{
 							Name: resourceName,
 						},
 						Key: "setupkey",
@@ -67,7 +66,7 @@ var _ = Describe("NBSetupKey Controller", func() {
 		})
 
 		AfterEach(func() {
-			resource := &netbirdiov1.NBSetupKey{}
+			resource := &nbv1.NBSetupKey{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -92,7 +91,7 @@ var _ = Describe("NBSetupKey Controller", func() {
 
 				Expect(nbsetupkey.Status.Conditions).NotTo(BeNil())
 				Expect(nbsetupkey.Status.Conditions).To(HaveLen(1))
-				Expect(nbsetupkey.Status.Conditions[0].Status).To(Equal(v1.ConditionFalse))
+				Expect(nbsetupkey.Status.Conditions[0].Status).To(Equal(corev1.ConditionFalse))
 				Expect(nbsetupkey.Status.Conditions[0].Reason).To(Equal("SecretNotExists"))
 				Expect(controllerReconciler.ReferencedSecrets).To(HaveKey("default/test-resource"))
 			})
@@ -100,7 +99,7 @@ var _ = Describe("NBSetupKey Controller", func() {
 
 		When("Secret present", Ordered, func() {
 			createSecret := func(secretkey, setupkey string) {
-				resource := &v1.Secret{
+				resource := &corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "default",
 						Name:      resourceName,
@@ -110,7 +109,7 @@ var _ = Describe("NBSetupKey Controller", func() {
 					},
 				}
 
-				secret = &v1.Secret{}
+				secret = &corev1.Secret{}
 				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: resourceName}, secret)
 				if err == nil {
 					Expect(k8sClient.Delete(ctx, secret)).To(Succeed())
@@ -137,7 +136,7 @@ var _ = Describe("NBSetupKey Controller", func() {
 
 					Expect(nbsetupkey.Status.Conditions).NotTo(BeNil())
 					Expect(nbsetupkey.Status.Conditions).To(HaveLen(1))
-					Expect(nbsetupkey.Status.Conditions[0].Status).To(Equal(v1.ConditionFalse))
+					Expect(nbsetupkey.Status.Conditions[0].Status).To(Equal(corev1.ConditionFalse))
 					Expect(nbsetupkey.Status.Conditions[0].Reason).To(Equal("InvalidSetupKey"))
 					Expect(controllerReconciler.ReferencedSecrets).To(HaveKey("default/test-resource"))
 				})
@@ -162,7 +161,7 @@ var _ = Describe("NBSetupKey Controller", func() {
 
 					Expect(nbsetupkey.Status.Conditions).NotTo(BeNil())
 					Expect(nbsetupkey.Status.Conditions).To(HaveLen(1))
-					Expect(nbsetupkey.Status.Conditions[0].Status).To(Equal(v1.ConditionFalse))
+					Expect(nbsetupkey.Status.Conditions[0].Status).To(Equal(corev1.ConditionFalse))
 					Expect(nbsetupkey.Status.Conditions[0].Reason).To(Equal("SecretKeyNotExists"))
 					Expect(controllerReconciler.ReferencedSecrets).To(HaveKey("default/test-resource"))
 				})
@@ -187,7 +186,7 @@ var _ = Describe("NBSetupKey Controller", func() {
 
 					Expect(nbsetupkey.Status.Conditions).NotTo(BeNil())
 					Expect(nbsetupkey.Status.Conditions).To(HaveLen(1))
-					Expect(nbsetupkey.Status.Conditions[0].Status).To(Equal(v1.ConditionTrue))
+					Expect(nbsetupkey.Status.Conditions[0].Status).To(Equal(corev1.ConditionTrue))
 					Expect(controllerReconciler.ReferencedSecrets).To(HaveKey("default/test-resource"))
 				})
 			})

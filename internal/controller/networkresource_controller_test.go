@@ -12,9 +12,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/netbirdio/netbird/shared/management/http/api"
+
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	"github.com/netbirdio/kubernetes-operator/internal/netbirdmock"
-	"github.com/netbirdio/netbird/shared/management/http/api"
 )
 
 var _ = Describe("NetworkResource Controller", func() {

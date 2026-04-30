@@ -1,8 +1,9 @@
 package v1
 
 import (
-	"github.com/netbirdio/kubernetes-operator/internal/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/netbirdio/kubernetes-operator/internal/util"
 )
 
 // NBPolicySpec defines the desired state of NBPolicy.

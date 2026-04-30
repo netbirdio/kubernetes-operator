@@ -11,12 +11,12 @@ import (
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
+	nbv1 "github.com/netbirdio/kubernetes-operator/api/v1"
 	"github.com/netbirdio/kubernetes-operator/internal/util"
 )
 
@@ -82,7 +82,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 // hideService deletes NBResource for Service
 func (r *ServiceReconciler) hideService(ctx context.Context, req ctrl.Request, svc corev1.Service, logger logr.Logger) (ctrl.Result, error) {
-	var nbResource netbirdiov1.NBResource
+	var nbResource nbv1.NBResource
 	err := r.Client.Get(ctx, req.NamespacedName, &nbResource)
 	if err != nil && !errors.IsNotFound(err) {
 		logger.Error(errKubernetesAPI, "error getting NBResource", "err", err)
@@ -125,7 +125,7 @@ func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request,
 		}
 	}
 
-	var routingPeer netbirdiov1.NBRoutingPeer
+	var routingPeer nbv1.NBRoutingPeer
 	// Check if NBRoutingPeer exists
 	err := r.Client.Get(ctx, types.NamespacedName{Namespace: routerNamespace, Name: "router"}, &routingPeer)
 	if err != nil && !errors.IsNotFound(err) {
@@ -135,14 +135,14 @@ func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request,
 
 	// Create NBRoutingPeer with default values if not exists
 	if errors.IsNotFound(err) {
-		routingPeer = netbirdiov1.NBRoutingPeer{
-			ObjectMeta: v1.ObjectMeta{
+		routingPeer = nbv1.NBRoutingPeer{
+			ObjectMeta: metav1.ObjectMeta{
 				Name:       "router",
 				Namespace:  routerNamespace,
 				Finalizers: []string{"netbird.io/cleanup"},
 				Labels:     r.DefaultLabels,
 			},
-			Spec: netbirdiov1.NBRoutingPeerSpec{},
+			Spec: nbv1.NBRoutingPeerSpec{},
 		}
 
 		err = r.Client.Create(ctx, &routingPeer)
@@ -161,7 +161,7 @@ func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request,
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 	}
 
-	var nbResource netbirdiov1.NBResource
+	var nbResource nbv1.NBResource
 	err = r.Client.Get(ctx, req.NamespacedName, &nbResource)
 	if err != nil && !errors.IsNotFound(err) {
 		logger.Error(errKubernetesAPI, "error getting NBResource", "err", err)
@@ -192,7 +192,7 @@ func (r *ServiceReconciler) exposeService(ctx context.Context, req ctrl.Request,
 }
 
 // reconcileNBResource ensures NBResource settings are in-line with Service definition and annotations
-func (r *ServiceReconciler) reconcileNBResource(nbResource *netbirdiov1.NBResource, req ctrl.Request, svc corev1.Service, routingPeer netbirdiov1.NBRoutingPeer, logger logr.Logger) error {
+func (r *ServiceReconciler) reconcileNBResource(nbResource *nbv1.NBResource, req ctrl.Request, svc corev1.Service, routingPeer nbv1.NBRoutingPeer, logger logr.Logger) error {
 	groups := []string{fmt.Sprintf("%s-%s-%s", r.ClusterName, req.Namespace, req.Name)}
 	if v, ok := svc.Annotations[serviceGroupsAnnotation]; ok {
 		//nolint:prealloc
@@ -230,7 +230,7 @@ func (r *ServiceReconciler) reconcileNBResource(nbResource *netbirdiov1.NBResour
 	return nil
 }
 
-func (r *ServiceReconciler) applyPolicy(nbResource *netbirdiov1.NBResource, svc corev1.Service, logger logr.Logger) error {
+func (r *ServiceReconciler) applyPolicy(nbResource *nbv1.NBResource, svc corev1.Service, logger logr.Logger) error {
 	nbResource.Spec.PolicyName = svc.Annotations[servicePolicyAnnotation]
 	var filterProtocols []string
 	if v, ok := svc.Annotations[serviceProtocolAnnotation]; ok {

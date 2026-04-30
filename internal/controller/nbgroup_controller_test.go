@@ -9,14 +9,15 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
-	"github.com/netbirdio/kubernetes-operator/internal/util"
 	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
 	"github.com/netbirdio/netbird/shared/management/http/api"
+
+	nbv1 "github.com/netbirdio/kubernetes-operator/api/v1"
+	"github.com/netbirdio/kubernetes-operator/internal/util"
 )
 
 var _ = Describe("NBGroup Controller", func() {
@@ -33,7 +34,7 @@ var _ = Describe("NBGroup Controller", func() {
 		var netbirdClient *netbird.Client
 		var mux *http.ServeMux
 		var server *httptest.Server
-		var nbGroup netbirdiov1.NBGroup
+		var nbGroup nbv1.NBGroup
 
 		BeforeEach(func() {
 			mux = &http.ServeMux{}
@@ -46,13 +47,13 @@ var _ = Describe("NBGroup Controller", func() {
 				Expect(deleteErr).NotTo(HaveOccurred())
 			}
 			if err == nil || errors.IsNotFound(err) {
-				nbGroup = netbirdiov1.NBGroup{
-					ObjectMeta: v1.ObjectMeta{
+				nbGroup = nbv1.NBGroup{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:       resourceName,
 						Namespace:  typeNamespacedName.Namespace,
 						Finalizers: []string{"netbird.io/group-cleanup"},
 					},
-					Spec: netbirdiov1.NBGroupSpec{
+					Spec: nbv1.NBGroupSpec{
 						Name: resourceName,
 					},
 				}
@@ -63,7 +64,7 @@ var _ = Describe("NBGroup Controller", func() {
 
 		AfterEach(func() {
 			server.Close()
-			resource := &netbirdiov1.NBGroup{}
+			resource := &nbv1.NBGroup{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			if errors.IsNotFound(err) {
 				return
@@ -113,8 +114,8 @@ var _ = Describe("NBGroup Controller", func() {
 				Expect(nbGroup.Status.GroupID).NotTo(BeNil())
 				Expect(*nbGroup.Status.GroupID).To(Equal("Test"))
 				Expect(nbGroup.Status.Conditions).To(HaveLen(1))
-				Expect(nbGroup.Status.Conditions[0].Status).To(BeEquivalentTo(v1.ConditionTrue))
-				Expect(nbGroup.Status.Conditions[0].Type).To(Equal(netbirdiov1.NBSetupKeyReady))
+				Expect(nbGroup.Status.Conditions[0].Status).To(BeEquivalentTo(metav1.ConditionTrue))
+				Expect(nbGroup.Status.Conditions[0].Type).To(Equal(nbv1.NBSetupKeyReady))
 			})
 		})
 
@@ -148,8 +149,8 @@ var _ = Describe("NBGroup Controller", func() {
 				Expect(nbGroup.Status.GroupID).NotTo(BeNil())
 				Expect(*nbGroup.Status.GroupID).To(Equal("Test"))
 				Expect(nbGroup.Status.Conditions).To(HaveLen(1))
-				Expect(nbGroup.Status.Conditions[0].Status).To(BeEquivalentTo(v1.ConditionTrue))
-				Expect(nbGroup.Status.Conditions[0].Type).To(Equal(netbirdiov1.NBSetupKeyReady))
+				Expect(nbGroup.Status.Conditions[0].Status).To(BeEquivalentTo(metav1.ConditionTrue))
+				Expect(nbGroup.Status.Conditions[0].Type).To(Equal(nbv1.NBSetupKeyReady))
 			})
 		})
 
@@ -222,12 +223,12 @@ var _ = Describe("NBGroup Controller", func() {
 			When("Group already exists in another namespace", func() {
 				It("Should delete NBGroup after linked failure", func() {
 					deleteGroup()
-					otherGroup := &netbirdiov1.NBGroup{
-						ObjectMeta: v1.ObjectMeta{
+					otherGroup := &nbv1.NBGroup{
+						ObjectMeta: metav1.ObjectMeta{
 							Name:      nbGroup.Name,
 							Namespace: "kube-system",
 						},
-						Spec: netbirdiov1.NBGroupSpec{
+						Spec: nbv1.NBGroupSpec{
 							Name: nbGroup.Spec.Name,
 						},
 					}
@@ -294,8 +295,8 @@ var _ = Describe("NBGroup Controller", func() {
 				Expect(nbGroup.Status.GroupID).NotTo(BeNil())
 				Expect(*nbGroup.Status.GroupID).To(Equal("Test"))
 				Expect(nbGroup.Status.Conditions).To(HaveLen(1))
-				Expect(nbGroup.Status.Conditions[0].Status).To(BeEquivalentTo(v1.ConditionTrue))
-				Expect(nbGroup.Status.Conditions[0].Type).To(Equal(netbirdiov1.NBSetupKeyReady))
+				Expect(nbGroup.Status.Conditions[0].Status).To(BeEquivalentTo(metav1.ConditionTrue))
+				Expect(nbGroup.Status.Conditions[0].Type).To(Equal(nbv1.NBSetupKeyReady))
 			})
 		})
 
@@ -340,7 +341,7 @@ var _ = Describe("NBGroup Controller", func() {
 
 				Expect(nbGroup.Status.GroupID).To(BeNil())
 				Expect(nbGroup.Status.Conditions).To(HaveLen(1))
-				Expect(nbGroup.Status.Conditions[0].Status).To(BeEquivalentTo(v1.ConditionFalse))
+				Expect(nbGroup.Status.Conditions[0].Status).To(BeEquivalentTo(metav1.ConditionFalse))
 
 				_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
 					NamespacedName: typeNamespacedName,
@@ -353,7 +354,7 @@ var _ = Describe("NBGroup Controller", func() {
 				Expect(nbGroup.Status.GroupID).NotTo(BeNil())
 				Expect(*nbGroup.Status.GroupID).To(Equal("Test"))
 				Expect(nbGroup.Status.Conditions).To(HaveLen(1))
-				Expect(nbGroup.Status.Conditions[0].Status).To(BeEquivalentTo(v1.ConditionTrue))
+				Expect(nbGroup.Status.Conditions[0].Status).To(BeEquivalentTo(metav1.ConditionTrue))
 			})
 		})
 	})

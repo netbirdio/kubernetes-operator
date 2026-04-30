@@ -24,7 +24,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -32,11 +32,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	foobarv1 "k8s.io/api/core/v1"
-
-	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
-	netbirdiov1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
-	// +kubebuilder:scaffold:imports
+	nbv1 "github.com/netbirdio/kubernetes-operator/api/v1"
+	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -62,13 +59,13 @@ var _ = BeforeSuite(func() {
 	ctx, cancel = context.WithCancel(context.TODO())
 
 	var err error
-	err = netbirdiov1.AddToScheme(scheme.Scheme)
+	err = nbv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = foobarv1.AddToScheme(scheme.Scheme)
+	err = corev1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = netbirdiov1alpha1.AddToScheme(scheme.Scheme)
+	err = nbv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	// +kubebuilder:scaffold:scheme

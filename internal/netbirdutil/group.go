@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
 
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 )

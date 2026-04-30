@@ -11,16 +11,16 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
-	"github.com/netbirdio/kubernetes-operator/internal/util"
 	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
 	"github.com/netbirdio/netbird/shared/management/http/api"
-	ctrl "sigs.k8s.io/controller-runtime"
+
+	nbv1 "github.com/netbirdio/kubernetes-operator/api/v1"
+	"github.com/netbirdio/kubernetes-operator/internal/util"
 )
 
 var _ = Describe("NBPolicy Controller", func() {
@@ -32,7 +32,7 @@ var _ = Describe("NBPolicy Controller", func() {
 		typeNamespacedName := types.NamespacedName{
 			Name: resourceName,
 		}
-		nbpolicy := &netbirdiov1.NBPolicy{}
+		nbpolicy := &nbv1.NBPolicy{}
 		var netbirdClient *netbird.Client
 		var mux *http.ServeMux
 		var server *httptest.Server
@@ -46,12 +46,12 @@ var _ = Describe("NBPolicy Controller", func() {
 			By("creating the custom resource for the Kind NBPolicy")
 			err := k8sClient.Get(ctx, typeNamespacedName, nbpolicy)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &netbirdiov1.NBPolicy{
+				resource := &nbv1.NBPolicy{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:       resourceName,
 						Finalizers: []string{"netbird.io/cleanup"},
 					},
-					Spec: netbirdiov1.NBPolicySpec{
+					Spec: nbv1.NBPolicySpec{
 						Name:          "Test",
 						SourceGroups:  []string{"All"},
 						Bidirectional: true,
@@ -63,7 +63,7 @@ var _ = Describe("NBPolicy Controller", func() {
 		})
 
 		AfterEach(func() {
-			resource := &netbirdiov1.NBPolicy{}
+			resource := &nbv1.NBPolicy{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			if !errors.IsNotFound(err) {
 				Expect(err).NotTo(HaveOccurred())
@@ -77,7 +77,7 @@ var _ = Describe("NBPolicy Controller", func() {
 				Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 			}
 
-			nbresource := &netbirdiov1.NBResource{}
+			nbresource := &nbv1.NBResource{}
 			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "test"}, nbresource)
 			if !errors.IsNotFound(err) {
 				Expect(err).NotTo(HaveOccurred())
@@ -120,12 +120,12 @@ var _ = Describe("NBPolicy Controller", func() {
 					Netbird: netbirdClient,
 				}
 
-				nbResource := &netbirdiov1.NBResource{
+				nbResource := &nbv1.NBResource{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test",
 						Namespace: "default",
 					},
-					Spec: netbirdiov1.NBResourceSpec{
+					Spec: nbv1.NBResourceSpec{
 						Name:       "meow",
 						Groups:     []string{"test"},
 						NetworkID:  "test",
@@ -136,7 +136,7 @@ var _ = Describe("NBPolicy Controller", func() {
 				}
 				Expect(k8sClient.Create(ctx, nbResource)).To(Succeed())
 
-				nbResource.Status = netbirdiov1.NBResourceStatus{
+				nbResource.Status = nbv1.NBResourceStatus{
 					TCPPorts:   []int32{443},
 					PolicyName: &resourceName,
 					Groups:     []string{"test"},
@@ -258,12 +258,12 @@ var _ = Describe("NBPolicy Controller", func() {
 					Netbird: netbirdClient,
 				}
 
-				nbResource := &netbirdiov1.NBResource{
+				nbResource := &nbv1.NBResource{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test",
 						Namespace: "default",
 					},
-					Spec: netbirdiov1.NBResourceSpec{
+					Spec: nbv1.NBResourceSpec{
 						Name:       "meow",
 						Groups:     []string{"test"},
 						NetworkID:  "test",
@@ -274,7 +274,7 @@ var _ = Describe("NBPolicy Controller", func() {
 				}
 				Expect(k8sClient.Create(ctx, nbResource)).To(Succeed())
 
-				nbResource.Status = netbirdiov1.NBResourceStatus{
+				nbResource.Status = nbv1.NBResourceStatus{
 					UDPPorts:   []int32{443},
 					PolicyName: &resourceName,
 					Groups:     []string{"test"},
@@ -396,12 +396,12 @@ var _ = Describe("NBPolicy Controller", func() {
 					Netbird: netbirdClient,
 				}
 
-				nbResource := &netbirdiov1.NBResource{
+				nbResource := &nbv1.NBResource{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test",
 						Namespace: "default",
 					},
-					Spec: netbirdiov1.NBResourceSpec{
+					Spec: nbv1.NBResourceSpec{
 						Name:       "meow",
 						Groups:     []string{"test"},
 						NetworkID:  "test",
@@ -412,7 +412,7 @@ var _ = Describe("NBPolicy Controller", func() {
 				}
 				Expect(k8sClient.Create(ctx, nbResource)).To(Succeed())
 
-				nbResource.Status = netbirdiov1.NBResourceStatus{
+				nbResource.Status = nbv1.NBResourceStatus{
 					TCPPorts:   []int32{443},
 					PolicyName: &resourceName,
 					Groups:     []string{"test"},
@@ -459,7 +459,7 @@ var _ = Describe("NBPolicy Controller", func() {
 
 		When("Updating existing policy", func() {
 			AfterEach(func() {
-				nbresource := &netbirdiov1.NBResource{}
+				nbresource := &nbv1.NBResource{}
 				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "test-b"}, nbresource)
 				if !errors.IsNotFound(err) {
 					Expect(err).NotTo(HaveOccurred())
@@ -475,12 +475,12 @@ var _ = Describe("NBPolicy Controller", func() {
 					Netbird: netbirdClient,
 				}
 
-				nbResource := &netbirdiov1.NBResource{
+				nbResource := &nbv1.NBResource{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test",
 						Namespace: "default",
 					},
-					Spec: netbirdiov1.NBResourceSpec{
+					Spec: nbv1.NBResourceSpec{
 						Name:       "meow",
 						Groups:     []string{"test"},
 						NetworkID:  "test",
@@ -491,19 +491,19 @@ var _ = Describe("NBPolicy Controller", func() {
 				}
 				Expect(k8sClient.Create(ctx, nbResource)).To(Succeed())
 
-				nbResource.Status = netbirdiov1.NBResourceStatus{
+				nbResource.Status = nbv1.NBResourceStatus{
 					TCPPorts:   []int32{443},
 					PolicyName: &resourceName,
 					Groups:     []string{"test"},
 				}
 				Expect(k8sClient.Status().Update(ctx, nbResource)).To(Succeed())
 
-				nbResourceB := &netbirdiov1.NBResource{
+				nbResourceB := &nbv1.NBResource{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-b",
 						Namespace: "default",
 					},
-					Spec: netbirdiov1.NBResourceSpec{
+					Spec: nbv1.NBResourceSpec{
 						Name:       "meow-b",
 						Groups:     []string{"test-b"},
 						NetworkID:  "test",
@@ -514,7 +514,7 @@ var _ = Describe("NBPolicy Controller", func() {
 				}
 				Expect(k8sClient.Create(ctx, nbResourceB)).To(Succeed())
 
-				nbResourceB.Status = netbirdiov1.NBResourceStatus{
+				nbResourceB.Status = nbv1.NBResourceStatus{
 					TCPPorts:   []int32{80},
 					PolicyName: &resourceName,
 					Groups:     []string{"test-b"},

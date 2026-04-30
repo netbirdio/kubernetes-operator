@@ -28,9 +28,8 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
 	admissionv1 "k8s.io/api/admission/v1"
-	k8siov1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	apimachineryruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -41,9 +40,8 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
+	nbv1 "github.com/netbirdio/kubernetes-operator/api/v1"
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
-	// +kubebuilder:scaffold:imports
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -70,13 +68,13 @@ var _ = BeforeSuite(func() {
 
 	var err error
 	scheme := apimachineryruntime.NewScheme()
-	err = k8siov1.AddToScheme(scheme)
+	err = corev1.AddToScheme(scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = admissionv1.AddToScheme(scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = netbirdiov1.AddToScheme(scheme)
+	err = nbv1.AddToScheme(scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = nbv1alpha1.AddToScheme(scheme)

@@ -10,19 +10,19 @@ import (
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
-	"github.com/netbirdio/kubernetes-operator/internal/util"
 	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
 	"github.com/netbirdio/netbird/shared/management/http/api"
+
+	nbv1 "github.com/netbirdio/kubernetes-operator/api/v1"
+	"github.com/netbirdio/kubernetes-operator/internal/util"
 )
 
 var _ = Describe("NBRoutingPeer Controller", func() {
@@ -35,7 +35,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 			Name:      resourceName,
 			Namespace: "default",
 		}
-		nbroutingpeer := &netbirdiov1.NBRoutingPeer{}
+		nbroutingpeer := &nbv1.NBRoutingPeer{}
 		var netbirdClient *netbird.Client
 		var mux *http.ServeMux
 		var server *httptest.Server
@@ -58,13 +58,13 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 			By("creating the custom resource for the Kind NBRoutingPeer")
 			err := k8sClient.Get(ctx, typeNamespacedName, nbroutingpeer)
 			if err != nil && errors.IsNotFound(err) {
-				nbroutingpeer = &netbirdiov1.NBRoutingPeer{
+				nbroutingpeer = &nbv1.NBRoutingPeer{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:       resourceName,
 						Namespace:  "default",
 						Finalizers: []string{"netbird.io/cleanup"},
 					},
-					Spec: netbirdiov1.NBRoutingPeerSpec{
+					Spec: nbv1.NBRoutingPeerSpec{
 						Replicas: util.Ptr(int32(0)),
 					},
 				}
@@ -73,7 +73,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 		})
 
 		AfterEach(func() {
-			resource := &netbirdiov1.NBRoutingPeer{}
+			resource := &nbv1.NBRoutingPeer{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			if !errors.IsNotFound(err) {
 				Expect(err).NotTo(HaveOccurred())
@@ -89,7 +89,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 				}
 			}
 
-			group := &netbirdiov1.NBGroup{}
+			group := &nbv1.NBGroup{}
 			err = k8sClient.Get(ctx, typeNamespacedName, group)
 			if !errors.IsNotFound(err) {
 				Expect(err).NotTo(HaveOccurred())
@@ -137,7 +137,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 				}
 			}
 
-			nbresource := &netbirdiov1.NBResource{}
+			nbresource := &nbv1.NBResource{}
 			err = k8sClient.Get(ctx, typeNamespacedName, nbresource)
 			if !errors.IsNotFound(err) {
 				Expect(err).NotTo(HaveOccurred())
@@ -156,12 +156,12 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 
 		When("Network doesn't exist", func() {
 			BeforeEach(func() {
-				group := &netbirdiov1.NBGroup{
+				group := &nbv1.NBGroup{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      typeNamespacedName.Name,
 						Namespace: typeNamespacedName.Namespace,
 					},
-					Spec: netbirdiov1.NBGroupSpec{
+					Spec: nbv1.NBGroupSpec{
 						Name: controllerReconciler.ClusterName,
 					},
 				}
@@ -230,12 +230,12 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 			})
 			Describe("Network Router changes", func() {
 				BeforeEach(func() {
-					group := &netbirdiov1.NBGroup{
+					group := &nbv1.NBGroup{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      typeNamespacedName.Name,
 							Namespace: typeNamespacedName.Namespace,
 						},
-						Spec: netbirdiov1.NBGroupSpec{
+						Spec: nbv1.NBGroupSpec{
 							Name: controllerReconciler.ClusterName,
 						},
 					}
@@ -445,7 +445,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 						Expect(err).NotTo(HaveOccurred())
 						Expect(res.RequeueAfter).To(BeNumerically(">", 0))
 
-						group := &netbirdiov1.NBGroup{}
+						group := &nbv1.NBGroup{}
 						Expect(k8sClient.Get(ctx, typeNamespacedName, group)).To(Succeed())
 						Expect(group.Spec.Name).To(Equal(controllerReconciler.ClusterName))
 						Expect(group.Labels).To(HaveKeyWithValue("dog", "bark"))
@@ -461,13 +461,13 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 				})
 				When("Group exists", func() {
 					BeforeEach(func() {
-						group := &netbirdiov1.NBGroup{
+						group := &nbv1.NBGroup{
 							ObjectMeta: metav1.ObjectMeta{
 								Name:       typeNamespacedName.Name,
 								Namespace:  typeNamespacedName.Namespace,
 								Finalizers: []string{"netbird.io/routing-peer-cleanup", "netbird.io/group-cleanup"},
 							},
-							Spec: netbirdiov1.NBGroupSpec{
+							Spec: nbv1.NBGroupSpec{
 								Name: controllerReconciler.ClusterName,
 							},
 						}
@@ -1102,7 +1102,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								NamespacedName: typeNamespacedName,
 							})
 							Expect(err).NotTo(HaveOccurred())
-							group := &netbirdiov1.NBGroup{}
+							group := &nbv1.NBGroup{}
 							Expect(k8sClient.Get(ctx, typeNamespacedName, group)).To(Succeed())
 							Expect(group.Finalizers).NotTo(ContainElement("netbird.io/routing-peer-cleanup"))
 						})
@@ -1137,12 +1137,12 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 						})
 
 						It("should delete any hanging NBResources", func() {
-							nbResource := &netbirdiov1.NBResource{
+							nbResource := &nbv1.NBResource{
 								ObjectMeta: metav1.ObjectMeta{
 									Name:      typeNamespacedName.Name,
 									Namespace: typeNamespacedName.Namespace,
 								},
-								Spec: netbirdiov1.NBResourceSpec{
+								Spec: nbv1.NBResourceSpec{
 									Name:      "test",
 									NetworkID: *nbroutingpeer.Status.NetworkID,
 									Address:   "test",
@@ -1155,7 +1155,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								NamespacedName: typeNamespacedName,
 							})
 							Expect(err).NotTo(HaveOccurred())
-							nbResource = &netbirdiov1.NBResource{}
+							nbResource = &nbv1.NBResource{}
 							err = k8sClient.Get(ctx, typeNamespacedName, nbResource)
 							Expect(errors.IsNotFound(err)).To(BeTrue())
 						})

@@ -7,13 +7,14 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
-	"github.com/netbirdio/netbird/shared/management/http/api"
 	"k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
+	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
+	"github.com/netbirdio/netbird/shared/management/http/api"
+
+	nbv1 "github.com/netbirdio/kubernetes-operator/api/v1"
 	"github.com/netbirdio/kubernetes-operator/internal/util"
 )
 
@@ -39,7 +40,7 @@ func (r *NBGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	logger := ctrl.Log.WithName("NBGroup").WithValues("namespace", req.Namespace, "name", req.Name)
 	logger.Info("Reconciling NBGroup")
 
-	nbGroup := netbirdiov1.NBGroup{}
+	nbGroup := nbv1.NBGroup{}
 	err = r.Client.Get(ctx, req.NamespacedName, &nbGroup)
 	if err != nil {
 		if !errors.IsNotFound(err) {
@@ -78,7 +79,7 @@ func (r *NBGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 }
 
 // syncNetBirdGroup reconciliation logic for non-deleted objects.
-func (r *NBGroupReconciler) syncNetBirdGroup(ctx context.Context, nbGroup *netbirdiov1.NBGroup, logger logr.Logger) (ctrl.Result, error) {
+func (r *NBGroupReconciler) syncNetBirdGroup(ctx context.Context, nbGroup *nbv1.NBGroup, logger logr.Logger) (ctrl.Result, error) {
 	// Get all NetBird groups to ensure no group duplication
 	groups, err := r.Netbird.Groups.List(ctx)
 	if err != nil {
@@ -99,37 +100,37 @@ func (r *NBGroupReconciler) syncNetBirdGroup(ctx context.Context, nbGroup *netbi
 			Name: nbGroup.Spec.Name,
 		})
 		if err != nil {
-			nbGroup.Status.Conditions = netbirdiov1.NBConditionFalse("APIError", fmt.Sprintf("NetBird API Error: %v", err))
+			nbGroup.Status.Conditions = nbv1.NBConditionFalse("APIError", fmt.Sprintf("NetBird API Error: %v", err))
 			logger.Error(errNetBirdAPI, "error creating group", "err", err)
 			return ctrl.Result{}, err
 		}
 
 		logger.Info("NBGroup: Created group on NetBird", "name", nbGroup.Spec.Name, "id", group.Id)
 		nbGroup.Status.GroupID = &group.Id
-		nbGroup.Status.Conditions = netbirdiov1.NBConditionTrue()
+		nbGroup.Status.Conditions = nbv1.NBConditionTrue()
 	} else if nbGroup.Status.GroupID == nil && group != nil {
 		logger.Info("NBGroup: Found group with same name on NetBird", "name", nbGroup.Spec.Name, "id", group.Id)
 		nbGroup.Status.GroupID = &group.Id
-		nbGroup.Status.Conditions = netbirdiov1.NBConditionTrue()
+		nbGroup.Status.Conditions = nbv1.NBConditionTrue()
 	} else if group == nil {
 		logger.Info("NBGroup: Group was deleted", "name", nbGroup.Spec.Name, "id", *nbGroup.Status.GroupID)
 		nbGroup.Status.GroupID = nil
-		nbGroup.Status.Conditions = netbirdiov1.NBConditionFalse("GroupGone", "Group was deleted from NetBird API")
+		nbGroup.Status.Conditions = nbv1.NBConditionFalse("GroupGone", "Group was deleted from NetBird API")
 		return ctrl.Result{Requeue: true}, nil
 	} else {
-		nbGroup.Status.Conditions = netbirdiov1.NBConditionTrue()
+		nbGroup.Status.Conditions = nbv1.NBConditionTrue()
 	}
 
 	if nbGroup.Status.GroupID != nil && group != nil && *nbGroup.Status.GroupID != group.Id {
 		// There are two possibilities here, either someone deleted and created the group in NetBird, thus the changed ID
 		// Or there's a conflict with something else, either way, we just need to take the new ID here
 		nbGroup.Status.GroupID = &group.Id
-		nbGroup.Status.Conditions = netbirdiov1.NBConditionTrue()
+		nbGroup.Status.Conditions = nbv1.NBConditionTrue()
 	}
 	return ctrl.Result{}, nil
 }
 
-func (r *NBGroupReconciler) handleDelete(ctx context.Context, nbGroup netbirdiov1.NBGroup, logger logr.Logger) error {
+func (r *NBGroupReconciler) handleDelete(ctx context.Context, nbGroup nbv1.NBGroup, logger logr.Logger) error {
 	// Group doesn't exist on NetBird, no need for cleanup
 	if nbGroup.Status.GroupID == nil {
 		nbGroup.Finalizers = util.Without(nbGroup.Finalizers, "netbird.io/group-cleanup")
@@ -151,7 +152,7 @@ func (r *NBGroupReconciler) handleDelete(ctx context.Context, nbGroup netbirdiov
 	if err != nil && strings.Contains(err.Error(), "linked") && !nbGroup.DeletionTimestamp.Add(time.Minute).Before(time.Now()) {
 		logger.Info("group still linked to resources on netbird", "err", err)
 		// Check if group is defined elsewhere in the cluster
-		var groups netbirdiov1.NBGroupList
+		var groups nbv1.NBGroupList
 		listErr := r.Client.List(ctx, &groups)
 		if listErr != nil {
 			logger.Error(errKubernetesAPI, "error listing NBGroups", "err", listErr)
@@ -192,7 +193,7 @@ func (r *NBGroupReconciler) handleDelete(ctx context.Context, nbGroup netbirdiov
 // SetupWithManager sets up the controller with the Manager.
 func (r *NBGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&netbirdiov1.NBGroup{}).
+		For(&nbv1.NBGroup{}).
 		Named("nbgroup").
 		Complete(r)
 }

@@ -5,13 +5,14 @@ import (
 	"time"
 
 	"github.com/fluxcd/pkg/runtime/patch"
-	"github.com/netbirdio/kubernetes-operator/internal/k8sutil"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
+
+	"github.com/netbirdio/kubernetes-operator/internal/k8sutil"
 )
 
 const (
@@ -23,7 +24,7 @@ type GatewayClassReconciler struct {
 }
 
 func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	gwc := &gatewayv1.GatewayClass{}
+	gwc := &gwv1.GatewayClass{}
 	err := r.Client.Get(ctx, req.NamespacedName, gwc)
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -52,9 +53,9 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}()
 	if message != "" {
 		cond := metav1.Condition{
-			Type:    string(gatewayv1.GatewayClassConditionStatusAccepted),
+			Type:    string(gwv1.GatewayClassConditionStatusAccepted),
 			Status:  metav1.ConditionFalse,
-			Reason:  string(gatewayv1.GatewayClassReasonInvalidParameters),
+			Reason:  string(gwv1.GatewayClassReasonInvalidParameters),
 			Message: message,
 		}
 		meta.SetStatusCondition(&gwc.Status.Conditions, cond)
@@ -68,9 +69,9 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	// Set condition to accepted.
 	controllerutil.AddFinalizer(gwc, k8sutil.Finalizer("gatewayclass"))
 	cond := metav1.Condition{
-		Type:    string(gatewayv1.GatewayClassConditionStatusAccepted),
+		Type:    string(gwv1.GatewayClassConditionStatusAccepted),
 		Status:  metav1.ConditionTrue,
-		Reason:  string(gatewayv1.GatewayClassReasonAccepted),
+		Reason:  string(gwv1.GatewayClassReasonAccepted),
 		Message: "Reconciled by Netbird Operator.",
 	}
 	meta.SetStatusCondition(&gwc.Status.Conditions, cond)
@@ -81,8 +82,8 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	return ctrl.Result{}, nil
 }
 
-func (r *GatewayClassReconciler) reconcileDelete(ctx context.Context, sp *patch.SerialPatcher, gwc *gatewayv1.GatewayClass) (ctrl.Result, error) {
-	var gatewayList gatewayv1.GatewayList
+func (r *GatewayClassReconciler) reconcileDelete(ctx context.Context, sp *patch.SerialPatcher, gwc *gwv1.GatewayClass) (ctrl.Result, error) {
+	var gatewayList gwv1.GatewayList
 	err := r.Client.List(ctx, &gatewayList)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -104,6 +105,6 @@ func (r *GatewayClassReconciler) reconcileDelete(ctx context.Context, sp *patch.
 // SetupWithManager sets up the controller with the Manager.
 func (r *GatewayClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&gatewayv1.GatewayClass{}).
+		For(&gwv1.GatewayClass{}).
 		Complete(r)
 }

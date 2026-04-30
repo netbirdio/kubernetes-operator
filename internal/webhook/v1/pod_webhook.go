@@ -34,7 +34,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	netbirdiov1 "github.com/netbirdio/kubernetes-operator/api/v1"
+	nbv1 "github.com/netbirdio/kubernetes-operator/api/v1"
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	"github.com/netbirdio/kubernetes-operator/internal/controller"
 )
@@ -195,7 +195,7 @@ func (d *PodNetbirdInjector) legacyInjector(ctx context.Context, pod *corev1.Pod
 	podlog.Info("Defaulting for Pod", "name", pod.GetName())
 
 	// retrieve the NBSetupKey resource
-	var nbSetupKey netbirdiov1.NBSetupKey
+	var nbSetupKey nbv1.NBSetupKey
 	err := d.client.Get(ctx, types.NamespacedName{Namespace: pod.Namespace, Name: pod.Annotations[setupKeyAnnotation]}, &nbSetupKey)
 	if err != nil {
 		return err
@@ -204,7 +204,7 @@ func (d *PodNetbirdInjector) legacyInjector(ctx context.Context, pod *corev1.Pod
 	// ensure the NBSetupKey is ready.
 	ready := false
 	for _, c := range nbSetupKey.Status.Conditions {
-		if c.Type == netbirdiov1.NBSetupKeyReady {
+		if c.Type == nbv1.NBSetupKeyReady {
 			ready = c.Status == corev1.ConditionTrue
 		}
 	}

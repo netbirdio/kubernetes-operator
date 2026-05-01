@@ -51,6 +51,21 @@ type ContainerOverride struct {
 
 	// +optional
 	SecurityContext *corev1.SecurityContext `json:"securityContext,omitempty"`
+   
+    // +optional
+    SecurityContext *corev1.SecurityContext `json:"securityContext,omitempty"`
+   
+    // StartupProbe overrides the startup probe for the sidecar container.
+    // +optional
+    StartupProbe *corev1.Probe `json:"startupProbe,omitempty"`
+   
+    // LivenessProbe overrides the liveness probe for the sidecar container.
+    // +optional
+    LivenessProbe *corev1.Probe `json:"livenessProbe,omitempty"`
+   
+    // ReadinessProbe overrides the readiness probe for the sidecar container.
+    // +optional
+    ReadinessProbe *corev1.Probe `json:"readinessProbe,omitempty"`
 }
 
 // SidecarProfileStatus defines the observed state of SidecarProfile.

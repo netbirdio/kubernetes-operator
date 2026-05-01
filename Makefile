@@ -1,40 +1,47 @@
-# Image URL to use all building/pushing image targets
-IMG ?= docker.io/netbirdio/kubernetes-operator:latest
-
-# Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
-ifeq (,$(shell go env GOBIN))
-GOBIN=$(shell go env GOPATH)/bin
-else
-GOBIN=$(shell go env GOBIN)
-endif
-
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
-.PHONY: all
-all: build
+GOARCH = $(shell go env GOARCH)
+ifeq (,$(shell go env GOBIN))
+GOBIN = $(shell go env GOPATH)/bin
+else
+GOBIN = $(shell go env GOBIN)
+endif
 
-##@ Development
+IMG_REGISTRY ?= docker.io
+IMG_REPOSITORY ?= netbirdio/kubernetes-operator
+IMG_TAG ?= dev
+IMG := $(IMG_REGISTRY)/$(IMG_REPOSITORY):$(IMG_TAG)
 
-## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-.PHONY: manifests
-manifests:
-	go tool controller-gen crd paths="./..." output:crd:artifacts:config=helm/kubernetes-operator/crds
-	go tool crd-ref-docs --log-level error --output-path docs/api-reference.md --renderer markdown --source-path api/v1alpha1 --config docs/.crd-ref-docs.yaml
-
-## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 .PHONY: generate
-generate:
-	go tool controller-gen applyconfiguration:headerFile="hack/boilerplate.go.txt" object:headerFile="hack/boilerplate.go.txt" paths="./..."
+generate: api/v1/zz_generated.deepcopy.go api/v1alpha1/zz_generated.deepcopy.go pkg/applyconfigurations helm/kubernetes-operator/crds docs/api-reference.md
+
+api/v1/zz_generated.deepcopy.go api/v1alpha1/zz_generated.deepcopy.go: $(shell find api -not -name 'zz_generated*') hack/boilerplate.go.txt
+	@go tool controller-gen object:headerFile="hack/boilerplate.go.txt" paths="./..."
+
+pkg/applyconfigurations: $(shell find api -not -name 'zz_generated*') hack/boilerplate.go.txt
+	@go tool controller-gen applyconfiguration:headerFile="hack/boilerplate.go.txt" object:headerFile="hack/boilerplate.go.txt" paths="./..."
+	@touch pkg/applyconfigurations
+
+helm/kubernetes-operator/crds: $(shell find api)
+	@go tool controller-gen crd paths="./..." output:crd:artifacts:config=helm/kubernetes-operator/crds
+	@touch helm/kubernetes-operator/crds
+
+docs/api-reference.md: $(shell find api) docs/.crd-ref-docs.yaml
+	@go tool crd-ref-docs --log-level error --output-path docs/api-reference.md --renderer markdown --source-path api/v1alpha1 --config docs/.crd-ref-docs.yaml
+
+.PHONY: lint
+lint:
+	@golangci-lint run ./...
 
 .PHONY: test
-test: manifests setup-envtest
+test: setup-envtest
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -v $$(go list ./... | grep -v /e2e) -coverprofile cover.out
 
 .PHONY: test-e2e
-test-e2e: manifests
+test-e2e: generate
 	@command -v kind >/dev/null 2>&1 || { \
 		echo "Kind is not installed. Please install Kind manually."; \
 		exit 1; \
@@ -45,27 +52,25 @@ test-e2e: manifests
 	}
 	go test ./test/e2e/ -v -ginkgo.v
 
-.PHONY: lint
-lint:
-	@golangci-lint run ./...
-
-##@ Build
-
 .PHONY: build
-build: manifests
-	go build -o bin/manager cmd/main.go
+build: generate bin/linux-$(GOARCH)/netbird-operator
 
-.PHONY: run
-run: manifests
-	go run ./cmd/main.go
+bin/linux-%/netbird-operator: $(shell find api cmd internal pkg) go.mod go.sum
+	@CGO_ENABLED=0 GOOS=linux GOARCH=$(GOARCH) go build -ldflags="-w -s" -trimpath -o $@ cmd/main.go
 
-.PHONY: docker-build
-docker-build:
-	docker build -t ${IMG} .
+.PHONY: build-image
+build-image: build
+	@docker buildx build -t ${IMG} .
+	@echo ${IMG}
+
+.PHONY: build-image-multiarch
+build-image-multiarch: generate bin/linux-amd64/netbird-operator bin/linux-arm64/netbird-operator
+	@docker buildx build --platform linux/amd64,linux/arm64 -t ${IMG} .
+	@echo ${IMG}
 
 ## Generate a consolidated YAML with CRDs and deployment.
 .PHONY: build-installer
-build-installer: manifests
+build-installer: generate
 	mkdir -p manifests
 	helm template --include-crds kubernetes-operator helm/kubernetes-operator > manifests/install.yaml
 
@@ -77,17 +82,17 @@ endif
 
 ## Install CRDs into the K8s cluster specified in ~/.kube/config.
 .PHONY: install
-install: manifests
+install: generate
 	kubectl apply --server-side -f helm/kubernetes-operator/crds
 
 ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 .PHONY: uninstall
-uninstall: manifests
+uninstall: generate
 	kubectl delete -f helm/kubernetes-operator/crds
 
 ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 .PHONY: deploy
-deploy: manifests
+deploy: genereate
 	helm install -n netbird --create-namespace kubernetes-operator --set operator.image.tag=$(word 2,$(subst :, ,${IMG})) helm/kubernetes-operator
 
 ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.

@@ -10,7 +10,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/netbirdio/netbird v0.70.4
 	github.com/onsi/ginkgo/v2 v2.28.1
-	github.com/onsi/gomega v1.39.1
+	github.com/onsi/gomega v1.40.0
 	k8s.io/api v0.36.0
 	k8s.io/apimachinery v0.36.0
 	k8s.io/client-go v0.36.0

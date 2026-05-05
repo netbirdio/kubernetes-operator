@@ -7,10 +7,12 @@ toolchain go1.26.1
 require (
 	github.com/fluxcd/pkg/runtime v0.105.0
 	github.com/go-logr/logr v1.4.3
+	github.com/go-openapi/testify/v2 v2.5.0
 	github.com/google/uuid v1.6.0
 	github.com/netbirdio/netbird v0.70.4
 	github.com/onsi/ginkgo/v2 v2.28.3
 	github.com/onsi/gomega v1.40.0
+	golang.org/x/mod v0.35.0
 	k8s.io/api v0.36.0
 	k8s.io/apimachinery v0.36.0
 	k8s.io/client-go v0.36.0
@@ -79,7 +81,6 @@ require (
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.50.0 // indirect
-	golang.org/x/mod v0.35.0 // indirect
 	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect

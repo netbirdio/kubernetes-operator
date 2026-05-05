@@ -19,7 +19,6 @@ import (
 	"github.com/netbirdio/netbird/shared/management/http/api"
 
 	nbv1 "github.com/netbirdio/kubernetes-operator/api/v1"
-	"github.com/netbirdio/kubernetes-operator/internal/util"
 )
 
 var _ = Describe("NBGroup Controller", func() {
@@ -160,7 +159,7 @@ var _ = Describe("NBGroup Controller", func() {
 			deleteGroup := func() {
 				GinkgoHelper()
 				By("Adding the group ID in status")
-				nbGroup.Status.GroupID = util.Ptr("Test")
+				nbGroup.Status.GroupID = new("Test")
 				err := k8sClient.Status().Update(ctx, &nbGroup)
 				Expect(err).NotTo(HaveOccurred())
 
@@ -285,7 +284,7 @@ var _ = Describe("NBGroup Controller", func() {
 					Expect(err).NotTo(HaveOccurred())
 				})
 
-				nbGroup.Status.GroupID = util.Ptr("Toast")
+				nbGroup.Status.GroupID = new("Toast")
 				Expect(k8sClient.Status().Update(ctx, &nbGroup)).To(Succeed())
 
 				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -329,7 +328,7 @@ var _ = Describe("NBGroup Controller", func() {
 					}
 				})
 
-				nbGroup.Status.GroupID = util.Ptr("Toast")
+				nbGroup.Status.GroupID = new("Toast")
 				Expect(k8sClient.Status().Update(ctx, &nbGroup)).To(Succeed())
 
 				res, err := controllerReconciler.Reconcile(ctx, reconcile.Request{

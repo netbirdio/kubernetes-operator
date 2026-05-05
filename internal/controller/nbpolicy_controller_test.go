@@ -22,7 +22,6 @@ import (
 	"github.com/netbirdio/netbird/shared/management/http/api"
 
 	nbv1 "github.com/netbirdio/kubernetes-operator/api/v1"
-	"github.com/netbirdio/kubernetes-operator/internal/util"
 )
 
 var _ = Describe("NBPolicy Controller", func() {
@@ -171,13 +170,13 @@ var _ = Describe("NBPolicy Controller", func() {
 						err = json.Unmarshal(bs, &policyReq)
 						Expect(err).NotTo(HaveOccurred())
 						Expect(policyReq.Name).To(Equal("Test TCP"))
-						Expect(policyReq.Description).To(Or(BeNil(), BeEquivalentTo(util.Ptr(""))))
+						Expect(policyReq.Description).To(Or(BeNil(), BeEquivalentTo(new(""))))
 						Expect(policyReq.Enabled).To(BeTrue())
 						Expect(policyReq.SourcePostureChecks).To(BeNil())
 						Expect(policyReq.Rules).To(HaveLen(1))
 						Expect(policyReq.Rules[0].Action).To(BeEquivalentTo(api.PolicyRuleActionAccept))
 						Expect(policyReq.Rules[0].Bidirectional).To(BeTrue())
-						Expect(policyReq.Rules[0].Description).To(Or(BeNil(), BeEquivalentTo(util.Ptr(""))))
+						Expect(policyReq.Rules[0].Description).To(Or(BeNil(), BeEquivalentTo(new(""))))
 						Expect(policyReq.Rules[0].DestinationResource).To(BeNil())
 						Expect(policyReq.Rules[0].Destinations).NotTo(BeNil())
 						Expect(*policyReq.Rules[0].Destinations).To(HaveLen(1))
@@ -220,7 +219,7 @@ var _ = Describe("NBPolicy Controller", func() {
 				}
 
 				nbpolicy.Status.ManagedServiceList = append(nbpolicy.Status.ManagedServiceList, "default/noexist")
-				nbpolicy.Status.TCPPolicyID = util.Ptr("policyid")
+				nbpolicy.Status.TCPPolicyID = new("policyid")
 				Expect(k8sClient.Status().Update(ctx, nbpolicy)).To(Succeed())
 
 				mux.HandleFunc("/api/groups", func(w http.ResponseWriter, r *http.Request) {
@@ -309,13 +308,13 @@ var _ = Describe("NBPolicy Controller", func() {
 						err = json.Unmarshal(bs, &policyReq)
 						Expect(err).NotTo(HaveOccurred())
 						Expect(policyReq.Name).To(Equal("Test UDP"))
-						Expect(policyReq.Description).To(Or(BeNil(), BeEquivalentTo(util.Ptr(""))))
+						Expect(policyReq.Description).To(Or(BeNil(), BeEquivalentTo(new(""))))
 						Expect(policyReq.Enabled).To(BeTrue())
 						Expect(policyReq.SourcePostureChecks).To(BeNil())
 						Expect(policyReq.Rules).To(HaveLen(1))
 						Expect(policyReq.Rules[0].Action).To(BeEquivalentTo(api.PolicyRuleActionAccept))
 						Expect(policyReq.Rules[0].Bidirectional).To(BeTrue())
-						Expect(policyReq.Rules[0].Description).To(Or(BeNil(), BeEquivalentTo(util.Ptr(""))))
+						Expect(policyReq.Rules[0].Description).To(Or(BeNil(), BeEquivalentTo(new(""))))
 						Expect(policyReq.Rules[0].DestinationResource).To(BeNil())
 						Expect(policyReq.Rules[0].Destinations).NotTo(BeNil())
 						Expect(*policyReq.Rules[0].Destinations).To(HaveLen(1))
@@ -358,7 +357,7 @@ var _ = Describe("NBPolicy Controller", func() {
 				}
 
 				nbpolicy.Status.ManagedServiceList = append(nbpolicy.Status.ManagedServiceList, "default/noexist")
-				nbpolicy.Status.UDPPolicyID = util.Ptr("policyid")
+				nbpolicy.Status.UDPPolicyID = new("policyid")
 				Expect(k8sClient.Status().Update(ctx, nbpolicy)).To(Succeed())
 
 				mux.HandleFunc("/api/groups", func(w http.ResponseWriter, r *http.Request) {
@@ -425,7 +424,7 @@ var _ = Describe("NBPolicy Controller", func() {
 				Expect(k8sClient.Update(ctx, nbpolicy)).To(Succeed())
 
 				nbpolicy.Status.ManagedServiceList = append(nbpolicy.Status.ManagedServiceList, "default/test")
-				nbpolicy.Status.TCPPolicyID = util.Ptr("policyid")
+				nbpolicy.Status.TCPPolicyID = new("policyid")
 				Expect(k8sClient.Status().Update(ctx, nbpolicy)).To(Succeed())
 
 				mux.HandleFunc("/api/groups", func(w http.ResponseWriter, r *http.Request) {
@@ -524,7 +523,7 @@ var _ = Describe("NBPolicy Controller", func() {
 				Expect(k8sClient.Status().Update(ctx, nbResourceB)).To(Succeed())
 
 				nbpolicy.Status.ManagedServiceList = append(nbpolicy.Status.ManagedServiceList, "default/test", "default/test-b")
-				nbpolicy.Status.TCPPolicyID = util.Ptr("policyid")
+				nbpolicy.Status.TCPPolicyID = new("policyid")
 				Expect(k8sClient.Status().Update(ctx, nbpolicy)).To(Succeed())
 
 				mux.HandleFunc("/api/groups", func(w http.ResponseWriter, r *http.Request) {
@@ -552,13 +551,13 @@ var _ = Describe("NBPolicy Controller", func() {
 						err = json.Unmarshal(bs, &policyReq)
 						Expect(err).NotTo(HaveOccurred())
 						Expect(policyReq.Name).To(Equal("Test TCP"))
-						Expect(policyReq.Description).To(Or(BeNil(), BeEquivalentTo(util.Ptr(""))))
+						Expect(policyReq.Description).To(Or(BeNil(), BeEquivalentTo(new(""))))
 						Expect(policyReq.Enabled).To(BeTrue())
 						Expect(policyReq.SourcePostureChecks).To(BeNil())
 						Expect(policyReq.Rules).To(HaveLen(1))
 						Expect(policyReq.Rules[0].Action).To(BeEquivalentTo(api.PolicyRuleActionAccept))
 						Expect(policyReq.Rules[0].Bidirectional).To(BeTrue())
-						Expect(policyReq.Rules[0].Description).To(Or(BeNil(), BeEquivalentTo(util.Ptr(""))))
+						Expect(policyReq.Rules[0].Description).To(Or(BeNil(), BeEquivalentTo(new(""))))
 						Expect(policyReq.Rules[0].DestinationResource).To(BeNil())
 						Expect(policyReq.Rules[0].Destinations).NotTo(BeNil())
 						Expect(*policyReq.Rules[0].Destinations).To(HaveLen(2))
@@ -594,8 +593,8 @@ var _ = Describe("NBPolicy Controller", func() {
 					Netbird: netbirdClient,
 				}
 
-				nbpolicy.Status.TCPPolicyID = util.Ptr("policyidtcp")
-				nbpolicy.Status.UDPPolicyID = util.Ptr("policyidudp")
+				nbpolicy.Status.TCPPolicyID = new("policyidtcp")
+				nbpolicy.Status.UDPPolicyID = new("policyidudp")
 				Expect(k8sClient.Status().Update(ctx, nbpolicy)).To(Succeed())
 
 				Expect(k8sClient.Delete(ctx, nbpolicy)).To(Succeed())

@@ -13,7 +13,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	nbv1 "github.com/netbirdio/kubernetes-operator/api/v1"
-	"github.com/netbirdio/kubernetes-operator/internal/util"
 )
 
 var _ = Describe("Service Controller", func() {
@@ -153,7 +152,7 @@ var _ = Describe("Service Controller", func() {
 					})
 					Expect(err).NotTo(HaveOccurred())
 					Expect(res.RequeueAfter).NotTo(BeZero())
-					nbrp.Status.NetworkID = util.Ptr(policyName)
+					nbrp.Status.NetworkID = new(policyName)
 					Expect(k8sClient.Status().Update(ctx, nbrp)).To(Succeed())
 					res, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
 						NamespacedName: typeNamespacedName,
@@ -173,7 +172,7 @@ var _ = Describe("Service Controller", func() {
 					}
 					Expect(k8sClient.Create(ctx, nbrp)).To(Succeed())
 
-					nbrp.Status.NetworkID = util.Ptr(policyName)
+					nbrp.Status.NetworkID = new(policyName)
 					Expect(k8sClient.Status().Update(ctx, nbrp)).To(Succeed())
 				})
 				When("Service should be exposed", func() {
@@ -321,7 +320,7 @@ var _ = Describe("Service Controller", func() {
 				}
 				Expect(k8sClient.Create(ctx, nbrp)).To(Succeed())
 
-				nbrp.Status.NetworkID = util.Ptr(policyName)
+				nbrp.Status.NetworkID = new(policyName)
 				Expect(k8sClient.Status().Update(ctx, nbrp)).To(Succeed())
 			})
 

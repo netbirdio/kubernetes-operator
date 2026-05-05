@@ -24,7 +24,6 @@ import (
 	"github.com/netbirdio/netbird/shared/management/http/api"
 
 	nbv1 "github.com/netbirdio/kubernetes-operator/api/v1"
-	"github.com/netbirdio/kubernetes-operator/internal/util"
 )
 
 var _ = Describe("NBRoutingPeer Controller", func() {
@@ -67,7 +66,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 						Finalizers: []string{"netbird.io/cleanup"},
 					},
 					Spec: nbv1.NBRoutingPeerSpec{
-						Replicas: util.Ptr(int32(0)),
+						Replicas: new(int32(0)),
 					},
 				}
 				Expect(k8sClient.Create(ctx, nbroutingpeer)).To(Succeed())
@@ -227,7 +226,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 					}
 				})
 
-				nbroutingpeer.Status.NetworkID = util.Ptr("test")
+				nbroutingpeer.Status.NetworkID = new("test")
 				Expect(k8sClient.Status().Update(ctx, nbroutingpeer)).To(Succeed())
 			})
 			Describe("Network Router changes", func() {
@@ -243,10 +242,10 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 					}
 					Expect(k8sClient.Create(ctx, group)).To(Succeed())
 
-					group.Status.GroupID = util.Ptr("test")
+					group.Status.GroupID = new("test")
 					Expect(k8sClient.Status().Update(ctx, group)).To(Succeed())
 
-					nbroutingpeer.Status.SetupKeyID = util.Ptr("skid")
+					nbroutingpeer.Status.SetupKeyID = new("skid")
 					Expect(k8sClient.Status().Update(ctx, nbroutingpeer)).To(Succeed())
 
 					mux.HandleFunc("/api/setup-keys/skid", func(w http.ResponseWriter, r *http.Request) {
@@ -324,7 +323,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 				})
 				When("Network Router is out-of-date", func() {
 					It("should update network router", func() {
-						nbroutingpeer.Status.RouterID = util.Ptr("test")
+						nbroutingpeer.Status.RouterID = new("test")
 						Expect(k8sClient.Status().Update(ctx, nbroutingpeer)).To(Succeed())
 
 						routerUpdated := false
@@ -389,7 +388,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 			})
 			When("Network Router exists", func() {
 				BeforeEach(func() {
-					nbroutingpeer.Status.RouterID = util.Ptr("test")
+					nbroutingpeer.Status.RouterID = new("test")
 					Expect(k8sClient.Status().Update(ctx, nbroutingpeer)).To(Succeed())
 
 					mux.HandleFunc("/api/networks/test/routers", func(w http.ResponseWriter, r *http.Request) {
@@ -413,7 +412,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 				})
 				When("Group doesn't exist", func() {
 					BeforeEach(func() {
-						nbroutingpeer.Status.SetupKeyID = util.Ptr("skid")
+						nbroutingpeer.Status.SetupKeyID = new("skid")
 						Expect(k8sClient.Status().Update(ctx, nbroutingpeer)).To(Succeed())
 
 						mux.HandleFunc("/api/setup-keys/skid", func(w http.ResponseWriter, r *http.Request) {
@@ -452,7 +451,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 						Expect(group.Spec.Name).To(Equal(controllerReconciler.ClusterName))
 						Expect(group.Labels).To(HaveKeyWithValue("dog", "bark"))
 
-						group.Status.GroupID = util.Ptr("test")
+						group.Status.GroupID = new("test")
 						Expect(k8sClient.Status().Update(ctx, group)).To(Succeed())
 
 						_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -475,7 +474,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 						}
 						Expect(k8sClient.Create(ctx, group)).To(Succeed())
 
-						group.Status.GroupID = util.Ptr("test")
+						group.Status.GroupID = new("test")
 						Expect(k8sClient.Status().Update(ctx, group)).To(Succeed())
 					})
 
@@ -492,7 +491,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 										Expect(err).NotTo(HaveOccurred())
 										Expect(json.Unmarshal(bs, &req)).To(Succeed())
 										Expect(req.AutoGroups).To(ConsistOf([]string{"test"}))
-										Expect(req.Ephemeral).To(BeEquivalentTo(util.Ptr(true)))
+										Expect(req.Ephemeral).To(BeEquivalentTo(new(true)))
 										Expect(req.ExpiresIn).To(BeZero())
 										Expect(req.Name).To(Equal(controllerReconciler.ClusterName))
 										Expect(req.Type).To(Equal("reusable"))
@@ -535,7 +534,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 										Expect(err).NotTo(HaveOccurred())
 										Expect(json.Unmarshal(bs, &req)).To(Succeed())
 										Expect(req.AutoGroups).To(ConsistOf([]string{"test"}))
-										Expect(req.Ephemeral).To(BeEquivalentTo(util.Ptr(true)))
+										Expect(req.Ephemeral).To(BeEquivalentTo(new(true)))
 										Expect(req.ExpiresIn).To(BeZero())
 										Expect(req.Name).To(Equal(controllerReconciler.ClusterName))
 										Expect(req.Type).To(Equal("reusable"))
@@ -575,7 +574,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 									}
 								})
 
-								nbroutingpeer.Status.SetupKeyID = util.Ptr("skid")
+								nbroutingpeer.Status.SetupKeyID = new("skid")
 								Expect(k8sClient.Status().Update(ctx, nbroutingpeer)).To(Succeed())
 
 								res, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -609,7 +608,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 										Expect(err).NotTo(HaveOccurred())
 										Expect(json.Unmarshal(bs, &req)).To(Succeed())
 										Expect(req.AutoGroups).To(ConsistOf([]string{"test"}))
-										Expect(req.Ephemeral).To(BeEquivalentTo(util.Ptr(true)))
+										Expect(req.Ephemeral).To(BeEquivalentTo(new(true)))
 										Expect(req.ExpiresIn).To(BeZero())
 										Expect(req.Name).To(Equal(controllerReconciler.ClusterName))
 										Expect(req.Type).To(Equal("reusable"))
@@ -649,7 +648,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 									}
 								})
 
-								nbroutingpeer.Status.SetupKeyID = util.Ptr("skid")
+								nbroutingpeer.Status.SetupKeyID = new("skid")
 								Expect(k8sClient.Status().Update(ctx, nbroutingpeer)).To(Succeed())
 
 								secret := &corev1.Secret{
@@ -694,7 +693,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 										Expect(err).NotTo(HaveOccurred())
 										Expect(json.Unmarshal(bs, &req)).To(Succeed())
 										Expect(req.AutoGroups).To(ConsistOf([]string{"test"}))
-										Expect(req.Ephemeral).To(BeEquivalentTo(util.Ptr(true)))
+										Expect(req.Ephemeral).To(BeEquivalentTo(new(true)))
 										Expect(req.ExpiresIn).To(BeZero())
 										Expect(req.Name).To(Equal(controllerReconciler.ClusterName))
 										Expect(req.Type).To(Equal("reusable"))
@@ -729,7 +728,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 									}
 								})
 
-								nbroutingpeer.Status.SetupKeyID = util.Ptr("skid")
+								nbroutingpeer.Status.SetupKeyID = new("skid")
 								Expect(k8sClient.Status().Update(ctx, nbroutingpeer)).To(Succeed())
 
 								secret := &corev1.Secret{
@@ -784,7 +783,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 									}
 								})
 
-								nbroutingpeer.Status.SetupKeyID = util.Ptr("skid")
+								nbroutingpeer.Status.SetupKeyID = new("skid")
 								Expect(k8sClient.Status().Update(ctx, nbroutingpeer)).To(Succeed())
 
 								secret := &corev1.Secret{
@@ -814,7 +813,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 					})
 					Describe("Deployment Behavior", func() {
 						BeforeEach(func() {
-							nbroutingpeer.Status.SetupKeyID = util.Ptr("skid")
+							nbroutingpeer.Status.SetupKeyID = new("skid")
 							Expect(k8sClient.Status().Update(ctx, nbroutingpeer)).To(Succeed())
 
 							mux.HandleFunc("/api/setup-keys/skid", func(w http.ResponseWriter, r *http.Request) {
@@ -851,7 +850,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								deployment := &appsv1.Deployment{}
 								Expect(k8sClient.Get(ctx, typeNamespacedName, deployment)).To(Succeed())
 								Expect(deployment.OwnerReferences).To(HaveLen(1))
-								Expect(deployment.Spec.Replicas).To(BeEquivalentTo(util.Ptr(int32(0))))
+								Expect(deployment.Spec.Replicas).To(BeEquivalentTo(new(int32(0))))
 								Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(1))
 								Expect(deployment.Spec.Template.Spec.Containers[0].Image).To(Equal(controllerReconciler.ClientImage))
 							})
@@ -884,7 +883,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 
 								deployment := &appsv1.Deployment{}
 								Expect(k8sClient.Get(ctx, typeNamespacedName, deployment)).To(Succeed())
-								deployment.Spec.Replicas = util.Ptr(int32(15))
+								deployment.Spec.Replicas = new(int32(15))
 								Expect(k8sClient.Update(ctx, deployment)).To(Succeed())
 
 								_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -893,7 +892,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								Expect(err).NotTo(HaveOccurred())
 								deployment = &appsv1.Deployment{}
 								Expect(k8sClient.Get(ctx, typeNamespacedName, deployment)).To(Succeed())
-								Expect(deployment.Spec.Replicas).To(BeEquivalentTo(util.Ptr(int32(0))))
+								Expect(deployment.Spec.Replicas).To(BeEquivalentTo(new(int32(0))))
 							})
 						})
 						When("Deployment is up-to-date", func() {
@@ -920,7 +919,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 						When("Privileged mode is enabled", func() {
 							It("should create deployment with privileged security context", func() {
 								Expect(k8sClient.Get(ctx, typeNamespacedName, nbroutingpeer)).To(Succeed())
-								nbroutingpeer.Spec.Privileged = util.Ptr(true)
+								nbroutingpeer.Spec.Privileged = new(true)
 								Expect(k8sClient.Update(ctx, nbroutingpeer)).To(Succeed())
 
 								_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -944,7 +943,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 						When("Privileged mode is disabled", func() {
 							It("should create deployment with non-privileged security context", func() {
 								Expect(k8sClient.Get(ctx, typeNamespacedName, nbroutingpeer)).To(Succeed())
-								nbroutingpeer.Spec.Privileged = util.Ptr(false)
+								nbroutingpeer.Spec.Privileged = new(false)
 								Expect(k8sClient.Update(ctx, nbroutingpeer)).To(Succeed())
 
 								_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -1004,7 +1003,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 
 								// Enable privileged mode
 								Expect(k8sClient.Get(ctx, typeNamespacedName, nbroutingpeer)).To(Succeed())
-								nbroutingpeer.Spec.Privileged = util.Ptr(true)
+								nbroutingpeer.Spec.Privileged = new(true)
 								Expect(k8sClient.Update(ctx, nbroutingpeer)).To(Succeed())
 
 								_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -1022,7 +1021,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 
 							It("should update deployment security context when privileged mode is disabled", func() {
 								// First create deployment with privileged mode enabled
-								nbroutingpeer.Spec.Privileged = util.Ptr(true)
+								nbroutingpeer.Spec.Privileged = new(true)
 								Expect(k8sClient.Update(ctx, nbroutingpeer)).To(Succeed())
 
 								_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -1039,7 +1038,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 
 								// Disable privileged mode
 								Expect(k8sClient.Get(ctx, typeNamespacedName, nbroutingpeer)).To(Succeed())
-								nbroutingpeer.Spec.Privileged = util.Ptr(false)
+								nbroutingpeer.Spec.Privileged = new(false)
 								Expect(k8sClient.Update(ctx, nbroutingpeer)).To(Succeed())
 
 								_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -1059,7 +1058,7 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 						networkDeleted := false
 						BeforeEach(func() {
 							networkDeleted = false
-							nbroutingpeer.Status.SetupKeyID = util.Ptr("skid")
+							nbroutingpeer.Status.SetupKeyID = new("skid")
 							Expect(k8sClient.Status().Update(ctx, nbroutingpeer)).To(Succeed())
 
 							mux.HandleFunc("/api/setup-keys/skid", func(w http.ResponseWriter, r *http.Request) {

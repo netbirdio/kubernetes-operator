@@ -147,7 +147,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 						Kind:               "NBRoutingPeer",
 						Name:               nbrp.Name,
 						UID:                nbrp.UID,
-						BlockOwnerDeletion: util.Ptr(true),
+						BlockOwnerDeletion: new(true),
 					},
 				},
 				Labels:      labels,
@@ -215,7 +215,7 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 				Kind:               "NBRoutingPeer",
 				Name:               nbrp.Name,
 				UID:                nbrp.UID,
-				BlockOwnerDeletion: util.Ptr(true),
+				BlockOwnerDeletion: new(true),
 			},
 		}
 		updatedDeployment.ObjectMeta.Labels = labels
@@ -345,7 +345,7 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 		// Create new setup key with group Status.GroupID
 		setupKey, err := r.Netbird.SetupKeys.Create(ctx, api.CreateSetupKeyRequest{
 			AutoGroups: []string{*nbGroup.Status.GroupID},
-			Ephemeral:  util.Ptr(true),
+			Ephemeral:  new(true),
 			Name:       networkName,
 			Type:       "reusable",
 		})
@@ -368,7 +368,7 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 						Kind:               "NBRoutingPeer",
 						Name:               nbrp.Name,
 						UID:                nbrp.UID,
-						BlockOwnerDeletion: util.Ptr(true),
+						BlockOwnerDeletion: new(true),
 					},
 				},
 				Labels: r.DefaultLabels,
@@ -478,7 +478,7 @@ func (r *NBRoutingPeerReconciler) handleGroup(ctx context.Context, req ctrl.Requ
 						Kind:               "NBRoutingPeer",
 						Name:               nbrp.Name,
 						UID:                nbrp.UID,
-						BlockOwnerDeletion: util.Ptr(true),
+						BlockOwnerDeletion: new(true),
 					},
 				},
 				Finalizers: []string{"netbird.io/group-cleanup", "netbird.io/routing-peer-cleanup"},

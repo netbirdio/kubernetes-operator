@@ -22,7 +22,6 @@ import (
 	"github.com/netbirdio/netbird/shared/management/http/api"
 
 	nbv1 "github.com/netbirdio/kubernetes-operator/api/v1"
-	"github.com/netbirdio/kubernetes-operator/internal/util"
 )
 
 var _ = Describe("NBResource Controller", func() {
@@ -128,7 +127,7 @@ var _ = Describe("NBResource Controller", func() {
 				nbGroup := &nbv1.NBGroup{}
 				Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "meow"}, nbGroup)).To(Succeed())
 				Expect(nbGroup.Labels).To(HaveKeyWithValue("dog", "bark"))
-				nbGroup.Status.GroupID = util.Ptr("test")
+				nbGroup.Status.GroupID = new("test")
 				Expect(k8sClient.Status().Update(ctx, nbGroup)).To(Succeed())
 			})
 
@@ -180,7 +179,7 @@ var _ = Describe("NBResource Controller", func() {
 		})
 		When("Network Resource exists", func() {
 			BeforeEach(func() {
-				nbresource.Status.NetworkResourceID = util.Ptr("test")
+				nbresource.Status.NetworkResourceID = new("test")
 				Expect(k8sClient.Status().Update(ctx, nbresource)).To(Succeed())
 
 				nbGroup := &nbv1.NBGroup{
@@ -203,7 +202,7 @@ var _ = Describe("NBResource Controller", func() {
 				}
 				Expect(k8sClient.Create(ctx, nbGroup)).To(Succeed())
 
-				nbGroup.Status.GroupID = util.Ptr("test")
+				nbGroup.Status.GroupID = new("test")
 				Expect(k8sClient.Status().Update(ctx, nbGroup)).To(Succeed())
 			})
 
@@ -282,7 +281,7 @@ var _ = Describe("NBResource Controller", func() {
 						}
 					})
 
-					nbresource.Status.NetworkResourceID = util.Ptr("test")
+					nbresource.Status.NetworkResourceID = new("test")
 					Expect(k8sClient.Status().Update(ctx, nbresource)).To(Succeed())
 
 					_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -378,7 +377,7 @@ var _ = Describe("NBResource Controller", func() {
 								nbresource.Spec.PolicyName = "test-b"
 								Expect(k8sClient.Update(ctx, nbresource)).To(Succeed())
 
-								nbresource.Status.PolicyName = util.Ptr("test-a")
+								nbresource.Status.PolicyName = new("test-a")
 								Expect(k8sClient.Status().Update(ctx, nbresource)).To(Succeed())
 
 								_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -406,7 +405,7 @@ var _ = Describe("NBResource Controller", func() {
 								nbresource.Spec.PolicyName = ""
 								Expect(k8sClient.Update(ctx, nbresource)).To(Succeed())
 
-								nbresource.Status.PolicyName = util.Ptr("test-a")
+								nbresource.Status.PolicyName = new("test-a")
 								Expect(k8sClient.Status().Update(ctx, nbresource)).To(Succeed())
 
 								_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -705,7 +704,7 @@ var _ = Describe("NBResource Controller", func() {
 							nbresource.Spec.PolicyName = "test-b,test-c"
 							Expect(k8sClient.Update(ctx, nbresource)).To(Succeed())
 
-							nbresource.Status.PolicyName = util.Ptr("test-a,test-b")
+							nbresource.Status.PolicyName = new("test-a,test-b")
 							Expect(k8sClient.Status().Update(ctx, nbresource)).To(Succeed())
 
 							_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -732,7 +731,7 @@ var _ = Describe("NBResource Controller", func() {
 							nbresource.Spec.PolicyName = ""
 							Expect(k8sClient.Update(ctx, nbresource)).To(Succeed())
 
-							nbresource.Status.PolicyName = util.Ptr("test-b,test-c")
+							nbresource.Status.PolicyName = new("test-b,test-c")
 							Expect(k8sClient.Status().Update(ctx, nbresource)).To(Succeed())
 
 							_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -870,8 +869,8 @@ var _ = Describe("NBResource Controller", func() {
 				nbresource.Spec.Groups = []string{"meow", "meowdelete"}
 				Expect(k8sClient.Update(ctx, nbresource)).To(Succeed())
 				nbresource.Status.Groups = []string{"test", "testdelete"}
-				nbresource.Status.PolicyName = util.Ptr("test")
-				nbresource.Status.NetworkResourceID = util.Ptr("test")
+				nbresource.Status.PolicyName = new("test")
+				nbresource.Status.NetworkResourceID = new("test")
 				Expect(k8sClient.Status().Update(ctx, nbresource)).To(Succeed())
 
 				nbPolicy := &nbv1.NBPolicy{

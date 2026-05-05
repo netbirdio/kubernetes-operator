@@ -24,7 +24,6 @@ import (
 	corev1ac "k8s.io/client-go/applyconfigurations/core/v1"
 	metav1ac "k8s.io/client-go/applyconfigurations/meta/v1"
 	policyv1ac "k8s.io/client-go/applyconfigurations/policy/v1"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -166,7 +165,7 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			Enabled:    true,
 			Masquerade: true,
 			Metric:     9999,
-			PeerGroups: ptr.To([]string{group.Status.GroupID}),
+			PeerGroups: new([]string{group.Status.GroupID}),
 		}
 		if netRouter.Status.RoutingPeerID != "" {
 			resp, err := r.Netbird.Networks.Routers(networkID).Update(ctx, netRouter.Status.RoutingPeerID, routerReq)

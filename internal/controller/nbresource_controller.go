@@ -533,7 +533,7 @@ func (r *NBResourceReconciler) handleGroups(ctx context.Context, req ctrl.Reques
 							Kind:               "NBResource",
 							Name:               nbResource.Name,
 							UID:                nbResource.UID,
-							BlockOwnerDeletion: util.Ptr(true),
+							BlockOwnerDeletion: new(true),
 						},
 					},
 					Finalizers: []string{"netbird.io/group-cleanup", "netbird.io/resource-cleanup"},
@@ -566,7 +566,7 @@ func (r *NBResourceReconciler) handleGroups(ctx context.Context, req ctrl.Reques
 					Kind:               "NBResource",
 					Name:               nbResource.Name,
 					UID:                nbResource.UID,
-					BlockOwnerDeletion: util.Ptr(true),
+					BlockOwnerDeletion: new(true),
 				})
 
 				err = r.Client.Update(ctx, &nbGroup)

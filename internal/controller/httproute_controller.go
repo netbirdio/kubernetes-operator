@@ -23,7 +23,6 @@ import (
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	"github.com/netbirdio/kubernetes-operator/internal/gatewayutil"
 	"github.com/netbirdio/kubernetes-operator/internal/k8sutil"
-	"github.com/netbirdio/kubernetes-operator/internal/util"
 	nbv1alpha1ac "github.com/netbirdio/kubernetes-operator/pkg/applyconfigurations/api/v1alpha1"
 )
 
@@ -148,9 +147,9 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				Domain:           string(hostname),
 				Enabled:          true,
 				Name:             string(hostname),
-				Mode:             util.Ptr(api.ServiceRequestModeHttp),
-				PassHostHeader:   util.Ptr(false),
-				RewriteRedirects: util.Ptr(false),
+				Mode:             new(api.ServiceRequestModeHttp),
+				PassHostHeader:   new(false),
+				RewriteRedirects: new(false),
 				Targets:          &targets,
 			}
 

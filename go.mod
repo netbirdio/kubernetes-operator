@@ -2,7 +2,7 @@ module github.com/netbirdio/kubernetes-operator
 
 go 1.26.0
 
-toolchain go1.26.1
+toolchain go1.26.2
 
 require (
 	github.com/fluxcd/pkg/runtime v0.105.0
@@ -22,6 +22,7 @@ require (
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
+	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/Masterminds/sprig/v3 v3.3.0 // indirect
@@ -31,8 +32,10 @@ require (
 	github.com/cockroachdb/cockroach-go v2.0.1+incompatible // indirect
 	github.com/coreos/go-oidc v2.5.0+incompatible // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
+	github.com/docker/go-connections v0.7.0 // indirect
 	github.com/elastic/crd-ref-docs v0.3.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
+	github.com/evanphx/json-patch v5.7.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/fluxcd/pkg/apis/meta v1.26.0 // indirect
@@ -57,6 +60,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
+	github.com/moby/term v0.5.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect

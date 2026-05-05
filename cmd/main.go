@@ -48,6 +48,7 @@ import (
 	nbv1 "github.com/netbirdio/kubernetes-operator/api/v1"
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	"github.com/netbirdio/kubernetes-operator/internal/controller"
+	"github.com/netbirdio/kubernetes-operator/internal/version"
 	nbwebhookv1 "github.com/netbirdio/kubernetes-operator/internal/webhook/v1"
 )
 
@@ -84,7 +85,7 @@ func main() {
 	)
 	flag.StringVar(&runtimeNamespace, "runtime-namespace", "", "Namespace the controller is running in")
 	flag.StringVar(&managementURL, "netbird-management-url", "https://api.netbird.io", "Management service URL")
-	flag.StringVar(&clientImage, "netbird-client-image", "netbirdio/netbird:latest", "Image for netbird client container")
+	flag.StringVar(&clientImage, "netbird-client-image", "", "Image for netbird client container")
 	flag.StringVar(
 		&clusterName,
 		"cluster-name",
@@ -146,6 +147,10 @@ func main() {
 	if err != nil {
 		setupLog.Error(err, "unable to get runtime namespace")
 		os.Exit(1)
+	}
+
+	if clientImage == "" {
+		clientImage = version.ClientImage()
 	}
 
 	defaultLabelsMap := make(map[string]string)

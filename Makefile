@@ -10,13 +10,13 @@ else
 GOBIN = $(shell go env GOBIN)
 endif
 
-IMG_REGISTRY ?= docker.io
-IMG_REPOSITORY ?= netbirdio/kubernetes-operator
+IMG_REGISTRY ?= ghcr.io
+IMG_REPOSITORY ?= netbirdio/netbird-operator
 IMG_TAG ?= dev
 IMG_REF := $(IMG_REGISTRY)/$(IMG_REPOSITORY):$(IMG_TAG)
 
 .PHONY: generate
-generate: api/v1/zz_generated.deepcopy.go api/v1alpha1/zz_generated.deepcopy.go pkg/applyconfigurations helm/kubernetes-operator/crds docs/api-reference.md
+generate: api/v1/zz_generated.deepcopy.go api/v1alpha1/zz_generated.deepcopy.go pkg/applyconfigurations charts/netbird-operator/crds docs/api-reference.md
 
 api/v1/zz_generated.deepcopy.go api/v1alpha1/zz_generated.deepcopy.go: $(shell find api -not -name 'zz_generated*') hack/boilerplate.go.txt
 	@go tool controller-gen object:headerFile="hack/boilerplate.go.txt" paths="./..."
@@ -25,9 +25,9 @@ pkg/applyconfigurations: $(shell find api -not -name 'zz_generated*') hack/boile
 	@go tool controller-gen applyconfiguration:headerFile="hack/boilerplate.go.txt" object:headerFile="hack/boilerplate.go.txt" paths="./..."
 	@touch pkg/applyconfigurations
 
-helm/kubernetes-operator/crds: $(shell find api)
-	@go tool controller-gen crd paths="./..." output:crd:artifacts:config=helm/kubernetes-operator/crds
-	@touch helm/kubernetes-operator/crds
+charts/netbird-operator/crds: $(shell find api)
+	@go tool controller-gen crd paths="./..." output:crd:artifacts:config=charts/netbird-operator/crds
+	@touch charts/netbird-operator/crds
 
 docs/api-reference.md: $(shell find api) docs/.crd-ref-docs.yaml
 	@go tool crd-ref-docs --log-level error --output-path docs/api-reference.md --renderer markdown --source-path api/v1alpha1 --config docs/.crd-ref-docs.yaml
@@ -51,29 +51,29 @@ bin/linux-%/netbird-operator: $(shell find api cmd internal pkg) go.mod go.sum
 
 .PHONY: build-image
 build-image: build
-	@docker buildx build -t ${IMG_REF} .
+	@DOCKER_BUILDKIT=1 docker build -t ${IMG_REF} .
 	@echo ${IMG_REF}
 
 .PHONY: build-image-multiarch
 build-image-multiarch: generate bin/linux-amd64/netbird-operator bin/linux-arm64/netbird-operator
-	@docker buildx build --platform linux/amd64,linux/arm64 -t ${IMG_REF} .
+	@DOCKER_BUILDKIT=1 docker build --platform linux/amd64,linux/arm64 -t ${IMG_REF} .
 	@echo ${IMG_REF}
 
 ## Generate a consolidated YAML with CRDs and deployment.
 .PHONY: build-installer
 build-installer: generate
 	mkdir -p manifests
-	helm template --include-crds kubernetes-operator helm/kubernetes-operator > manifests/install.yaml
+	helm template --include-crds netbird-operator charts/netbird-operator > manifests/install.yaml
 
 ##@ Deployment
 
 .PHONY: install
 install: generate
-	kubectl apply --server-side -f helm/kubernetes-operator/crds
+	kubectl apply --server-side -f charts/netbird-operator/crds
 
 .PHONY: uninstall
 uninstall:
-	kubectl delete -f helm/kubernetes-operator/crds
+	kubectl delete -f charts/netbird-operator/crds
 
 run: install
 	kubectl create namespace netbird --dry-run=client -o yaml | kubectl apply -f -

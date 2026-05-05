@@ -5,7 +5,7 @@ This example walks you through how to setup a Netbird Gateway API and expose Ngi
 Build image locally and load it into Kind.
 ```shell
 make build-image
-kind load docker-image docker.io/netbirdio/kubernetes-operator:dev
+kind load docker-image ghcr.io/netbirdio/kubernetes-operator:dev
 ```
 
 Install the Gateway API CRDs.

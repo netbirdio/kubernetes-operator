@@ -4,7 +4,7 @@ kind: GatewayClass
 metadata:
   name: netbird-private
   labels:
-    {{- include "kubernetes-operator.labels" . | nindent 4 }}
+    {{- include "netbird-operator.labels" . | nindent 4 }}
 spec:
   controllerName: "gateway.netbird.io/controller"
 ---
@@ -13,7 +13,7 @@ kind: GatewayClass
 metadata:
   name: netbird-public
   labels:
-    {{- include "kubernetes-operator.labels" . | nindent 4 }}
+    {{- include "netbird-operator.labels" . | nindent 4 }}
 spec:
   controllerName: "gateway.netbird.io/controller"
 {{- end }}

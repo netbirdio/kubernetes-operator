@@ -31,7 +31,7 @@ jobs:
           git diff --exit-code
       - name: Verify generate is not dirty
         run: |
-          make generate
+          make -B generate
           git diff --exit-code
       - name: Running unit tests
         run: make test

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	"github.com/fluxcd/pkg/runtime/conditions"
 	"github.com/fluxcd/pkg/runtime/patch"
@@ -25,6 +26,7 @@ type GroupReconciler struct {
 // +kubebuilder:rbac:groups=netbird.io,resources=groups,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=netbird.io,resources=groups/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=netbird.io,resources=groups/finalizers,verbs=update
+
 func (r *GroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	group := &nbv1alpha1.Group{}
 	err := r.Get(ctx, req.NamespacedName, group)
@@ -44,17 +46,29 @@ func (r *GroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	}
 
 	groupID, err := func() (string, error) {
+		if group.Status.GroupID != "" {
+			groupResp, err := r.Netbird.Groups.Get(ctx, group.Status.GroupID)
+			if err == nil {
+				peers := []string{}
+				for _, peer := range groupResp.Peers {
+					peers = append(peers, peer.Id)
+				}
+				groupReq := api.GroupRequest{
+					Name:      group.Spec.Name,
+					Peers:     &peers,
+					Resources: &groupResp.Resources,
+				}
+				resp, err := r.Netbird.Groups.Update(ctx, group.Status.GroupID, groupReq)
+				if err != nil && !netbird.IsNotFound(err) {
+					return "", err
+				}
+				if err == nil {
+					return resp.Id, nil
+				}
+			}
+		}
 		groupReq := api.GroupRequest{
 			Name: group.Spec.Name,
-		}
-		if group.Status.GroupID != "" {
-			resp, err := r.Netbird.Groups.Update(ctx, group.Status.GroupID, groupReq)
-			if err != nil && !netbird.IsNotFound(err) {
-				return "", err
-			}
-			if err == nil {
-				return resp.Id, nil
-			}
 		}
 		resp, err := r.Netbird.Groups.Create(ctx, groupReq)
 		if err != nil {
@@ -72,7 +86,7 @@ func (r *GroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	return ctrl.Result{}, nil
+	return ctrl.Result{RequeueAfter: 15 * time.Minute}, nil
 }
 
 func (r *GroupReconciler) reconcileDelete(ctx context.Context, sp *patch.SerialPatcher, group *nbv1alpha1.Group) (ctrl.Result, error) {
@@ -91,7 +105,6 @@ func (r *GroupReconciler) reconcileDelete(ctx context.Context, sp *patch.SerialP
 	return ctrl.Result{}, nil
 }
 
-// SetupWithManager sets up the controller with the Manager.
 func (r *GroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&nbv1alpha1.Group{}).

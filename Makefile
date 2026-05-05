@@ -76,29 +76,17 @@ build-installer: generate
 
 ##@ Deployment
 
-ifndef ignore-not-found
-  ignore-not-found = false
-endif
-
-## Install CRDs into the K8s cluster specified in ~/.kube/config.
 .PHONY: install
 install: generate
 	kubectl apply --server-side -f helm/kubernetes-operator/crds
 
-## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 .PHONY: uninstall
-uninstall: generate
+uninstall:
 	kubectl delete -f helm/kubernetes-operator/crds
 
-## Deploy controller to the K8s cluster specified in ~/.kube/config.
-.PHONY: deploy
-deploy: genereate
-	helm install -n netbird --create-namespace kubernetes-operator --set operator.image.tag=$(word 2,$(subst :, ,${IMG})) helm/kubernetes-operator
-
-## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-.PHONY: undeploy
-undeploy:
-	helm uninstall -n netbird kubernetes-operator
+run: install
+	kubectl create namespace netbird --dry-run=client -o yaml | kubectl apply -f -
+	go run cmd/main.go --enable-webhooks=false --netbird-api-key=$${NB_API_KEY}  --runtime-namespace netbird
 
 ##@ Dependencies
 

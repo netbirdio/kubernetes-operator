@@ -27,7 +27,7 @@ jobs:
           go-version-file: go.mod
       - name: Verify everything has been generated.
         run: |
-          make generate
+          make -B generate
           git diff --exit-code
       - name: Running Tests
         run: make test

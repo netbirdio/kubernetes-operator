@@ -19,6 +19,7 @@ linters:
     - unparam
     - unused
     - importas
+    - goheader
   settings:
     revive:
       rules:
@@ -77,6 +78,9 @@ linters:
         - pkg: sigs.k8s.io/gateway-api/apis/v1alpha2
           alias: gwv1alpha2
       no-extra-aliases: true
+    goheader:
+      template: |-
+        SPDX-License-Identifier: BSD-3-Clause
   exclusions:
     generated: lax
     rules:

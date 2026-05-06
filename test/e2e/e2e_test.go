@@ -155,13 +155,15 @@ func TestE2E(t *testing.T) {
 			err = actionCfg.Init(clientGetter, netbirdNamespace, "secret")
 			require.NoError(t, err)
 
-			charter, err := loader.Load("../../helm/kubernetes-operator")
+			charter, err := loader.Load("../../charts/netbird-operator")
 			require.NoError(t, err)
 
 			vals := map[string]any{
-				"image": map[string]any{
-					"tag":        "dev",
-					"pullPolicy": "Never",
+				"operator": map[string]any{
+					"image": map[string]any{
+						"tag":        "dev",
+						"pullPolicy": "Never",
+					},
 				},
 				"webhook": map[string]any{
 					"enableCertManager": false,
@@ -171,7 +173,7 @@ func TestE2E(t *testing.T) {
 			_, err = action.NewGet(actionCfg).Run(netbirdNamespace)
 			if err != nil {
 				install := action.NewInstall(actionCfg)
-				install.ReleaseName = netbirdNamespace
+				install.ReleaseName = "netbird-operator"
 				install.Namespace = netbirdNamespace
 				install.CreateNamespace = true
 				install.WaitStrategy = kube.StatusWatcherStrategy
@@ -183,7 +185,7 @@ func TestE2E(t *testing.T) {
 				upgrade.Namespace = netbirdNamespace
 				upgrade.WaitStrategy = kube.StatusWatcherStrategy
 				upgrade.Timeout = 60 * time.Second
-				_, err := upgrade.RunWithContext(t.Context(), netbirdNamespace, charter, vals)
+				_, err := upgrade.RunWithContext(t.Context(), "netbird-operator", charter, vals)
 				require.NoError(t, err)
 			}
 		})

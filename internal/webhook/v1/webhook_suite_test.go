@@ -70,7 +70,7 @@ var _ = BeforeSuite(func() {
 
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "helm", "kubernetes-operator", "crds")},
+		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "charts", "netbird-operator", "crds")},
 		ErrorIfCRDPathMissing: false,
 
 		// WebhookInstallOptions: envtest.WebhookInstallOptions{

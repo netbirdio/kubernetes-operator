@@ -1,42 +1,30 @@
 # NetBird Kubernetes Operator
 
-The NetBird Kubernetes Operator automates the provisioning of NetBird network access for services running in your cluster.
+The NetBird Kubernetes Operator automates the provisioning of NetBird network access for services running in your cluster. It extends the Kubernetes API with CRDs, letting you manage NetBird peers, routes, and groups declaratively, the same way you manage the rest of your infrastructure.
 
-## Documentation
+# Features
 
-- [Getting Started](/docs/getting-started.md)
-- [Usage](/docs/usage.md)
-- [API Reference](/docs/api-reference.md)
+* Declarative peer management - define NetBird peers as Kubernetes resources and let the operator handle provisioning and lifecycle
+* Automatic secret management - setup keys and credentials are stored and rotated as Kubernetes secrets
+* Namespace-scoped or cluster-wide - deploy per-namespace for multi-tenant clusters or cluster-wide for full coverage
+* Works with any NetBird deployment - compatible with NetBird Cloud and self-hosted instances
 
-## How It Works
+## Getting Started
 
-A `NetworkRouter` registers a NetBird router peer for a given DNS zone in your cluster.
+For full setup instructions, see the [Getting Started](https://docs.netbird.io/manage/integrations/kubernetes) documentation.
 
-```yaml
-apiVersion: netbird.io/v1alpha1
-kind: NetworkRouter
-metadata:
-  name: prod
-  namespace: netbird
-spec:
-  dnsZoneRef:
-    name: prod.company.internal
+Once your secret is configured, install the operator with Helm.
+
+```shell
+helm upgrade --install --create-namespace -n netbird netbird-operator oci://ghcr.io/netbirdio/helm-charts/netbird-operator
 ```
 
-A `NetworkResource` then exposes a Kubernetes service through that router to one or more NetBird groups.
+## API
 
-```yaml
-apiVersion: netbird.io/v1alpha1
-kind: NetworkResource
-metadata:
-  name: nginx
-  namespace: default
-spec:
-  networkRouterRef:
-    name: prod
-    namespace: netbird
-  serviceRef:
-    name: nginx
-  groups:
-    - name: All
-```
+| Kind | API Version |
+|------|-------------|
+| [Group](docs/api-reference.md#group) | `netbird.io/v1alpha1` |
+| [NetworkResource](docs/api-reference.md#networkresource) | `netbird.io/v1alpha1` |
+| [NetworkRouter](docs/api-reference.md#networkrouter) | `netbird.io/v1alpha1` |
+| [SetupKey](docs/api-reference.md#setupkey) | `netbird.io/v1alpha1` |
+| [SidecarProfile](docs/api-reference.md#sidecarprofile) | `netbird.io/v1alpha1` |

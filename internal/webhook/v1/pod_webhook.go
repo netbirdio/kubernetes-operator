@@ -172,6 +172,9 @@ func (d *PodNetbirdInjector) Default(ctx context.Context, pod *corev1.Pod) error
 		return fmt.Errorf("unknown injection mode %s", sidecarProfile.Spec.InjectionMode)
 	}
 
+	if pod.Annotations == nil {
+		pod.Annotations = map[string]string{}
+	}
 	pod.Annotations[SidecarProfileAnnotation] = sidecarProfile.Name
 
 	return nil

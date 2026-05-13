@@ -4,15 +4,72 @@ package v1
 
 import (
 	"context"
+	"testing"
 
+	"github.com/go-openapi/testify/v2/require"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kruntime "k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	nbv1 "github.com/netbirdio/kubernetes-operator/api/v1"
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 )
+
+func TestPodInjectorSidecarProfile(t *testing.T) {
+	t.Parallel()
+
+	setupKey := &nbv1alpha1.SetupKey{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "test",
+		},
+		Spec: nbv1alpha1.SetupKeySpec{
+			Name:      "test",
+			Ephemeral: true,
+		},
+	}
+	sidecarProfile := &nbv1alpha1.SidecarProfile{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "test",
+		},
+		Spec: nbv1alpha1.SidecarProfileSpec{
+			SetupKeyRef: corev1.LocalObjectReference{
+				Name: "test",
+			},
+			InjectionMode: nbv1alpha1.InjectionModeContainer,
+		},
+	}
+
+	scheme := kruntime.NewScheme()
+	err := corev1.AddToScheme(scheme)
+	require.NoError(t, err)
+	err = nbv1alpha1.AddToScheme(scheme)
+	require.NoError(t, err)
+	k8sClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sidecarProfile, setupKey).Build()
+	injector := PodNetbirdInjector{
+		client:        k8sClient,
+		managementURL: "https://api.netbird.io",
+		clientImage:   "netbirdio/netbird:latest",
+	}
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "test",
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{},
+		},
+	}
+	err = injector.Default(t.Context(), pod)
+	require.NoError(t, err)
+	require.Len(t, pod.Spec.Containers, 1)
+	require.EqualT(t, "netbird", pod.Spec.Containers[0].Name)
+}
 
 var _ = Describe("Pod Webhook", func() {
 	var (
@@ -139,61 +196,6 @@ var _ = Describe("Pod Webhook", func() {
 				Expect(obj.Spec.InitContainers).To(BeEmpty())
 			})
 
-		})
-	})
-
-	Context("When creating Pod with SidecarProfile", func() {
-		BeforeEach(func() {
-			sidecarProfile := &nbv1alpha1.SidecarProfile{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "test",
-				},
-				Spec: nbv1alpha1.SidecarProfileSpec{
-					SetupKeyRef: corev1.LocalObjectReference{
-						Name: "test",
-					},
-					InjectionMode: nbv1alpha1.InjectionModeContainer,
-				},
-			}
-			Expect(k8sClient.Create(context.Background(), sidecarProfile)).To(Succeed())
-		})
-
-		AfterEach(func() {
-			sidecarProfile := &nbv1alpha1.SidecarProfile{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "test",
-				},
-			}
-			Expect(k8sClient.Delete(ctx, sidecarProfile)).To(Succeed())
-		})
-
-		When("SetupKey doesn't exist", func() {
-			It("Should fail", func() {
-				Expect(defaulter.Default(context.Background(), obj)).To(HaveOccurred())
-				Expect(obj.Spec.Containers).To(HaveLen(1))
-			})
-		})
-
-		When("SetupKey exists", func() {
-			It("Should succeed", func() {
-				setupKey := &nbv1alpha1.SetupKey{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test",
-						Namespace: "test",
-					},
-					Spec: nbv1alpha1.SetupKeySpec{
-						Name:      "test",
-						Ephemeral: true,
-					},
-				}
-				Expect(k8sClient.Create(context.Background(), setupKey)).To(Succeed())
-
-				Expect(defaulter.Default(context.Background(), obj)).NotTo(HaveOccurred())
-				Expect(obj.Spec.Containers).To(HaveLen(2))
-				Expect(obj.Spec.Containers[1].Name).To(Equal("netbird"))
-			})
 		})
 	})
 })

@@ -3,14 +3,13 @@
 package main
 
 import (
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
-	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -130,12 +129,16 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
-	runtimeNamespace, err := getRuntimeNamespace(runtimeNamespace)
+	_, err := url.Parse(managementURL)
+	if err != nil {
+		setupLog.Error(err, "invalid management url")
+		os.Exit(1)
+	}
+	runtimeNamespace, err = getRuntimeNamespace(runtimeNamespace)
 	if err != nil {
 		setupLog.Error(err, "unable to get runtime namespace")
 		os.Exit(1)
 	}
-
 	if clientImage == "" {
 		clientImage = version.ClientImage()
 	}

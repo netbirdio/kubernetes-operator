@@ -3,7 +3,6 @@
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
-GOARCH = $(shell go env GOARCH)
 ifeq (,$(shell go env GOBIN))
 GOBIN = $(shell go env GOPATH)/bin
 else
@@ -49,10 +48,10 @@ test-e2e: build-image
 	cd ./test/e2e && IMG_REF=${IMG_REF} go test ./... -v -count 1
 
 .PHONY: build
-build: generate bin/linux-$(GOARCH)/netbird-operator
+build: generate bin/linux-$(shell go env GOARCH)/netbird-operator
 
 bin/linux-%/netbird-operator: $(shell find api cmd internal pkg) go.mod go.sum
-	@CGO_ENABLED=0 GOOS=linux GOARCH=$(GOARCH) go build -ldflags="-w -s" -trimpath -o $@ cmd/main.go
+	@CGO_ENABLED=0 GOOS=linux GOARCH=$* go build -ldflags="-w -s" -trimpath -o $@ cmd/main.go
 
 .PHONY: build-image
 build-image: build

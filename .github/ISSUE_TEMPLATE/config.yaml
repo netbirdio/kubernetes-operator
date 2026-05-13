@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Feature Requests
+    about: Propose and discuss new features.
+    url: https://github.com/netbirdio/kubernetes-operator/discussions/new?category=feature-requests

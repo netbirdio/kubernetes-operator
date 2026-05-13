@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- bases/netbird.io_groups.yaml
+- bases/netbird.io_nbgroups.yaml
+- bases/netbird.io_nbpolicies.yaml
+- bases/netbird.io_nbresources.yaml
+- bases/netbird.io_nbroutingpeers.yaml
+- bases/netbird.io_nbsetupkeys.yaml
+- bases/netbird.io_networkresources.yaml
+- bases/netbird.io_networkrouters.yaml
+- bases/netbird.io_setupkeys.yaml
+- bases/netbird.io_sidecarprofiles.yaml
+# +kubebuilder:scaffold:crdkustomizeresource

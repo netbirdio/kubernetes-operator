@@ -16,7 +16,7 @@ IMG_TAG ?= dev
 IMG_REF := $(IMG_REGISTRY)/$(IMG_REPOSITORY):$(IMG_TAG)
 
 .PHONY: generate
-generate: api/v1/zz_generated.deepcopy.go api/v1alpha1/zz_generated.deepcopy.go pkg/applyconfigurations charts/netbird-operator/crds docs/api-reference.md
+generate: api/v1/zz_generated.deepcopy.go api/v1alpha1/zz_generated.deepcopy.go pkg/applyconfigurations config/crd/bases charts/netbird-operator/crds docs/api-reference.md
 
 api/v1/zz_generated.deepcopy.go api/v1alpha1/zz_generated.deepcopy.go: $(shell find api -not -name 'zz_generated*') hack/boilerplate.go.txt
 	@go tool controller-gen object:headerFile="hack/boilerplate.go.txt" paths="./..."
@@ -25,9 +25,14 @@ pkg/applyconfigurations: $(shell find api -not -name 'zz_generated*') hack/boile
 	@go tool controller-gen applyconfiguration:headerFile="hack/boilerplate.go.txt" object:headerFile="hack/boilerplate.go.txt" paths="./..."
 	@touch pkg/applyconfigurations
 
-charts/netbird-operator/crds: $(shell find api)
-	@go tool controller-gen crd paths="./..." output:crd:artifacts:config=charts/netbird-operator/crds
-	@touch charts/netbird-operator/crds
+config/crd/bases: $(shell find api)
+	@go tool controller-gen crd paths="./..." output:crd:artifacts:config=config/crd/bases
+	@touch config/crd/bases
+
+charts/netbird-operator/crds: $(GENERATED_CRDS)
+	@rm -rf $@
+	@mkdir -p $@
+	@cp config/crd/bases/* $@
 
 docs/api-reference.md: $(shell find api) docs/.crd-ref-docs.yaml
 	@go tool crd-ref-docs --log-level error --output-path docs/api-reference.md --renderer markdown --source-path api/v1alpha1 --config docs/.crd-ref-docs.yaml
@@ -59,22 +64,15 @@ build-image-multiarch: generate bin/linux-amd64/netbird-operator bin/linux-arm64
 	@DOCKER_BUILDKIT=1 docker build --platform linux/amd64,linux/arm64 -t ${IMG_REF} .
 	@echo ${IMG_REF}
 
-## Generate a consolidated YAML with CRDs and deployment.
-.PHONY: build-installer
-build-installer: generate
-	mkdir -p manifests
-	helm template --include-crds netbird-operator charts/netbird-operator > manifests/install.yaml
-
-##@ Deployment
-
 .PHONY: install
 install: generate
-	kubectl apply --server-side -f charts/netbird-operator/crds
+	kustomize build config/crd | kubectl apply -f -
 
 .PHONY: uninstall
 uninstall:
-	kubectl delete -f charts/netbird-operator/crds
+	kustomize build config/crd | kubectl delete -f -
 
+.PHONY: run
 run: install
 	kubectl create namespace netbird --dry-run=client -o yaml | kubectl apply -f -
 	go run cmd/main.go --enable-webhooks=false --netbird-api-key=$${NB_API_KEY}  --runtime-namespace netbird

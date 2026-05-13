@@ -3,21 +3,21 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.1
-  name: nbgroups.netbird.io
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: nbpolicies.netbird.io
 spec:
   group: netbird.io
   names:
-    kind: NBGroup
-    listKind: NBGroupList
-    plural: nbgroups
-    singular: nbgroup
-  scope: Namespaced
+    kind: NBPolicy
+    listKind: NBPolicyList
+    plural: nbpolicies
+    singular: nbpolicy
+  scope: Cluster
   versions:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: NBGroup is the Schema for the nbgroups API.
+        description: NBPolicy is the Schema for the nbpolicies API.
         properties:
           apiVersion:
             description: |-
@@ -37,19 +37,46 @@ spec:
           metadata:
             type: object
           spec:
-            description: NBGroupSpec defines the desired state of NBGroup.
+            description: NBPolicySpec defines the desired state of NBPolicy.
             properties:
+              bidirectional:
+                default: true
+                type: boolean
+              description:
+                type: string
+              destinationGroups:
+                items:
+                  minLength: 1
+                  type: string
+                type: array
               name:
+                description: Name Policy name
                 minLength: 1
                 type: string
-                x-kubernetes-validations:
-                - message: Value is immutable
-                  rule: self == oldSelf
+              ports:
+                items:
+                  format: int32
+                  maximum: 65535
+                  minimum: 0
+                  type: integer
+                type: array
+              protocols:
+                items:
+                  enum:
+                  - tcp
+                  - udp
+                  type: string
+                type: array
+              sourceGroups:
+                items:
+                  minLength: 1
+                  type: string
+                type: array
             required:
             - name
             type: object
           status:
-            description: NBGroupStatus defines the observed state of NBGroup.
+            description: NBPolicyStatus defines the observed state of NBPolicy.
             properties:
               conditions:
                 items:
@@ -85,7 +112,16 @@ spec:
                   - type
                   type: object
                 type: array
-              groupID:
+              lastUpdatedAt:
+                format: date-time
+                type: string
+              managedServiceList:
+                items:
+                  type: string
+                type: array
+              tcpPolicyID:
+                type: string
+              udpPolicyID:
                 type: string
             type: object
         type: object

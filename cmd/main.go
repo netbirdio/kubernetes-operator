@@ -13,11 +13,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	kruntime "k8s.io/apimachinery/pkg/runtime"
+	kruntimeutil "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
@@ -39,18 +40,18 @@ import (
 )
 
 var (
-	scheme   = runtime.NewScheme()
+	scheme   = kruntime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
 )
 
 func init() {
-	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	kruntimeutil.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(nbv1.AddToScheme(scheme))
-	utilruntime.Must(corev1.AddToScheme(scheme))
-	utilruntime.Must(gwv1.Install(scheme))
-	utilruntime.Must(gwv1alpha2.Install(scheme))
-	utilruntime.Must(nbv1alpha1.AddToScheme(scheme))
+	kruntimeutil.Must(nbv1.AddToScheme(scheme))
+	kruntimeutil.Must(corev1.AddToScheme(scheme))
+	kruntimeutil.Must(gwv1.Install(scheme))
+	kruntimeutil.Must(gwv1alpha2.Install(scheme))
+	kruntimeutil.Must(nbv1alpha1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -216,7 +217,7 @@ func main() {
 		nbClient := netbird.NewWithOptions(
 			netbird.WithManagementURL(managementURL),
 			netbird.WithBearerToken(netbirdAPIKey),
-			netbird.WithUserAgent("netbird-operator"),
+			netbird.WithUserAgent(fmt.Sprintf("netbird-operator/%s (%s/%s)", version.BuildVersion(), runtime.GOOS, runtime.GOARCH)),
 		)
 
 		if err = (&controller.NBRoutingPeerReconciler{

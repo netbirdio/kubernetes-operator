@@ -48,9 +48,9 @@ linters:
         - pkg: k8s.io/client-go/kubernetes/scheme
           alias: clientgoscheme
         - pkg: k8s.io/apimachinery/pkg/runtime
-          alias: apimachineryruntime
+          alias: kruntime
         - pkg: k8s.io/apimachinery/pkg/util/runtime
-          alias: utilruntime
+          alias: kruntimeutil
         - pkg: sigs.k8s.io/controller-runtime/pkg/metrics/server
           alias: metricsserver
         - pkg: k8s.io/apimachinery/pkg/apis/meta/v1

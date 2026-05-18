@@ -2,7 +2,7 @@ module github.com/netbirdio/kubernetes-operator
 
 go 1.26.0
 
-toolchain go1.26.2
+toolchain go1.26.3
 
 require (
 	github.com/fluxcd/pkg/runtime v0.106.0

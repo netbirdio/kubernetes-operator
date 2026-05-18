@@ -19,3 +19,13 @@ updates:
       k8s:
         patterns:
           - "k8s.io/*"
+  - package-ecosystem: "gomod"
+    directories:
+      - "/test/e2e"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 15
+    groups:
+      gomod-e2e:
+        patterns:
+          - "*"

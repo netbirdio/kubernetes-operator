@@ -2,7 +2,7 @@ module github.com/netbirdio/kubernetes-operator/test/e2e
 
 go 1.26.0
 
-toolchain go1.26.2
+toolchain go1.26.3
 
 require (
 	github.com/go-openapi/testify/v2 v2.5.0

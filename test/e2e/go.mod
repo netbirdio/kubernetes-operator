@@ -8,10 +8,10 @@ require (
 	github.com/go-openapi/testify/v2 v2.5.0
 	github.com/moby/moby/client v0.4.1
 	helm.sh/helm/v4 v4.2.0
-	k8s.io/api v0.36.0
-	k8s.io/apimachinery v0.36.0
-	k8s.io/cli-runtime v0.36.0
-	k8s.io/client-go v0.36.0
+	k8s.io/api v0.36.1
+	k8s.io/apimachinery v0.36.1
+	k8s.io/cli-runtime v0.36.1
+	k8s.io/client-go v0.36.1
 	sigs.k8s.io/kind v0.31.0
 )
 

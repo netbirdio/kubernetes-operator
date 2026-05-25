@@ -7,7 +7,7 @@ import (
 )
 
 func ClientImage() string {
-	return "ghcr.io/netbirdio/netbird:0.71.2@sha256:a2cc19dd02fdc3bfe54bab10cde5715265fc82f6e9d034edc1183ad57d07c22e"
+	return "ghcr.io/netbirdio/netbird:0.71.4@sha256:c4195811bf9999544db5176950a0d6513c880d0195450b59eb156c254e0dd3b5"
 }
 
 func BuildVersion() string {

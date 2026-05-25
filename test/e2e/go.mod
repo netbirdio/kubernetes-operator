@@ -5,7 +5,7 @@ go 1.26.0
 toolchain go1.26.3
 
 require (
-	github.com/go-openapi/testify/v2 v2.5.0
+	github.com/go-openapi/testify/v2 v2.5.1
 	github.com/moby/moby/client v0.4.1
 	helm.sh/helm/v4 v4.2.0
 	k8s.io/api v0.36.1

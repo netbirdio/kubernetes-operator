@@ -50,6 +50,9 @@ func (r *GroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	groupID, err := func() (string, error) {
 		if group.Status.GroupID != "" {
 			groupResp, err := r.Netbird.Groups.Get(ctx, group.Status.GroupID)
+			if err != nil && !netbird.IsNotFound(err) {
+				return "", err
+			}
 			if err == nil {
 				peers := []string{}
 				for _, peer := range groupResp.Peers {

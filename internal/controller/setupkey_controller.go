@@ -53,11 +53,6 @@ func (r *SetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return r.reconcileDelete(ctx, sp, setupKey)
 	}
 
-	autoGroupIDs, err := netbirdutil.GetGroupIDs(ctx, r.Client, r.Netbird, setupKey.Spec.AutoGroups, setupKey.Namespace)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-
 	controllerutil.AddFinalizer(setupKey, k8sutil.Finalizer("setupkey"))
 	err = sp.Patch(ctx, setupKey)
 	if err != nil {
@@ -65,6 +60,10 @@ func (r *SetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	// Check if setup key is up to date.
+	autoGroupIDs, err := netbirdutil.GetGroupIDs(ctx, r.Client, r.Netbird, setupKey.Spec.AutoGroups, setupKey.Namespace)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 	ok, err := func() (bool, error) {
 		if setupKey.Status.SetupKeyID == "" {
 			return false, nil

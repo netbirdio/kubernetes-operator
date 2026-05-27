@@ -124,8 +124,12 @@ func (r *SetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	if setupKey.Spec.Duration != nil {
 		expiresIn = int(setupKey.Spec.Duration.Seconds())
 	}
+	allowExtraDnsLabels := new(false)
+	if setupKey.Spec.AllowExtraDnsLabels != nil {
+		allowExtraDnsLabels = setupKey.Spec.AllowExtraDnsLabels
+	}
 	setupKeyReq := api.PostApiSetupKeysJSONRequestBody{
-		AllowExtraDnsLabels: new(false),
+		AllowExtraDnsLabels: allowExtraDnsLabels,
 		AutoGroups:          autoGroupIDs,
 		Ephemeral:           new(setupKey.Spec.Ephemeral),
 		ExpiresIn:           expiresIn,

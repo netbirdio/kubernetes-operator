@@ -21,6 +21,8 @@ type SetupKeySpecApplyConfiguration struct {
 	Duration *v1.Duration `json:"duration,omitempty"`
 	// AutoGroups are groups that will be automatically assigned to peers using setup key.
 	AutoGroups []GroupReferenceApplyConfiguration `json:"autoGroups,omitempty"`
+	// AllowExtraDnsLabels decides if peers added with the key can have extra DNS labels.
+	AllowExtraDnsLabels *bool `json:"allowExtraDnsLabels,omitempty"`
 }
 
 // SetupKeySpecApplyConfiguration constructs a declarative configuration of the SetupKeySpec type for use with
@@ -63,5 +65,13 @@ func (b *SetupKeySpecApplyConfiguration) WithAutoGroups(values ...*GroupReferenc
 		}
 		b.AutoGroups = append(b.AutoGroups, *values[i])
 	}
+	return b
+}
+
+// WithAllowExtraDnsLabels sets the AllowExtraDnsLabels field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the AllowExtraDnsLabels field is set to the value of the last call.
+func (b *SetupKeySpecApplyConfiguration) WithAllowExtraDnsLabels(value bool) *SetupKeySpecApplyConfiguration {
+	b.AllowExtraDnsLabels = &value
 	return b
 }

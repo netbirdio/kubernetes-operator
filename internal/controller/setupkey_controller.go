@@ -125,7 +125,7 @@ func (r *SetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		expiresIn = int(setupKey.Spec.Duration.Seconds())
 	}
 	setupKeyReq := api.PostApiSetupKeysJSONRequestBody{
-		AllowExtraDnsLabels: new(false),
+		AllowExtraDnsLabels: &setupKey.Spec.AllowExtraDnsLabels,
 		AutoGroups:          autoGroupIDs,
 		Ephemeral:           new(setupKey.Spec.Ephemeral),
 		ExpiresIn:           expiresIn,

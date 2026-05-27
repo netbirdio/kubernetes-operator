@@ -17,6 +17,8 @@ type SetupKeySpecApplyConfiguration struct {
 	Name *string `json:"name,omitempty"`
 	// Ephemeral decides if peers added with the key are ephemeral or not.
 	Ephemeral *bool `json:"ephemeral,omitempty"`
+	// AllowExtraDnsLabels decides if peers added with the key can have extra DNS labels.
+	AllowExtraDnsLabels *bool `json:"allowExtraDnsLabels,omitempty"`
 	// Duration sets how long the setup key is valid for.
 	Duration *v1.Duration `json:"duration,omitempty"`
 	// AutoGroups are groups that will be automatically assigned to peers using setup key.
@@ -42,6 +44,14 @@ func (b *SetupKeySpecApplyConfiguration) WithName(value string) *SetupKeySpecApp
 // If called multiple times, the Ephemeral field is set to the value of the last call.
 func (b *SetupKeySpecApplyConfiguration) WithEphemeral(value bool) *SetupKeySpecApplyConfiguration {
 	b.Ephemeral = &value
+	return b
+}
+
+// WithAllowExtraDnsLabels sets the AllowExtraDnsLabels field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the AllowExtraDnsLabels field is set to the value of the last call.
+func (b *SetupKeySpecApplyConfiguration) WithAllowExtraDnsLabels(value bool) *SetupKeySpecApplyConfiguration {
+	b.AllowExtraDnsLabels = &value
 	return b
 }
 

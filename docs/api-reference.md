@@ -315,9 +315,9 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `name` _string_ | Name of the setup key. |  | MinLength: 1 <br /> |
 | `ephemeral` _boolean_ | Ephemeral decides if peers added with the key are ephemeral or not. |  |  |
+| `allowExtraDnsLabels` _boolean_ | AllowExtraDnsLabels decides if peers added with the key can have extra DNS labels. | false |  |
 | `duration` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#duration-v1-meta)_ | Duration sets how long the setup key is valid for. |  | Pattern: `^([0-9]+(\.[0-9]+)?(m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
 | `autoGroups` _[GroupReference](#groupreference) array_ | AutoGroups are groups that will be automatically assigned to peers using setup key. |  | Optional: \{\} <br /> |
-| `allowExtraDnsLabels` _boolean_ | AllowExtraDnsLabels decides if peers added with the key can have extra DNS labels. | false | Optional: \{\} <br /> |
 
 
 #### SetupKeyStatus

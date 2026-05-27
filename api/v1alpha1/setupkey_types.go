@@ -16,6 +16,11 @@ type SetupKeySpec struct {
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="ephemeral is immutable"
 	Ephemeral bool `json:"ephemeral"`
 
+	// AllowExtraDnsLabels decides if peers added with the key can have extra DNS labels.
+	// +kubebuilder:default=false
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="allowExtraDnsLabels is immutable"
+	AllowExtraDnsLabels bool `json:"allowExtraDnsLabels"`
+
 	// Duration sets how long the setup key is valid for.
 	// +optional
 	// +kubebuilder:validation:Type=string
@@ -26,12 +31,6 @@ type SetupKeySpec struct {
 	// AutoGroups are groups that will be automatically assigned to peers using setup key.
 	// +optional
 	AutoGroups []GroupReference `json:"autoGroups,omitempty"`
-
-	// AllowExtraDnsLabels decides if peers added with the key can have extra DNS labels.
-	// +optional
-	// +kubebuilder:default=false
-	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="allowExtraDnsLabels is immutable"
-	AllowExtraDnsLabels *bool `json:"allowExtraDnsLabels,omitempty"`
 }
 
 // SetupKeyStatus defines the observed state of SetupKey.

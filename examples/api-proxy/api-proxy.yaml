@@ -1,0 +1,70 @@
+apiVersion: netbird.io/v1alpha1
+kind: ClusterProxy
+metadata:
+  name: prod
+  namespace: netbird
+spec:
+  clusterName: prod
+  serviceAccountName: clusterproxy-prod
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: clusterproxy-prod
+  namespace: netbird
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: clusterproxy-prod
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - users
+      - groups
+    verbs:
+      - impersonate
+
+  - apiGroups:
+      - authentication.k8s.io
+    resources:
+      - userextras/*
+      - uids
+    verbs:
+      - impersonate
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: clusterproxy-prod
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: clusterproxy-prod
+subjects:
+  - kind: ServiceAccount
+    name: clusterproxy-prod
+    namespace: netbird
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: netbird-cluster-reader
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: netbird-cluster-reader
+subjects:
+  - kind: Group
+    name: kubernetes-read
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: netbird-cluster-reader
+  apiGroup: rbac.authorization.k8s.io

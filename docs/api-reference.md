@@ -9,12 +9,69 @@
 Package v1alpha1 contains API Schema definitions for the  v1alpha1 API group.
 
 ### Resource Types
+- [ClusterProxy](#clusterproxy)
 - [Group](#group)
 - [NetworkResource](#networkresource)
 - [NetworkRouter](#networkrouter)
 - [SetupKey](#setupkey)
 - [SidecarProfile](#sidecarprofile)
 
+
+
+#### ClusterProxy
+
+
+
+ClusterProxy is the Schema for the clusterproxies API
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `netbird.io/v1alpha1` | | |
+| `kind` _string_ | `ClusterProxy` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  | Optional: \{\} <br /> |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  | Optional: \{\} <br /> |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[ClusterProxySpec](#clusterproxyspec)_ |  |  | Required: \{\} <br /> |
+| `status` _[ClusterProxyStatus](#clusterproxystatus)_ |  | \{ observedGeneration:-1 \} |  |
+
+
+#### ClusterProxySpec
+
+
+
+ClusterProxySpec defines the desired state of ClusterProxy.
+
+
+
+_Appears in:_
+- [ClusterProxy](#clusterproxy)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `clusterName` _string_ | ClusterName is the name of the Kubernetes cluster. |  | Required: \{\} <br /> |
+| `apiServer` _string_ | APIServer is the URL of the Kubernetes API server to proxy requests to. | https://kubernetes.default.svc.cluster.local | Required: \{\} <br /> |
+| `serviceAccountName` _string_ | ServiceAccountName is a reference to the service account used for impersonation. |  | Required: \{\} <br /> |
+
+
+#### ClusterProxyStatus
+
+
+
+ClusterProxyStatus defines the observed state of ClusterProxy.
+
+
+
+_Appears in:_
+- [ClusterProxy](#clusterproxy)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `observedGeneration` _integer_ | ObservedGeneration is the last reconciled generation. |  | Optional: \{\} <br /> |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#condition-v1-meta) array_ | Conditions holds the conditions for the ClusterProxy. |  | Optional: \{\} <br /> |
 
 
 #### ContainerOverride

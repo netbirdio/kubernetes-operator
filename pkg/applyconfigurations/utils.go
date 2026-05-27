@@ -18,6 +18,12 @@ import (
 func ForKind(kind schema.GroupVersionKind) interface{} {
 	switch kind {
 	// Group=netbird.io, Version=v1alpha1
+	case v1alpha1.SchemeGroupVersion.WithKind("ClusterProxy"):
+		return &apiv1alpha1.ClusterProxyApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("ClusterProxySpec"):
+		return &apiv1alpha1.ClusterProxySpecApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("ClusterProxyStatus"):
+		return &apiv1alpha1.ClusterProxyStatusApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("ContainerOverride"):
 		return &apiv1alpha1.ContainerOverrideApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("CrossNamespaceReference"):

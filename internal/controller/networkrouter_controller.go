@@ -126,7 +126,7 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 	err = r.Client.Get(ctx, client.ObjectKeyFromObject(group), group)
 	if err != nil {
-		return ctrl.Result{}, err
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	if group.Status.GroupID == "" {
 		return ctrl.Result{}, nil
@@ -153,7 +153,7 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 	err = r.Get(ctx, client.ObjectKeyFromObject(&setupKey), &setupKey)
 	if err != nil {
-		return ctrl.Result{}, err
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	if setupKey.Status.SetupKeyID == "" {
 		return ctrl.Result{}, nil
@@ -379,7 +379,7 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 	err = r.Client.Get(ctx, client.ObjectKeyFromObject(dep), dep)
 	if err != nil {
-		return ctrl.Result{}, err
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	if dep.Status.ReadyReplicas != dep.Status.Replicas {
 		return ctrl.Result{}, nil

@@ -15,6 +15,12 @@ type ContainerOverrideApplyConfiguration struct {
 	Image           *string             `json:"image,omitempty"`
 	Env             []v1.EnvVar         `json:"env,omitempty"`
 	SecurityContext *v1.SecurityContext `json:"securityContext,omitempty"`
+	// StartupProbe overrides the startup probe for the sidecar container.
+	StartupProbe *v1.Probe `json:"startupProbe,omitempty"`
+	// LivenessProbe overrides the liveness probe for the sidecar container.
+	LivenessProbe *v1.Probe `json:"livenessProbe,omitempty"`
+	// ReadinessProbe overrides the readiness probe for the sidecar container.
+	ReadinessProbe *v1.Probe `json:"readinessProbe,omitempty"`
 }
 
 // ContainerOverrideApplyConfiguration constructs a declarative configuration of the ContainerOverride type for use with
@@ -46,5 +52,29 @@ func (b *ContainerOverrideApplyConfiguration) WithEnv(values ...v1.EnvVar) *Cont
 // If called multiple times, the SecurityContext field is set to the value of the last call.
 func (b *ContainerOverrideApplyConfiguration) WithSecurityContext(value v1.SecurityContext) *ContainerOverrideApplyConfiguration {
 	b.SecurityContext = &value
+	return b
+}
+
+// WithStartupProbe sets the StartupProbe field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the StartupProbe field is set to the value of the last call.
+func (b *ContainerOverrideApplyConfiguration) WithStartupProbe(value v1.Probe) *ContainerOverrideApplyConfiguration {
+	b.StartupProbe = &value
+	return b
+}
+
+// WithLivenessProbe sets the LivenessProbe field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the LivenessProbe field is set to the value of the last call.
+func (b *ContainerOverrideApplyConfiguration) WithLivenessProbe(value v1.Probe) *ContainerOverrideApplyConfiguration {
+	b.LivenessProbe = &value
+	return b
+}
+
+// WithReadinessProbe sets the ReadinessProbe field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ReadinessProbe field is set to the value of the last call.
+func (b *ContainerOverrideApplyConfiguration) WithReadinessProbe(value v1.Probe) *ContainerOverrideApplyConfiguration {
+	b.ReadinessProbe = &value
 	return b
 }

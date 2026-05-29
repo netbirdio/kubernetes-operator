@@ -33,6 +33,9 @@ _Appears in:_
 | `image` _string_ | Image overrides the image used by the client. |  | Optional: \{\} <br /> |
 | `env` _[EnvVar](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#envvar-v1-core) array_ |  |  | Optional: \{\} <br /> |
 | `securityContext` _[SecurityContext](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#securitycontext-v1-core)_ |  |  | Optional: \{\} <br /> |
+| `startupProbe` _[Probe](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#probe-v1-core)_ | StartupProbe overrides the startup probe for the sidecar container. |  | Optional: \{\} <br /> |
+| `livenessProbe` _[Probe](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#probe-v1-core)_ | LivenessProbe overrides the liveness probe for the sidecar container. |  | Optional: \{\} <br /> |
+| `readinessProbe` _[Probe](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#probe-v1-core)_ | ReadinessProbe overrides the readiness probe for the sidecar container. |  | Optional: \{\} <br /> |
 
 
 #### CrossNamespaceReference

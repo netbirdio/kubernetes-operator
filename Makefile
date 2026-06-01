@@ -40,9 +40,9 @@ docs/api-reference.md: $(shell find api) docs/.crd-ref-docs.yaml
 lint:
 	@golangci-lint run ./...
 
-.PHONY: test
-test: setup-envtest
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -v $$(go list ./... | grep -v /e2e) -coverprofile cover.out
+.PHONY: test-unit
+test-unit: setup-envtest
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -v ./... -coverprofile=coverage.txt
 
 test-e2e: build-image
 	cd ./test/e2e && IMG_REF=${IMG_REF} go test ./... -v -count 1

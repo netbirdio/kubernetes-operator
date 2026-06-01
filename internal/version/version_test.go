@@ -13,7 +13,7 @@ import (
 	"github.com/go-openapi/testify/v2/require"
 )
 
-func TestClientImage(t *testing.T) {
+func TestNetbirdClientImage(t *testing.T) {
 	t.Parallel()
 
 	b, err := os.ReadFile("../../go.mod")
@@ -26,10 +26,9 @@ func TestClientImage(t *testing.T) {
 	require.GreaterT(t, idx, -1)
 	modVersion := strings.TrimPrefix(f.Require[idx].Mod.Version, "v")
 
-	clientImg := ClientImage()
-	start := strings.Index(clientImg, ":") + 1
-	end := strings.Index(clientImg, "@")
-	imgVersion := clientImg[start:end]
+	start := strings.Index(NetbirdClientImage, ":") + 1
+	end := strings.Index(NetbirdClientImage, "@")
+	imgVersion := NetbirdClientImage[start:end]
 
 	require.EqualT(t, modVersion, imgVersion)
 }

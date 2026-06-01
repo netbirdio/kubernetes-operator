@@ -60,7 +60,7 @@ func main() {
 	var (
 		runtimeNamespace             string
 		managementURL                string
-		clientImage                  string
+		netbirdClientImage           string
 		clusterName                  string
 		namespacedNetworks           bool
 		clusterDNS                   string
@@ -71,7 +71,7 @@ func main() {
 	)
 	flag.StringVar(&runtimeNamespace, "runtime-namespace", "", "Namespace the controller is running in")
 	flag.StringVar(&managementURL, "netbird-management-url", "https://api.netbird.io", "Management service URL")
-	flag.StringVar(&clientImage, "netbird-client-image", "", "Image for netbird client container")
+	flag.StringVar(&netbirdClientImage, "netbird-client-image", "", "Image for netbird client container")
 	flag.StringVar(
 		&clusterName,
 		"cluster-name",
@@ -139,8 +139,8 @@ func main() {
 		setupLog.Error(err, "unable to get runtime namespace")
 		os.Exit(1)
 	}
-	if clientImage == "" {
-		clientImage = version.ClientImage()
+	if netbirdClientImage == "" {
+		netbirdClientImage = version.NetbirdClientImage
 	}
 
 	defaultLabelsMap := make(map[string]string)
@@ -210,7 +210,7 @@ func main() {
 	}
 
 	if enableWebhooks {
-		if err = nbwebhookv1.SetupPodWebhookWithManager(mgr, managementURL, clientImage); err != nil {
+		if err = nbwebhookv1.SetupPodWebhookWithManager(mgr, managementURL, netbirdClientImage); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "Pod")
 			os.Exit(1)
 		}
@@ -226,7 +226,7 @@ func main() {
 		if err = (&controller.NBRoutingPeerReconciler{
 			Client:             mgr.GetClient(),
 			Netbird:            nbClient,
-			ClientImage:        clientImage,
+			ClientImage:        netbirdClientImage,
 			ClusterName:        clusterName,
 			ManagementURL:      managementURL,
 			NamespacedNetworks: namespacedNetworks,
@@ -299,7 +299,7 @@ func main() {
 		if err := (&controller.NetworkRouterReconciler{
 			Client:        mgr.GetClient(),
 			Netbird:       nbClient,
-			ClientImage:   clientImage,
+			ClientImage:   netbirdClientImage,
 			ManagementURL: managementURL,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "Failed to create controller", "controller", "NetworkRouter")
@@ -310,6 +310,13 @@ func main() {
 			Netbird: nbClient,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "Failed to create controller", "controller", "NetworkResource")
+			os.Exit(1)
+		}
+		if err := (&controller.ClusterProxyReconciler{
+			Client: mgr.GetClient(),
+			ApiKey: netbirdAPIKey,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "Failed to create controller", "controller", "ClusterProxy")
 			os.Exit(1)
 		}
 

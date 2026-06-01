@@ -39,6 +39,7 @@ rules:
   - networkrouters
   - networkresources
   - sidecarprofiles
+  - clusterproxies
   verbs:
   - get
   - patch
@@ -59,6 +60,7 @@ rules:
   - networkrouters/status
   - networkresources/status
   - sidecarprofiles/status
+  - clusterproxies/status
   verbs:
   - get
   - patch

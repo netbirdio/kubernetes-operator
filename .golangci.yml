@@ -57,6 +57,8 @@ linters:
           alias: metav1
         - pkg: k8s.io/api/core/v1
           alias: corev1
+        - pkg: k8s.io/api/rbac/v1
+          alias: rbacv1
         - pkg: k8s.io/api/apps/v1
           alias: appsv1
         - pkg: k8s.io/api/admission/v1
@@ -67,6 +69,8 @@ linters:
           alias: metav1ac
         - pkg: k8s.io/client-go/applyconfigurations/core/v1
           alias: corev1ac
+        - pkg: k8s.io/client-go/applyconfigurations/rbac/v1
+          alias: rbacv1ac
         - pkg: k8s.io/client-go/applyconfigurations/apps/v1
           alias: appsv1ac
         - pkg: k8s.io/client-go/applyconfigurations/policy/v1

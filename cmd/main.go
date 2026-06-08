@@ -313,8 +313,9 @@ func main() {
 			os.Exit(1)
 		}
 		if err := (&controller.ClusterProxyReconciler{
-			Client: mgr.GetClient(),
-			ApiKey: netbirdAPIKey,
+			Client:        mgr.GetClient(),
+			ApiKey:        netbirdAPIKey,
+			ManagementURL: managementURL,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "Failed to create controller", "controller", "ClusterProxy")
 			os.Exit(1)

@@ -29,7 +29,8 @@ import (
 type ClusterProxyReconciler struct {
 	client.Client
 
-	ApiKey string
+	ApiKey        string
+	ManagementURL string
 }
 
 // +kubebuilder:rbac:groups=netbird.io,resources=clusterproxies,verbs=get;list;watch;create;update;patch;delete
@@ -124,6 +125,8 @@ func (r *ClusterProxyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 					clusterProxy.Spec.ClusterName,
 					"--kubernetes-api-server",
 					clusterProxy.Spec.APIServer,
+					"--management-url",
+					r.ManagementURL,
 				).
 				WithEnv(
 					corev1ac.EnvVar().

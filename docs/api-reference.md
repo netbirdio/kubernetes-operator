@@ -53,7 +53,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `clusterName` _string_ | ClusterName is the name of the Kubernetes cluster. |  | Required: \{\} <br /> |
-| `apiServer` _string_ | APIServer is the URL of the Kubernetes API server to proxy requests to. | https://kubernetes.default.svc.cluster.local | Required: \{\} <br /> |
+| `apiServer` _string_ | APIServer is the URL of the Kubernetes API server to proxy requests to. | https://kubernetes.default.svc.cluster.local/ | Required: \{\} <br /> |
 | `serviceAccountName` _string_ | ServiceAccountName is a reference to the service account used for impersonation. |  | Required: \{\} <br /> |
 | `groups` _[GroupReference](#groupreference) array_ | Groups are references to groups that the peer will be a part of. |  | Optional: \{\} <br /> |
 

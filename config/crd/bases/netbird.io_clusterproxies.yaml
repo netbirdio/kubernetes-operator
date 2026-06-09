@@ -47,7 +47,7 @@ spec:
             description: ClusterProxySpec defines the desired state of ClusterProxy.
             properties:
               apiServer:
-                default: https://kubernetes.default.svc.cluster.local
+                default: https://kubernetes.default.svc.cluster.local/
                 description: APIServer is the URL of the Kubernetes API server to
                   proxy requests to.
                 type: string

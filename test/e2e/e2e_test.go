@@ -69,6 +69,12 @@ func TestE2E(t *testing.T) {
 				Nodes: []kindv1alpha1.Node{
 					{
 						Role: kindv1alpha1.ControlPlaneRole,
+						ExtraMounts: []kindv1alpha1.Mount{
+							{
+								HostPath:      t.ArtifactDir(),
+								ContainerPath: "/coverage",
+							},
+						},
 					},
 				},
 			}
@@ -113,6 +119,9 @@ func TestE2E(t *testing.T) {
 				}
 				return nil
 			}, 30*time.Second, 1*time.Second)
+
+			err = kindNodes[0].CommandContext(t.Context(), "chmod", "o+rwx", "/coverage").Run()
+			require.NoError(t, err)
 
 			t.Log("Importing image", imgRef)
 			f, err := os.Open(imgPath)
@@ -188,6 +197,27 @@ func TestE2E(t *testing.T) {
 				_, err := upgrade.RunWithContext(t.Context(), "netbird-operator", charter, vals)
 				require.NoError(t, err)
 			}
+
+			dep, err := k8sClient.AppsV1().Deployments(netbirdNamespace).Get(t.Context(), "netbird-operator", metav1.GetOptions{})
+			require.NoError(t, err)
+			coverVolume := corev1.Volume{
+				Name: "coverage",
+				VolumeSource: corev1.VolumeSource{
+					HostPath: &corev1.HostPathVolumeSource{
+						Path: "/coverage",
+						Type: new(corev1.HostPathDirectory),
+					},
+				},
+			}
+			dep.Spec.Template.Spec.Volumes = append(dep.Spec.Template.Spec.Volumes, coverVolume)
+			coverVolumeMount := corev1.VolumeMount{
+				Name:      "coverage",
+				MountPath: "/coverage",
+			}
+			dep.Spec.Template.Spec.Containers[0].VolumeMounts = append(dep.Spec.Template.Spec.Containers[0].VolumeMounts, coverVolumeMount)
+			dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env, corev1.EnvVar{Name: "GOCOVERDIR", Value: "/coverage"})
+			_, err = k8sClient.AppsV1().Deployments(netbirdNamespace).Update(t.Context(), dep, metav1.UpdateOptions{})
+			require.NoError(t, err)
 		})
 	}
 }

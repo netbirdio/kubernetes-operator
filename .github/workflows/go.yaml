@@ -51,3 +51,11 @@ jobs:
           go-version-file: go.mod
       - name: Run e2e tests
         run: make -B test-e2e
+      - run: tree ./test/e2e/_artifacts
+      - name: Format coverage data
+        run: go tool covdata textfmt -i=$(ls -d ./test/e2e/_artifacts/*/ | tr '\n' ',' | sed 's/,$//') -o=coverage.txt
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f #v7.0.0
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: e2e

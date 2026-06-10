@@ -45,13 +45,14 @@ test-unit: setup-envtest
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -v ./... -coverprofile=coverage.txt
 
 test-e2e: build-image
-	cd ./test/e2e && IMG_REF=${IMG_REF} go test ./... -v -count 1
+	cd ./test/e2e && IMG_REF=${IMG_REF} go test ./... -v -count 1 -artifacts $(pwd)
 
 .PHONY: build
 build: generate bin/linux-$(shell go env GOARCH)/netbird-operator
 
 bin/linux-%/netbird-operator: $(shell find api cmd internal pkg) go.mod go.sum
-	@CGO_ENABLED=0 GOOS=linux GOARCH=$* go build -ldflags="-w -s" -trimpath -o $@ cmd/main.go
+	@CGO_ENABLED=0 GOOS=linux GOARCH=$* go build -cover -o $@ cmd/main.go
+	# @CGO_ENABLED=0 GOOS=linux GOARCH=$* go build -cover -ldflags="-w -s" -trimpath -o $@ cmd/main.go
 
 .PHONY: build-image
 build-image: build

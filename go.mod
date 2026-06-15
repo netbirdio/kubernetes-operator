@@ -11,7 +11,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/netbirdio/netbird v0.72.2
 	github.com/onsi/ginkgo/v2 v2.31.0
-	github.com/onsi/gomega v1.41.0
+	github.com/onsi/gomega v1.42.0
 	golang.org/x/mod v0.37.0
 	k8s.io/api v0.36.2
 	k8s.io/apimachinery v0.36.2

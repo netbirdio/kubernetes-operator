@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	NetbirdClientImage = "ghcr.io/netbirdio/netbird:0.72.2@sha256:6c6c20baffae4a3ec50f29ec9361608a420625185505e8cd6f0c44d71c5d4798"
+	NetbirdClientImage = "ghcr.io/netbirdio/netbird:0.72.4@sha256:6c6c20baffae4a3ec50f29ec9361608a420625185505e8cd6f0c44d71c5d4798"
 	KubeApiProxyImage  = "ghcr.io/netbirdio/netbird-kubeapi-proxy:v0.0.1@sha256:aa5bbdfc2eca51438f3d50ed4441d61388e9a8d2d5dc886cc4988dacd36ad648"
 )
 

@@ -95,7 +95,7 @@ func (r *TCPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 						WithNetworkRouterRef(nbv1alpha1ac.CrossNamespaceReference().WithName(netRouter.Name).WithNamespace(netRouter.Namespace)).
 						WithServiceRef(corev1.LocalObjectReference{Name: svc.Name}),
 				)
-			err = r.Client.Apply(ctx, netResourceAC)
+			err = r.Client.Apply(ctx, netResourceAC, client.ForceOwnership)
 			if err != nil {
 				return ctrl.Result{}, err
 			}

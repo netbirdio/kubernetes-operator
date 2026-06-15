@@ -149,7 +149,7 @@ func (r *SetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	secret := corev1ac.Secret(setupKey.SecretName(), req.Namespace).
 		WithStringData(data).
 		WithOwnerReferences(owner)
-	err = r.Client.Apply(ctx, secret)
+	err = r.Client.Apply(ctx, secret, client.ForceOwnership)
 	if err != nil {
 		return ctrl.Result{}, err
 	}

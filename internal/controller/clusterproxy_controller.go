@@ -66,7 +66,7 @@ func (r *ClusterProxyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				WithEphemeral(true).
 				WithAllowExtraDnsLabels(true),
 		)
-	err = r.Client.Apply(ctx, setupKeyAC)
+	err = r.Client.Apply(ctx, setupKeyAC, client.ForceOwnership)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -88,7 +88,7 @@ func (r *ClusterProxyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	secretAC := corev1ac.Secret(fmt.Sprintf("clusterproxy-%s", req.Name), req.Namespace).
 		WithOwnerReferences(ownerRef).
 		WithStringData(map[string]string{"api-key": r.ApiKey})
-	err = r.Client.Apply(ctx, secretAC)
+	err = r.Client.Apply(ctx, secretAC, client.ForceOwnership)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -170,7 +170,7 @@ func (r *ClusterProxyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		WithOwnerReferences(ownerRef).
 		WithLabels(selectorLabels).
 		WithSpec(appsv1ac.DeploymentSpec().WithReplicas(1).WithSelector(metav1ac.LabelSelector().WithMatchLabels(selectorLabels)).WithTemplate(podTemplateSpecAC))
-	err = r.Client.Apply(ctx, depAC)
+	err = r.Client.Apply(ctx, depAC, client.ForceOwnership)
 	if err != nil {
 		return ctrl.Result{}, err
 	}

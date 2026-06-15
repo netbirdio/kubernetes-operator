@@ -114,7 +114,7 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			nbv1alpha1ac.GroupSpec().
 				WithName(fmt.Sprintf("networkrouter-%s", uniqueSuffix)),
 		)
-	err = r.Client.Apply(ctx, groupAC)
+	err = r.Client.Apply(ctx, groupAC, client.ForceOwnership)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -141,7 +141,7 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				WithEphemeral(true).
 				WithAutoGroups(nbv1alpha1ac.GroupReference().WithID(group.Status.GroupID)),
 		)
-	err = r.Client.Apply(ctx, setupKeyAC)
+	err = r.Client.Apply(ctx, setupKeyAC, client.ForceOwnership)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -338,7 +338,7 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		WithLabels(workloadLabels).
 		WithAnnotations(workloadAnnotations).
 		WithSpec(appsv1ac.DeploymentSpec().WithReplicas(replicas).WithSelector(metav1ac.LabelSelector().WithMatchLabels(selectorLabels)).WithTemplate(podTemplateSpecAC))
-	err = r.Client.Apply(ctx, depAC)
+	err = r.Client.Apply(ctx, depAC, client.ForceOwnership)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -354,7 +354,7 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 					WithMatchLabels(selectorLabels),
 				),
 			)
-		err = r.Client.Apply(ctx, pdbAC)
+		err = r.Client.Apply(ctx, pdbAC, client.ForceOwnership)
 		if err != nil {
 			return ctrl.Result{}, err
 		}

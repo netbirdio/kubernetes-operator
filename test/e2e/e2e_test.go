@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -17,6 +18,8 @@ import (
 	"github.com/moby/moby/client"
 	"helm.sh/helm/v4/pkg/action"
 	"helm.sh/helm/v4/pkg/chart/loader"
+	"helm.sh/helm/v4/pkg/downloader"
+	"helm.sh/helm/v4/pkg/getter"
 	"helm.sh/helm/v4/pkg/kube"
 	"helm.sh/helm/v4/pkg/registry"
 	corev1 "k8s.io/api/core/v1"
@@ -124,7 +127,6 @@ func TestE2E(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			t.Log("Deploying Netbird operator")
 			namespace := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: netbirdNamespace,
@@ -132,7 +134,6 @@ func TestE2E(t *testing.T) {
 			}
 			_, err = k8sClient.CoreV1().Namespaces().Create(t.Context(), namespace, metav1.CreateOptions{})
 			require.NoError(t, err)
-
 			secret := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "netbird-mgmt-api-key",
@@ -144,50 +145,78 @@ func TestE2E(t *testing.T) {
 			}
 			_, err = k8sClient.CoreV1().Secrets(netbirdNamespace).Create(t.Context(), secret, metav1.CreateOptions{})
 			require.NoError(t, err)
-
-			regClient, err := registry.NewClient()
-			require.NoError(t, err)
-			actionCfg := &action.Configuration{
-				RegistryClient: regClient,
-			}
-			actionCfg.SetLogger(slog.DiscardHandler)
-			clientGetter := &genericclioptions.ConfigFlags{KubeConfig: &kcPath, Namespace: new(netbirdNamespace)}
-			err = actionCfg.Init(clientGetter, netbirdNamespace, "secret")
-			require.NoError(t, err)
-
-			charter, err := loader.Load("../../charts/netbird-operator")
-			require.NoError(t, err)
-
-			vals := map[string]any{
-				"operator": map[string]any{
-					"image": map[string]any{
-						"tag":        "dev",
-						"pullPolicy": "Never",
-					},
-				},
-				"webhook": map[string]any{
-					"enableCertManager": false,
-					"failurePolicy":     "Ignore",
-				},
-			}
-			_, err = action.NewGet(actionCfg).Run(netbirdNamespace)
-			if err != nil {
-				install := action.NewInstall(actionCfg)
-				install.ReleaseName = "netbird-operator"
-				install.Namespace = netbirdNamespace
-				install.CreateNamespace = true
-				install.WaitStrategy = kube.StatusWatcherStrategy
-				install.Timeout = 60 * time.Second
-				_, err = install.RunWithContext(t.Context(), charter, vals)
-				require.NoError(t, err)
-			} else {
-				upgrade := action.NewUpgrade(actionCfg)
-				upgrade.Namespace = netbirdNamespace
-				upgrade.WaitStrategy = kube.StatusWatcherStrategy
-				upgrade.Timeout = 60 * time.Second
-				_, err := upgrade.RunWithContext(t.Context(), "netbird-operator", charter, vals)
-				require.NoError(t, err)
-			}
+			installOperator(t, kcPath, false)
+			installOperator(t, kcPath, true)
 		})
+	}
+}
+
+func installOperator(t *testing.T, kcPath string, dev bool) {
+	t.Helper()
+
+	regClient, err := registry.NewClient()
+	require.NoError(t, err)
+	actionCfg := &action.Configuration{
+		RegistryClient: regClient,
+	}
+	actionCfg.SetLogger(slog.DiscardHandler)
+	clientGetter := &genericclioptions.ConfigFlags{KubeConfig: &kcPath, Namespace: new(netbirdNamespace)}
+	err = actionCfg.Init(clientGetter, netbirdNamespace, "secret")
+	require.NoError(t, err)
+
+	chartPath, version := func() (string, string) {
+		if !dev {
+			tags, err := actionCfg.RegistryClient.Tags("ghcr.io/netbirdio/helm-charts/netbird-operator")
+			require.NoError(t, err)
+			buf := bytes.NewBuffer(nil)
+			dl := downloader.ChartDownloader{
+				Out:            buf,
+				Verify:         downloader.VerifyIfPossible,
+				ContentCache:   t.TempDir(),
+				Getters:        getter.Getters(getter.WithRegistryClient(actionCfg.RegistryClient)),
+				RegistryClient: actionCfg.RegistryClient,
+			}
+			chartPath, _, err := dl.DownloadTo("oci://ghcr.io/netbirdio/helm-charts/netbird-operator", tags[0], t.TempDir())
+			require.NoError(t, err, buf.String())
+			return chartPath, tags[0]
+		}
+		return "../../charts/netbird-operator", "dev"
+	}()
+	charter, err := loader.Load(chartPath)
+	require.NoError(t, err)
+
+	t.Log("Deploying NetBird Operator", version)
+	vals := map[string]any{
+		"webhook": map[string]any{
+			"enableCertManager": false,
+			"failurePolicy":     "Ignore",
+		},
+	}
+	if dev {
+		vals["operator"] = map[string]any{
+			"image": map[string]any{
+				"tag":        "dev",
+				"pullPolicy": "Never",
+			},
+		}
+	}
+
+	_, err = action.NewGet(actionCfg).Run("netbird-operator")
+	if err != nil {
+		install := action.NewInstall(actionCfg)
+		install.ReleaseName = "netbird-operator"
+		install.Namespace = netbirdNamespace
+		install.CreateNamespace = true
+		install.WaitStrategy = kube.StatusWatcherStrategy
+		install.Timeout = 60 * time.Second
+		_, err = install.RunWithContext(t.Context(), charter, vals)
+		require.NoError(t, err)
+	} else {
+		upgrade := action.NewUpgrade(actionCfg)
+		upgrade.Namespace = netbirdNamespace
+		upgrade.WaitStrategy = kube.StatusWatcherStrategy
+		upgrade.Timeout = 60 * time.Second
+		_, err := upgrade.RunWithContext(t.Context(), "netbird-operator", charter, vals)
+		require.NoError(t, err)
 	}
 }

@@ -15,6 +15,8 @@ type ClusterProxySpecApplyConfiguration struct {
 	APIServer *string `json:"apiServer,omitempty"`
 	// ServiceAccountName is a reference to the service account used for impersonation.
 	ServiceAccountName *string `json:"serviceAccountName,omitempty"`
+	// Groups are references to groups that the peer will be a part of.
+	Groups []GroupReferenceApplyConfiguration `json:"groups,omitempty"`
 }
 
 // ClusterProxySpecApplyConfiguration constructs a declarative configuration of the ClusterProxySpec type for use with
@@ -44,5 +46,18 @@ func (b *ClusterProxySpecApplyConfiguration) WithAPIServer(value string) *Cluste
 // If called multiple times, the ServiceAccountName field is set to the value of the last call.
 func (b *ClusterProxySpecApplyConfiguration) WithServiceAccountName(value string) *ClusterProxySpecApplyConfiguration {
 	b.ServiceAccountName = &value
+	return b
+}
+
+// WithGroups adds the given value to the Groups field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the Groups field.
+func (b *ClusterProxySpecApplyConfiguration) WithGroups(values ...*GroupReferenceApplyConfiguration) *ClusterProxySpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithGroups")
+		}
+		b.Groups = append(b.Groups, *values[i])
+	}
 	return b
 }

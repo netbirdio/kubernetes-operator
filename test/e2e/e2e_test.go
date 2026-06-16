@@ -61,7 +61,7 @@ func TestE2E(t *testing.T) {
 	require.NoError(t, err)
 
 	kubernetesVersions := []string{
-		"1.36.0",
+		"v0.32.0-v1.36.2",
 	}
 	for _, kubernetesVersion := range kubernetesVersions {
 		t.Run(kubernetesVersion, func(t *testing.T) {

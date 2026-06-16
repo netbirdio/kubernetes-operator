@@ -77,9 +77,9 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			return ctrl.Result{}, err
 		}
 
-		// Create network resources.
+		// Index the backend Services referenced by the route (deduplicated;
+		// one NetworkResource is created per Service).
 		svcIdx := map[string]corev1.Service{}
-		portIdx := map[string]int32{}
 		for _, rule := range hr.Spec.Rules {
 			for _, ref := range rule.BackendRefs {
 				key := client.ObjectKey{Namespace: hr.Namespace, Name: string(ref.Name)}
@@ -89,9 +89,6 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 					return ctrl.Result{}, err
 				}
 				svcIdx[svc.Name] = svc
-				if ref.Port != nil {
-					portIdx[svc.Name] = *ref.Port
-				}
 			}
 		}
 
@@ -118,13 +115,11 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			}
 		}
 
-		targets := []api.ServiceTarget{}
-		for _, svc := range svcIdx {
+		// Resolve each Service's NetworkResource ID once, requeueing until ready.
+		resourceID := map[string]string{}
+		for name := range svcIdx {
 			netResource := &nbv1alpha1.NetworkResource{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      svc.Name,
-					Namespace: svc.Namespace,
-				},
+				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: hr.Namespace},
 			}
 			err := r.Client.Get(ctx, client.ObjectKeyFromObject(netResource), netResource)
 			if err != nil {
@@ -133,17 +128,38 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			if !conditions.Has(netResource, nbv1alpha1.ReadyCondition) {
 				return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
 			}
-
-			target := api.ServiceTarget{
-				Enabled:    true,
-				Path:       nil,
-				Port:       backendPortFor(svc, portIdx[svc.Name]),
-				TargetId:   netResource.Status.ResourceID,
-				Protocol:   api.ServiceTargetProtocolHttp,
-				TargetType: api.ServiceTargetTargetTypeHost,
-			}
-			targets = append(targets, target)
+			resourceID[name] = netResource.Status.ResourceID
 		}
+
+		// Build one target per backendRef, carrying the rule's path prefix so
+		// path-based routes (e.g. /push/ -> notify-push, / -> app) resolve to
+		// the right backend instead of being flattened to pathless targets.
+		targets := []api.ServiceTarget{}
+		for _, rule := range hr.Spec.Rules {
+			path := pathPrefixFor(rule)
+			for _, ref := range rule.BackendRefs {
+				svc, ok := svcIdx[string(ref.Name)]
+				if !ok {
+					continue
+				}
+				var refPort int32
+				if ref.Port != nil {
+					refPort = *ref.Port
+				} else if len(svc.Spec.Ports) > 0 {
+					logger.Info("backendRef omits port; using the Service's first port",
+						"service", svc.Name, "port", svc.Spec.Ports[0].Port)
+				}
+				targets = append(targets, api.ServiceTarget{
+					Enabled:    true,
+					Path:       path,
+					Port:       backendPortFor(svc, refPort),
+					TargetId:   resourceID[svc.Name],
+					Protocol:   api.ServiceTargetProtocolHttp,
+					TargetType: api.ServiceTargetTargetTypeHost,
+				})
+			}
+		}
+		sortTargets(targets)
 
 		// Create proxy service.
 		proxyServices, err := r.Netbird.ReverseProxyServices.List(ctx)
@@ -180,6 +196,9 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				for _, proxyService := range proxyServices {
 					if proxyService.Domain != string(hostname) {
 						continue
+					}
+					if proxyServiceUpToDate(proxyService, proxyReq) {
+						return nil
 					}
 					_, err := r.Netbird.ReverseProxyServices.Update(ctx, proxyService.Id, proxyReq)
 					return err

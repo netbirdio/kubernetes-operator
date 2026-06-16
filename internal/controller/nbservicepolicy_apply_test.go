@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/go-openapi/testify/v2/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -14,6 +15,19 @@ import (
 
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 )
+
+func TestBackendPortFor(t *testing.T) {
+	t.Parallel()
+
+	svc := corev1.Service{Spec: corev1.ServiceSpec{Ports: []corev1.ServicePort{{Port: 80}}}}
+
+	// backendRef port wins when set
+	require.Equal(t, 8080, backendPortFor(svc, 8080))
+	// falls back to the service's first port when the ref port is unset
+	require.Equal(t, 80, backendPortFor(svc, 0))
+	// no ref port and no service ports -> 0
+	require.Equal(t, 0, backendPortFor(corev1.Service{}, 0))
+}
 
 func targetRef(kind, name string) gwv1.LocalPolicyTargetReference {
 	return gwv1.LocalPolicyTargetReference{

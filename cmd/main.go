@@ -347,6 +347,12 @@ func main() {
 				setupLog.Error(err, "unable to create controller", "controller", "TCPRoute")
 				os.Exit(1)
 			}
+			if err = (&controller.NBServicePolicyReconciler{
+				Client: mgr.GetClient(),
+			}).SetupWithManager(mgr); err != nil {
+				setupLog.Error(err, "unable to create controller", "controller", "NBServicePolicy")
+				os.Exit(1)
+			}
 		}
 	} else {
 		setupLog.Info("netbird API key not provided, ingress capabilities disabled")

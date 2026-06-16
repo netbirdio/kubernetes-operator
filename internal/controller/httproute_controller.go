@@ -13,9 +13,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
@@ -77,6 +79,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 		// Create network resources.
 		svcIdx := map[string]corev1.Service{}
+		portIdx := map[string]int32{}
 		for _, rule := range hr.Spec.Rules {
 			for _, ref := range rule.BackendRefs {
 				key := client.ObjectKey{Namespace: hr.Namespace, Name: string(ref.Name)}
@@ -86,6 +89,9 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 					return ctrl.Result{}, err
 				}
 				svcIdx[svc.Name] = svc
+				if ref.Port != nil {
+					portIdx[svc.Name] = int32(*ref.Port)
+				}
 			}
 		}
 
@@ -131,6 +137,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			target := api.ServiceTarget{
 				Enabled:    true,
 				Path:       nil,
+				Port:       backendPortFor(svc, portIdx[svc.Name]),
 				TargetId:   netResource.Status.ResourceID,
 				Protocol:   api.ServiceTargetProtocolHttp,
 				TargetType: api.ServiceTargetTargetTypeHost,
@@ -276,12 +283,29 @@ func (r *HTTPRouteReconciler) reconcileDelete(ctx context.Context, sp *patch.Ser
 	return ctrl.Result{}, nil
 }
 
+// backendPortFor resolves the port a proxy target should connect to: the
+// HTTPRoute backendRef port (port, or 0 if it was unset), falling back to the
+// Service's first declared port.
+func backendPortFor(svc corev1.Service, port int32) int {
+	if port != 0 {
+		return int(port)
+	}
+	if len(svc.Spec.Ports) > 0 {
+		return int(svc.Spec.Ports[0].Port)
+	}
+	return 0
+}
+
 // +kubebuilder:rbac:groups=netbird.io,resources=nbservicepolicies,verbs=get;list;watch
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gwv1.HTTPRoute{}).
-		Watches(&nbv1alpha1.NBServicePolicy{}, handler.EnqueueRequestsFromMapFunc(routesForServicePolicy)).
+		Watches(&nbv1alpha1.NBServicePolicy{},
+			handler.EnqueueRequestsFromMapFunc(routesForServicePolicy),
+			// Only spec changes (and create/delete) should re-reconcile the
+			// route; ignore the status-only writes from the policy controller.
+			builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Complete(r)
 }

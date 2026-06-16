@@ -15,6 +15,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
@@ -142,6 +143,16 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		if err != nil {
 			return ctrl.Result{}, err
 		}
+		// Per-service config (private, access groups, CrowdSec, IP/geo
+		// restrictions, header behaviour) is supplied by NBServicePolicy
+		// objects attached to this route via GEP-713 policy attachment.
+		// Without folding these in, only the fields below are ever sent and
+		// anything configured out-of-band is reset on the next reconcile.
+		policies, err := r.servicePoliciesFor(ctx, hr)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+
 		for _, hostname := range hr.Spec.Hostnames {
 			proxyReq := api.ServiceRequest{
 				Domain:           string(hostname),
@@ -152,31 +163,22 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				RewriteRedirects: new(false),
 				Targets:          &targets,
 			}
-
-			// Overlay optional per-service config (private, access groups,
-			// CrowdSec, IP/geo restrictions, header behaviour) from the
-			// HTTPRoute's annotations. Without this the fields above are the
-			// only ones ever sent, so anything set in the dashboard is reset
-			// on the next reconcile.
-			if err := applyServiceAnnotations(hr, &proxyReq); err != nil {
-				return ctrl.Result{}, err
-			}
+			applyServicePolicies(policies, &proxyReq)
 
 			err := func() error {
+				// Upsert by domain: update the existing service if one already
+				// serves this hostname, otherwise create it. Falling through to
+				// Create after an Update would re-submit the same domain and the
+				// API rejects it with "domain already taken".
 				for _, proxyService := range proxyServices {
 					if proxyService.Domain != string(hostname) {
 						continue
 					}
 					_, err := r.Netbird.ReverseProxyServices.Update(ctx, proxyService.Id, proxyReq)
-					if err != nil {
-						return err
-					}
-				}
-				_, err := r.Netbird.ReverseProxyServices.Create(ctx, proxyReq)
-				if err != nil {
 					return err
 				}
-				return nil
+				_, err := r.Netbird.ReverseProxyServices.Create(ctx, proxyReq)
+				return err
 			}()
 			if err != nil {
 				return ctrl.Result{}, err
@@ -274,9 +276,12 @@ func (r *HTTPRouteReconciler) reconcileDelete(ctx context.Context, sp *patch.Ser
 	return ctrl.Result{}, nil
 }
 
+// +kubebuilder:rbac:groups=netbird.io,resources=nbservicepolicies,verbs=get;list;watch
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gwv1.HTTPRoute{}).
+		Watches(&nbv1alpha1.NBServicePolicy{}, handler.EnqueueRequestsFromMapFunc(routesForServicePolicy)).
 		Complete(r)
 }

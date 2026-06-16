@@ -11,11 +11,32 @@ Package v1alpha1 contains API Schema definitions for the  v1alpha1 API group.
 ### Resource Types
 - [ClusterProxy](#clusterproxy)
 - [Group](#group)
+- [NBServicePolicy](#nbservicepolicy)
 - [NetworkResource](#networkresource)
 - [NetworkRouter](#networkrouter)
 - [SetupKey](#setupkey)
 - [SidecarProfile](#sidecarprofile)
 
+
+
+#### AccessRestrictions
+
+
+
+AccessRestrictions are connection-level restrictions based on IP address or
+geography, applied to the reverse-proxy service.
+
+
+
+_Appears in:_
+- [NBServicePolicySpec](#nbservicepolicyspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `allowedCidrs` _string array_ | AllowedCidrs is a CIDR allowlist. If non-empty, only matching source IPs<br />are allowed. Evaluated before BlockedCidrs. |  | MaxItems: 64 <br />items:MaxLength: 43 <br />Optional: \{\} <br /> |
+| `blockedCidrs` _string array_ | BlockedCidrs is a CIDR blocklist. Matching source IPs are rejected. |  | MaxItems: 64 <br />items:MaxLength: 43 <br />Optional: \{\} <br /> |
+| `allowedCountries` _string array_ | AllowedCountries is an ISO 3166-1 alpha-2 country-code allowlist. If<br />non-empty, only these countries are permitted. |  | MaxItems: 250 <br />items:MaxLength: 2 <br />Optional: \{\} <br /> |
+| `blockedCountries` _string array_ | BlockedCountries is an ISO 3166-1 alpha-2 country-code blocklist. |  | MaxItems: 250 <br />items:MaxLength: 2 <br />Optional: \{\} <br /> |
 
 
 #### ClusterProxy
@@ -111,6 +132,26 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `name` _string_ | Name of the referent. |  | Required: \{\} <br /> |
 | `namespace` _string_ | Namespace of the referent. |  | Required: \{\} <br /> |
+
+
+#### CrowdsecMode
+
+_Underlying type:_ _string_
+
+CrowdsecMode selects how the proxy cluster's CrowdSec IP-reputation check is
+applied. Only effective when the proxy cluster supports CrowdSec.
+
+_Validation:_
+- Enum: [off observe enforce]
+
+_Appears in:_
+- [NBServicePolicySpec](#nbservicepolicyspec)
+
+| Field | Description |
+| --- | --- |
+| `off` |  |
+| `observe` |  |
+| `enforce` |  |
 
 
 #### DNSZoneReference
@@ -220,6 +261,67 @@ _Appears in:_
 | --- | --- |
 | `Sidecar` | InjectionModeSidecar injects the client as a sidecar container.<br /> |
 | `Container` | InjectionModeContainer injects the client as a regular container.<br /> |
+
+
+#### NBServicePolicy
+
+
+
+NBServicePolicy configures the NetBird reverse-proxy service backing the
+HTTPRoute(s) it targets.
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `netbird.io/v1alpha1` | | |
+| `kind` _string_ | `NBServicePolicy` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  | Optional: \{\} <br /> |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  | Optional: \{\} <br /> |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[NBServicePolicySpec](#nbservicepolicyspec)_ |  |  | Required: \{\} <br /> |
+| `status` _[NBServicePolicyStatus](#nbservicepolicystatus)_ |  | \{ observedGeneration:-1 \} |  |
+
+
+#### NBServicePolicySpec
+
+
+
+NBServicePolicySpec defines the desired state of NBServicePolicy.
+
+
+
+_Appears in:_
+- [NBServicePolicy](#nbservicepolicy)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `targetRefs` _LocalPolicyTargetReference array_ | TargetRefs identify the HTTPRoute(s) this policy attaches to, following<br />the Gateway API direct policy-attachment pattern (GEP-713). Each target<br />must be an HTTPRoute in the same namespace as the policy. |  | MaxItems: 16 <br />MinItems: 1 <br /> |
+| `private` _boolean_ | Private, when true, makes the service NetBird-only: inbound peers<br />authenticate via their tunnel identity (no OIDC) and an ACL policy is<br />auto-generated from AccessGroups. Requires an HTTP service. |  | Optional: \{\} <br /> |
+| `accessGroups` _string array_ | AccessGroups are the NetBird group IDs whose peers may reach a private<br />service over the tunnel. Required when Private is true; ignored otherwise. |  | Optional: \{\} <br /> |
+| `crowdsecMode` _[CrowdsecMode](#crowdsecmode)_ | CrowdsecMode sets the CrowdSec IP-reputation handling for the service. |  | Enum: [off observe enforce] <br />Optional: \{\} <br /> |
+| `accessRestrictions` _[AccessRestrictions](#accessrestrictions)_ | AccessRestrictions sets IP/geo connection-level restrictions. |  | Optional: \{\} <br /> |
+| `passHostHeader` _boolean_ | PassHostHeader, when true, forwards the original client Host header to<br />the backend instead of rewriting it to the backend address. |  | Optional: \{\} <br /> |
+| `rewriteRedirects` _boolean_ | RewriteRedirects, when true, rewrites Location headers in backend<br />responses to replace the backend address with the public domain. |  | Optional: \{\} <br /> |
+
+
+#### NBServicePolicyStatus
+
+
+
+NBServicePolicyStatus defines the observed state of NBServicePolicy.
+
+
+
+_Appears in:_
+- [NBServicePolicy](#nbservicepolicy)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `observedGeneration` _integer_ | ObservedGeneration is the last reconciled generation. |  | Optional: \{\} <br /> |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#condition-v1-meta) array_ | Conditions holds the conditions for the NBServicePolicy. |  | Optional: \{\} <br /> |
 
 
 #### NetworkResource

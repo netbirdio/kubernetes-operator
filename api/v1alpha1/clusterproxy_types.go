@@ -21,6 +21,10 @@ type ClusterProxySpec struct {
 	// ServiceAccountName is a reference to the service account used for impersonation.
 	// +required
 	ServiceAccountName string `json:"serviceAccountName"`
+
+	// Groups are references to groups that the peer will be a part of.
+	// +optional
+	Groups []GroupReference `json:"groups,omitempty"`
 }
 
 // ClusterProxyStatus defines the observed state of ClusterProxy.

@@ -67,6 +67,16 @@ func (r *ClusterProxyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				WithEphemeral(true).
 				WithAllowExtraDnsLabels(true),
 		)
+	for _, group := range clusterProxy.Spec.Groups {
+		switch {
+		case group.ID != nil:
+			setupKeyAC.Spec.AutoGroups = append(setupKeyAC.Spec.AutoGroups, *nbv1alpha1ac.GroupReference().WithID(*group.ID))
+		case group.Name != nil:
+			setupKeyAC.Spec.AutoGroups = append(setupKeyAC.Spec.AutoGroups, *nbv1alpha1ac.GroupReference().WithName(*group.Name))
+		case group.LocalRef != nil:
+			setupKeyAC.Spec.AutoGroups = append(setupKeyAC.Spec.AutoGroups, *nbv1alpha1ac.GroupReference().WithLocalRef(*group.LocalRef))
+		}
+	}
 	err = r.Client.Apply(ctx, setupKeyAC, client.ForceOwnership)
 	if err != nil {
 		return ctrl.Result{}, err

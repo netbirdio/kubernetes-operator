@@ -91,6 +91,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				svcIdx[svc.Name] = svc
 				if ref.Port != nil {
 					portIdx[svc.Name] = int32(*ref.Port)
+)
 				}
 			}
 		}

@@ -153,6 +153,15 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				Targets:          &targets,
 			}
 
+			// Overlay optional per-service config (private, access groups,
+			// CrowdSec, IP/geo restrictions, header behaviour) from the
+			// HTTPRoute's annotations. Without this the fields above are the
+			// only ones ever sent, so anything set in the dashboard is reset
+			// on the next reconcile.
+			if err := applyServiceAnnotations(hr, &proxyReq); err != nil {
+				return ctrl.Result{}, err
+			}
+
 			err := func() error {
 				for _, proxyService := range proxyServices {
 					if proxyService.Domain != string(hostname) {

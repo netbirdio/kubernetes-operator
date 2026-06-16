@@ -1,4 +1,4 @@
-# NetBird Kubernetes Operator
+s# NetBird Kubernetes Operator
 
 The NetBird Kubernetes Operator automates the provisioning of NetBird network access for services running in your cluster. It extends the Kubernetes API with CRDs, letting you manage NetBird peers, routes, and groups declaratively, the same way you manage the rest of your infrastructure.
 
@@ -13,7 +13,7 @@ The NetBird Kubernetes Operator automates the provisioning of NetBird network ac
 
 For full setup instructions, see the [Getting Started](https://docs.netbird.io/manage/integrations/kubernetes) documentation.
 
-Once your secret is configured, install the operator with Helm.
+Once your secret is configured, install the operator with Helm..
 
 ```shell
 helm upgrade --install --create-namespace -n netbird netbird-operator oci://ghcr.io/netbirdio/helm-charts/netbird-operator

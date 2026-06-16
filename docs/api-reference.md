@@ -154,6 +154,24 @@ _Appears in:_
 | `enforce` |  |
 
 
+#### DNSRecordStatus
+
+
+
+DNSRecordStatus tracks a single DNS record managed for a NetworkResource.
+
+
+
+_Appears in:_
+- [NetworkResourceStatus](#networkresourcestatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `type` _string_ | Type is the record type (A or AAAA). |  |  |
+| `content` _string_ | Content is the record content (the ClusterIP). |  |  |
+| `id` _string_ | ID is the Netbird DNS record id. |  |  |
+
+
 #### DNSZoneReference
 
 
@@ -381,7 +399,8 @@ _Appears in:_
 | `networkID` _string_ | NetworkID is the id of the network the resource is created in. |  | Optional: \{\} <br /> |
 | `resourceID` _string_ | ResourceID is the id of the created resource. |  | Optional: \{\} <br /> |
 | `dnsZoneID` _string_ | DNSZoneID is the id of the zone the DNS record is created in. |  | Optional: \{\} <br /> |
-| `dnsRecordID` _string_ | DNSRecordID is the id of the created DNS record. |  | Optional: \{\} <br /> |
+| `dnsRecordID` _string_ | DNSRecordID is the id of the legacy single A record created before<br />dualstack support. Retained only so it can be cleaned up on upgrade;<br />records are now tracked in DNSRecords. |  | Optional: \{\} <br /> |
+| `dnsRecords` _[DNSRecordStatus](#dnsrecordstatus) array_ | DNSRecords are the DNS records created for the resource — one A record<br />per IPv4 ClusterIP and one AAAA per IPv6 ClusterIP. |  | Optional: \{\} <br /> |
 
 
 #### NetworkRouter

@@ -23,8 +23,13 @@ type NetworkResourceStatusApplyConfiguration struct {
 	ResourceID *string `json:"resourceID,omitempty"`
 	// DNSZoneID is the id of the zone the DNS record is created in.
 	DNSZoneID *string `json:"dnsZoneID,omitempty"`
-	// DNSRecordID is the id of the created DNS record.
+	// DNSRecordID is the id of the legacy single A record created before
+	// dualstack support. Retained only so it can be cleaned up on upgrade;
+	// records are now tracked in DNSRecords.
 	DNSRecordID *string `json:"dnsRecordID,omitempty"`
+	// DNSRecords are the DNS records created for the resource — one A record
+	// per IPv4 ClusterIP and one AAAA per IPv6 ClusterIP.
+	DNSRecords []DNSRecordStatusApplyConfiguration `json:"dnsRecords,omitempty"`
 }
 
 // NetworkResourceStatusApplyConfiguration constructs a declarative configuration of the NetworkResourceStatus type for use with
@@ -83,5 +88,18 @@ func (b *NetworkResourceStatusApplyConfiguration) WithDNSZoneID(value string) *N
 // If called multiple times, the DNSRecordID field is set to the value of the last call.
 func (b *NetworkResourceStatusApplyConfiguration) WithDNSRecordID(value string) *NetworkResourceStatusApplyConfiguration {
 	b.DNSRecordID = &value
+	return b
+}
+
+// WithDNSRecords adds the given value to the DNSRecords field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the DNSRecords field.
+func (b *NetworkResourceStatusApplyConfiguration) WithDNSRecords(values ...*DNSRecordStatusApplyConfiguration) *NetworkResourceStatusApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithDNSRecords")
+		}
+		b.DNSRecords = append(b.DNSRecords, *values[i])
+	}
 	return b
 }

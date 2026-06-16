@@ -45,9 +45,28 @@ type NetworkResourceStatus struct {
 	// +optional
 	DNSZoneID string `json:"dnsZoneID,omitempty"`
 
-	// DNSRecordID is the id of the created DNS record.
+	// DNSRecordID is the id of the legacy single A record created before
+	// dualstack support. Retained only so it can be cleaned up on upgrade;
+	// records are now tracked in DNSRecords.
 	// +optional
 	DNSRecordID string `json:"dnsRecordID,omitempty"`
+
+	// DNSRecords are the DNS records created for the resource — one A record
+	// per IPv4 ClusterIP and one AAAA per IPv6 ClusterIP.
+	// +optional
+	DNSRecords []DNSRecordStatus `json:"dnsRecords,omitempty"`
+}
+
+// DNSRecordStatus tracks a single DNS record managed for a NetworkResource.
+type DNSRecordStatus struct {
+	// Type is the record type (A or AAAA).
+	Type string `json:"type"`
+
+	// Content is the record content (the ClusterIP).
+	Content string `json:"content"`
+
+	// ID is the Netbird DNS record id.
+	ID string `json:"id"`
 }
 
 // +kubebuilder:object:root=true

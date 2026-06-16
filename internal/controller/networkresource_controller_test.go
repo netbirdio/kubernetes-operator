@@ -77,7 +77,7 @@ var _ = Describe("NetworkResource Controller", func() {
 			Expect(k8sClient.Delete(ctx, ns)).To(Succeed())
 		})
 
-		It("creates a network resource and DNS record", func() {
+		It("creates a network resource and DNS records", func() {
 			zoneReq := api.ZoneRequest{
 				Name:   "cluster.local",
 				Domain: "cluster.local",
@@ -147,7 +147,9 @@ var _ = Describe("NetworkResource Controller", func() {
 			Expect(netResource.Status.NetworkID).NotTo(BeEmpty())
 			Expect(netResource.Status.ResourceID).NotTo(BeEmpty())
 			Expect(netResource.Status.DNSZoneID).NotTo(BeEmpty())
-			Expect(netResource.Status.DNSRecordID).NotTo(BeEmpty())
+			Expect(netResource.Status.DNSRecords).NotTo(BeEmpty())
+			Expect(netResource.Status.DNSRecords[0].Type).To(Equal("A"))
+			Expect(netResource.Status.DNSRecords[0].Content).To(Equal(svc.Spec.ClusterIP))
 		})
 	})
 })

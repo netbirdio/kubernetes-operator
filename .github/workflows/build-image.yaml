@@ -1,0 +1,85 @@
+name: build-image
+# Builds and pushes a multi-arch operator image to GHCR on every branch push
+# and on demand, so fork/dev builds can be pinned in a HelmRelease without
+# cutting a GitHub release (that path is handled by release.yaml).
+on:
+  push:
+    branches:
+      - '**'
+    tags-ignore:
+      - '**'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Image tag to push (defaults to the sanitized branch name)'
+        required: false
+        type: string
+permissions:
+  contents: read
+  packages: write
+concurrency:
+  group: build-image-${{ github.ref }}
+  cancel-in-progress: true
+defaults:
+  run:
+    shell: bash
+jobs:
+  build-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 #v6.0.3
+      - name: Setup Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c #v6.4.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Set up Docker
+        uses: docker/setup-docker-action@0234bb73ccb40f0c430b795634f9247e2b5c2d23 #v5.2.0
+        with:
+          daemon-config: |
+            {
+              "features": {
+                "containerd-snapshotter": true
+              }
+            }
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 #v4.1.0
+        with:
+          driver: docker
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee #v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Resolve image tags
+        id: tags
+        run: |
+          # Moving tag: explicit dispatch input, else the branch name with
+          # any non-tag-safe characters (e.g. "/") replaced by "-".
+          if [[ -n "${{ inputs.tag }}" ]]; then
+            ref_tag="${{ inputs.tag }}"
+          else
+            ref_tag="${GITHUB_REF_NAME//[^a-zA-Z0-9._-]/-}"
+          fi
+          echo "ref_tag=${ref_tag}" >> "$GITHUB_OUTPUT"
+          # Immutable tag for pinning in a HelmRelease.
+          echo "sha_tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - name: Build and push image
+        run: |
+          repo="${{ github.repository_owner }}/netbird-operator"
+          # Build once tagged with the immutable SHA tag, push it, then attach
+          # the moving ref tag to the same multi-arch manifest and push that.
+          IMG_REF=$(make build-image-multiarch \
+            IMG_REPOSITORY="${repo}" \
+            IMG_TAG="${{ steps.tags.outputs.sha_tag }}") || exit 1
+          docker push "${IMG_REF}"
+          REF_IMG="ghcr.io/${repo}:${{ steps.tags.outputs.ref_tag }}"
+          docker tag "${IMG_REF}" "${REF_IMG}"
+          docker push "${REF_IMG}"
+          echo "### Pushed image" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "${IMG_REF}" >> "$GITHUB_STEP_SUMMARY"
+          echo "${REF_IMG}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

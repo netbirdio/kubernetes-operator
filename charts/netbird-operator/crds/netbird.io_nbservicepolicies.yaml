@@ -63,7 +63,9 @@ spec:
                       AllowedCidrs is a CIDR allowlist. If non-empty, only matching source IPs
                       are allowed. Evaluated before BlockedCidrs.
                     items:
+                      maxLength: 43
                       type: string
+                    maxItems: 64
                     type: array
                     x-kubernetes-validations:
                     - message: allowedCidrs entries must be valid CIDRs
@@ -73,7 +75,9 @@ spec:
                       AllowedCountries is an ISO 3166-1 alpha-2 country-code allowlist. If
                       non-empty, only these countries are permitted.
                     items:
+                      maxLength: 2
                       type: string
+                    maxItems: 250
                     type: array
                     x-kubernetes-validations:
                     - message: allowedCountries entries must be ISO 3166-1 alpha-2
@@ -83,7 +87,9 @@ spec:
                     description: BlockedCidrs is a CIDR blocklist. Matching source
                       IPs are rejected.
                     items:
+                      maxLength: 43
                       type: string
+                    maxItems: 64
                     type: array
                     x-kubernetes-validations:
                     - message: blockedCidrs entries must be valid CIDRs
@@ -92,7 +98,9 @@ spec:
                     description: BlockedCountries is an ISO 3166-1 alpha-2 country-code
                       blocklist.
                     items:
+                      maxLength: 2
                       type: string
+                    maxItems: 250
                     type: array
                     x-kubernetes-validations:
                     - message: blockedCountries entries must be ISO 3166-1 alpha-2
@@ -157,6 +165,7 @@ spec:
                   - kind
                   - name
                   type: object
+                maxItems: 16
                 minItems: 1
                 type: array
                 x-kubernetes-validations:

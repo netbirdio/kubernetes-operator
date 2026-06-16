@@ -24,22 +24,30 @@ type AccessRestrictions struct {
 	// AllowedCidrs is a CIDR allowlist. If non-empty, only matching source IPs
 	// are allowed. Evaluated before BlockedCidrs.
 	// +optional
+	// +kubebuilder:validation:MaxItems=64
+	// +kubebuilder:validation:items:MaxLength=43
 	// +kubebuilder:validation:XValidation:rule="self.all(c, isCIDR(c))",message="allowedCidrs entries must be valid CIDRs"
 	AllowedCidrs []string `json:"allowedCidrs,omitempty"`
 
 	// BlockedCidrs is a CIDR blocklist. Matching source IPs are rejected.
 	// +optional
+	// +kubebuilder:validation:MaxItems=64
+	// +kubebuilder:validation:items:MaxLength=43
 	// +kubebuilder:validation:XValidation:rule="self.all(c, isCIDR(c))",message="blockedCidrs entries must be valid CIDRs"
 	BlockedCidrs []string `json:"blockedCidrs,omitempty"`
 
 	// AllowedCountries is an ISO 3166-1 alpha-2 country-code allowlist. If
 	// non-empty, only these countries are permitted.
 	// +optional
+	// +kubebuilder:validation:MaxItems=250
+	// +kubebuilder:validation:items:MaxLength=2
 	// +kubebuilder:validation:XValidation:rule="self.all(c, c.matches('^[A-Za-z]{2}$'))",message="allowedCountries entries must be ISO 3166-1 alpha-2 codes"
 	AllowedCountries []string `json:"allowedCountries,omitempty"`
 
 	// BlockedCountries is an ISO 3166-1 alpha-2 country-code blocklist.
 	// +optional
+	// +kubebuilder:validation:MaxItems=250
+	// +kubebuilder:validation:items:MaxLength=2
 	// +kubebuilder:validation:XValidation:rule="self.all(c, c.matches('^[A-Za-z]{2}$'))",message="blockedCountries entries must be ISO 3166-1 alpha-2 codes"
 	BlockedCountries []string `json:"blockedCountries,omitempty"`
 }
@@ -50,6 +58,7 @@ type NBServicePolicySpec struct {
 	// the Gateway API direct policy-attachment pattern (GEP-713). Each target
 	// must be an HTTPRoute in the same namespace as the policy.
 	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=16
 	// +kubebuilder:validation:XValidation:rule="self.all(t, t.kind == 'HTTPRoute' && (t.group == 'gateway.networking.k8s.io'))",message="targetRefs must reference HTTPRoute in group gateway.networking.k8s.io"
 	TargetRefs []gwv1.LocalPolicyTargetReference `json:"targetRefs"`
 

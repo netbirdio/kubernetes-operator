@@ -33,10 +33,10 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `allowedCidrs` _string array_ | AllowedCidrs is a CIDR allowlist. If non-empty, only matching source IPs<br />are allowed. Evaluated before BlockedCidrs. |  | Optional: \{\} <br /> |
-| `blockedCidrs` _string array_ | BlockedCidrs is a CIDR blocklist. Matching source IPs are rejected. |  | Optional: \{\} <br /> |
-| `allowedCountries` _string array_ | AllowedCountries is an ISO 3166-1 alpha-2 country-code allowlist. If<br />non-empty, only these countries are permitted. |  | Optional: \{\} <br /> |
-| `blockedCountries` _string array_ | BlockedCountries is an ISO 3166-1 alpha-2 country-code blocklist. |  | Optional: \{\} <br /> |
+| `allowedCidrs` _string array_ | AllowedCidrs is a CIDR allowlist. If non-empty, only matching source IPs<br />are allowed. Evaluated before BlockedCidrs. |  | MaxItems: 64 <br />items:MaxLength: 43 <br />Optional: \{\} <br /> |
+| `blockedCidrs` _string array_ | BlockedCidrs is a CIDR blocklist. Matching source IPs are rejected. |  | MaxItems: 64 <br />items:MaxLength: 43 <br />Optional: \{\} <br /> |
+| `allowedCountries` _string array_ | AllowedCountries is an ISO 3166-1 alpha-2 country-code allowlist. If<br />non-empty, only these countries are permitted. |  | MaxItems: 250 <br />items:MaxLength: 2 <br />Optional: \{\} <br /> |
+| `blockedCountries` _string array_ | BlockedCountries is an ISO 3166-1 alpha-2 country-code blocklist. |  | MaxItems: 250 <br />items:MaxLength: 2 <br />Optional: \{\} <br /> |
 
 
 #### ClusterProxy
@@ -298,7 +298,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `targetRefs` _LocalPolicyTargetReference array_ | TargetRefs identify the HTTPRoute(s) this policy attaches to, following<br />the Gateway API direct policy-attachment pattern (GEP-713). Each target<br />must be an HTTPRoute in the same namespace as the policy. |  | MinItems: 1 <br /> |
+| `targetRefs` _LocalPolicyTargetReference array_ | TargetRefs identify the HTTPRoute(s) this policy attaches to, following<br />the Gateway API direct policy-attachment pattern (GEP-713). Each target<br />must be an HTTPRoute in the same namespace as the policy. |  | MaxItems: 16 <br />MinItems: 1 <br /> |
 | `private` _boolean_ | Private, when true, makes the service NetBird-only: inbound peers<br />authenticate via their tunnel identity (no OIDC) and an ACL policy is<br />auto-generated from AccessGroups. Requires an HTTP service. |  | Optional: \{\} <br /> |
 | `accessGroups` _string array_ | AccessGroups are the NetBird group IDs whose peers may reach a private<br />service over the tunnel. Required when Private is true; ignored otherwise. |  | Optional: \{\} <br /> |
 | `crowdsecMode` _[CrowdsecMode](#crowdsecmode)_ | CrowdsecMode sets the CrowdSec IP-reputation handling for the service. |  | Enum: [off observe enforce] <br />Optional: \{\} <br /> |

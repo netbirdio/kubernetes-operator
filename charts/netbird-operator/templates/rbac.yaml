@@ -51,6 +51,14 @@ rules:
 - apiGroups:
   - netbird.io
   resources:
+  - nbservicepolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - netbird.io
+  resources:
   - nbgroups/status
   - nbresources/status
   - nbroutingpeers/status

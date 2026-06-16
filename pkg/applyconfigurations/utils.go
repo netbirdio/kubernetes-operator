@@ -18,6 +18,8 @@ import (
 func ForKind(kind schema.GroupVersionKind) interface{} {
 	switch kind {
 	// Group=netbird.io, Version=v1alpha1
+	case v1alpha1.SchemeGroupVersion.WithKind("AccessRestrictions"):
+		return &apiv1alpha1.AccessRestrictionsApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("ClusterProxy"):
 		return &apiv1alpha1.ClusterProxyApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("ClusterProxySpec"):
@@ -38,6 +40,12 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &apiv1alpha1.GroupSpecApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("GroupStatus"):
 		return &apiv1alpha1.GroupStatusApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NBServicePolicy"):
+		return &apiv1alpha1.NBServicePolicyApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NBServicePolicySpec"):
+		return &apiv1alpha1.NBServicePolicySpecApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NBServicePolicyStatus"):
+		return &apiv1alpha1.NBServicePolicyStatusApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("NetworkResource"):
 		return &apiv1alpha1.NetworkResourceApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("NetworkResourceSpec"):

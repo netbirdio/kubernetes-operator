@@ -13,7 +13,7 @@ The NetBird Kubernetes Operator automates the provisioning of NetBird network ac
 
 For full setup instructions, see the [Getting Started](https://docs.netbird.io/manage/integrations/kubernetes) documentation.
 
-Once your secret is configured, install the operator with Helm..
+Once your secret is configured, install the operator with Helm.
 
 ```shell
 helm upgrade --install --create-namespace -n netbird netbird-operator oci://ghcr.io/netbirdio/helm-charts/netbird-operator

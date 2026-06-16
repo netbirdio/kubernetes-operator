@@ -8,7 +8,7 @@ import (
 
 const (
 	NetbirdClientImage = "ghcr.io/netbirdio/netbird:0.72.4@sha256:6c6c20baffae4a3ec50f29ec9361608a420625185505e8cd6f0c44d71c5d4798"
-	KubeApiProxyImage  = "ghcr.io/netbirdio/netbird-kubeapi-proxy:v0.0.1@sha256:aa5bbdfc2eca51438f3d50ed4441d61388e9a8d2d5dc886cc4988dacd36ad648"
+	KubeApiProxyImage  = "ghcr.io/netbirdio/netbird-kubeapi-proxy:v0.0.4@sha256:bffa4f093abc19b4934ae37657bac76fa3b390cbd39aadac987634215eb750f5"
 )
 
 func BuildVersion() string {

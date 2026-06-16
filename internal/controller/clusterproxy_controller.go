@@ -13,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	appsv1ac "k8s.io/client-go/applyconfigurations/apps/v1"
 	corev1ac "k8s.io/client-go/applyconfigurations/core/v1"
 	metav1ac "k8s.io/client-go/applyconfigurations/meta/v1"
@@ -128,6 +129,9 @@ func (r *ClusterProxyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 					"--management-url",
 					r.ManagementURL,
 				).
+				WithReadinessProbe(
+					corev1ac.Probe().WithHTTPGet(corev1ac.HTTPGetAction().WithPath("/readyz").WithPort(intstr.FromInt(8081))),
+				).
 				WithEnv(
 					corev1ac.EnvVar().
 						WithName("POD_NAME").
@@ -169,7 +173,7 @@ func (r *ClusterProxyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	depAC := appsv1ac.Deployment(fmt.Sprintf("clusterproxy-%s", req.Name), req.Namespace).
 		WithOwnerReferences(ownerRef).
 		WithLabels(selectorLabels).
-		WithSpec(appsv1ac.DeploymentSpec().WithReplicas(1).WithSelector(metav1ac.LabelSelector().WithMatchLabels(selectorLabels)).WithTemplate(podTemplateSpecAC))
+		WithSpec(appsv1ac.DeploymentSpec().WithReplicas(3).WithSelector(metav1ac.LabelSelector().WithMatchLabels(selectorLabels)).WithTemplate(podTemplateSpecAC))
 	err = r.Client.Apply(ctx, depAC, client.ForceOwnership)
 	if err != nil {
 		return ctrl.Result{}, err

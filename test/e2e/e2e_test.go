@@ -294,6 +294,7 @@ func TestE2E(t *testing.T) {
 			installOperator(t, kcPath, true, managementURL)
 
 			t.Run("cluster proxy", testClusterProxy(k8sClient, nbClient))
+			t.Run("sidecar profile", testSidecarProfile(k8sClient, nbClient))
 		})
 	}
 }
@@ -384,12 +385,101 @@ func testClusterProxy(k8sClient client.Client, nbClient *netbird.Client) func(*t
 
 		peers, err := nbClient.Peers.List(t.Context())
 		require.NoError(t, err)
-		require.Len(t, peers, 3)
 		dnsLabel := "prod.netbird-kubeapi-proxy.netbird.selfhosted"
-		for _, peer := range peers {
-			require.Len(t, peer.ExtraDnsLabels, 1)
-			require.Equal(t, dnsLabel, peer.ExtraDnsLabels[0])
+		peers = slices.DeleteFunc(peers, func(peer api.Peer) bool {
+			if len(peer.ExtraDnsLabels) != 1 {
+				return true
+			}
+			return peer.ExtraDnsLabels[0] != dnsLabel
+		})
+		require.Len(t, peers, 3)
+	}
+}
+
+func testSidecarProfile(k8sClient client.Client, nbClient *netbird.Client) func(*testing.T) {
+	return func(t *testing.T) {
+		t.Parallel()
+
+		t.Log("Create sidecar profile")
+		namespace := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "sidecar-profile",
+			},
 		}
+		err := k8sClient.Create(t.Context(), namespace)
+		require.NoError(t, err)
+
+		setupKey := &nbv1alpha1.SetupKey{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "all",
+				Namespace: namespace.Name,
+			},
+			Spec: nbv1alpha1.SetupKeySpec{
+				Name:      "all",
+				Ephemeral: true,
+			},
+		}
+		err = k8sClient.Create(t.Context(), setupKey)
+		require.NoError(t, err)
+
+		sidecarProfile := &nbv1alpha1.SidecarProfile{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "all",
+				Namespace: namespace.Name,
+			},
+			Spec: nbv1alpha1.SidecarProfileSpec{
+				InjectionMode: nbv1alpha1.InjectionModeSidecar,
+				PodSelector:   nil,
+				SetupKeyRef: corev1.LocalObjectReference{
+					Name: setupKey.Name,
+				},
+			},
+		}
+		err = k8sClient.Create(t.Context(), sidecarProfile)
+		require.NoError(t, err)
+
+		t.Log("Create pod and check sidecar")
+		pod := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "idle-pod",
+				Namespace: namespace.Name,
+			},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name:    "idle",
+						Image:   "docker.io/library/alpine:3.24.1",
+						Command: []string{"sleep", "infinity"},
+					},
+				},
+			},
+		}
+		err = k8sClient.Create(t.Context(), pod)
+		require.NoError(t, err)
+		require.Eventually(t, func(ctx context.Context) error {
+			u := &unstructured.Unstructured{}
+			u.SetGroupVersionKind(schema.GroupVersionKind{
+				Version: "v1",
+				Group:   "",
+				Kind:    "Pod",
+			})
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, u)
+			if err != nil {
+				return err
+			}
+			res, err := status.Compute(u)
+			if err != nil {
+				return err
+			}
+			if res.Status != status.CurrentStatus {
+				return errors.New("waiting for ready")
+			}
+			return nil
+		}, 60*time.Second, 1*time.Second)
+
+		err = k8sClient.Get(t.Context(), client.ObjectKeyFromObject(pod), pod)
+		require.NoError(t, err)
+		require.Len(t, pod.Spec.InitContainers, 1)
 	}
 }
 

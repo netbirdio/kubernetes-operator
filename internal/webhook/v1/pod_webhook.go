@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
@@ -124,6 +125,26 @@ func (d *PodNetbirdInjector) Default(ctx context.Context, pod *corev1.Pod) error
 			Name:  "NB_MANAGEMENT_URL",
 			Value: d.managementURL,
 		},
+		{
+			Name:  "NB_LOG_FILE",
+			Value: "console",
+		},
+		{
+			Name:  "NB_DISABLE_PROFILES",
+			Value: "true",
+		},
+		{
+			Name:  "NB_DISABLE_UPDATE_SETTINGS",
+			Value: "true",
+		},
+		{
+			Name:  "NB_DAEMON_ADDR",
+			Value: "unix:///var/run/netbird/netbird.sock",
+		},
+		{
+			Name:  "NB_ENTRYPOINT_SERVICE_TIMEOUT",
+			Value: "0",
+		},
 	}
 	if len(sidecarProfile.Spec.ExtraDNSLabels) > 0 {
 		envVars = append(envVars, corev1.EnvVar{
@@ -137,8 +158,44 @@ func (d *PodNetbirdInjector) Default(ctx context.Context, pod *corev1.Pod) error
 		Image: d.clientImage,
 		Env:   envVars,
 		SecurityContext: &corev1.SecurityContext{
+			ReadOnlyRootFilesystem: new(true),
 			Capabilities: &corev1.Capabilities{
-				Add: []corev1.Capability{"NET_ADMIN"},
+				Add: []corev1.Capability{
+					"NET_ADMIN",
+					"SYS_RESOURCE",
+					"SYS_ADMIN",
+				},
+			},
+			Privileged: new(true),
+		},
+		VolumeMounts: []corev1.VolumeMount{
+			{
+				Name:      "netbird-run",
+				MountPath: "/var/run/netbird",
+			},
+			{
+				Name:      "netbird-lib",
+				MountPath: "/var/lib/netbird",
+			},
+			{
+				Name:      "ssh-etc",
+				MountPath: "/etc/ssh",
+			},
+			{
+				Name:      "resolv-conf",
+				MountPath: "/etc/resolv.conf",
+				SubPath:   "resolv.conf",
+			},
+			{
+				Name:      "resolv-conf",
+				MountPath: "/etc/resolv.conf.original.netbird",
+				SubPath:   "resolv.conf.original.netbird",
+			},
+		},
+		Resources: corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("100m"),
+				corev1.ResourceMemory: resource.MustParse("128Mi"),
 			},
 		},
 	}
@@ -160,6 +217,53 @@ func (d *PodNetbirdInjector) Default(ctx context.Context, pod *corev1.Pod) error
 			return err
 		}
 	}
+
+	volumes := []corev1.Volume{
+		{
+			Name: "netbird-run",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
+		{
+			Name: "netbird-lib",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
+		{
+			Name: "ssh-etc",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
+		{
+			Name: "resolv-conf",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
+	}
+	pod.Spec.Volumes = append(pod.Spec.Volumes, volumes...)
+
+	resolvInitContainer := corev1.Container{
+		Name:    "resolv-conf",
+		Image:   d.clientImage,
+		Command: []string{"sh", "-c", "cp /etc/resolv.conf /tmp/resolv.conf && cp /etc/resolv.conf /tmp/resolv.conf.original.netbird"},
+		SecurityContext: &corev1.SecurityContext{
+			ReadOnlyRootFilesystem: new(true),
+			Capabilities: &corev1.Capabilities{
+				Drop: []corev1.Capability{"ALL"},
+			},
+		},
+		VolumeMounts: []corev1.VolumeMount{
+			{
+				Name:      "resolv-conf",
+				MountPath: "/tmp",
+			},
+		},
+	}
+	pod.Spec.InitContainers = append(pod.Spec.InitContainers, resolvInitContainer)
 
 	switch sidecarProfile.Spec.InjectionMode {
 	case nbv1alpha1.InjectionModeSidecar:

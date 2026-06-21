@@ -6,8 +6,8 @@ toolchain go1.26.3
 
 require (
 	github.com/go-openapi/testify/v2 v2.5.1
-	github.com/moby/moby/client v0.4.1
-	helm.sh/helm/v4 v4.2.1
+	github.com/moby/moby/client v0.5.0
+	helm.sh/helm/v4 v4.2.2
 	k8s.io/api v0.36.2
 	k8s.io/apimachinery v0.36.2
 	k8s.io/cli-runtime v0.36.2
@@ -84,7 +84,7 @@ require (
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
-	github.com/moby/moby/api v1.54.2 // indirect
+	github.com/moby/moby/api v1.55.0 // indirect
 	github.com/moby/term v0.5.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect

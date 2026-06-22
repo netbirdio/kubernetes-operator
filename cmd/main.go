@@ -34,8 +34,8 @@ import (
 	nbv1 "github.com/netbirdio/kubernetes-operator/api/v1"
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	"github.com/netbirdio/kubernetes-operator/internal/controller"
-	"github.com/netbirdio/kubernetes-operator/internal/version"
 	nbwebhookv1 "github.com/netbirdio/kubernetes-operator/internal/webhook/v1"
+	"github.com/netbirdio/kubernetes-operator/pkg/version"
 )
 
 var (

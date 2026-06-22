@@ -15,7 +15,7 @@ type ClusterProxySpec struct {
 
 	// APIServer is the URL of the Kubernetes API server to proxy requests to.
 	// +required
-	// +kubebuilder:default="https://kubernetes.default.svc.cluster.local"
+	// +kubebuilder:default="https://kubernetes.default.svc.cluster.local/"
 	APIServer string `json:"apiServer"`
 
 	// ServiceAccountName is a reference to the service account used for impersonation.

@@ -22,8 +22,8 @@ import (
 
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	"github.com/netbirdio/kubernetes-operator/internal/k8sutil"
-	"github.com/netbirdio/kubernetes-operator/internal/version"
 	nbv1alpha1ac "github.com/netbirdio/kubernetes-operator/pkg/applyconfigurations/api/v1alpha1"
+	"github.com/netbirdio/kubernetes-operator/pkg/version"
 )
 
 // ClusterProxyReconciler reconciles a ClusterProxy object

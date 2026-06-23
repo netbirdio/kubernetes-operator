@@ -246,6 +246,21 @@ func (d *PodNetbirdInjector) Default(ctx context.Context, pod *corev1.Pod) error
 	}
 	pod.Spec.Volumes = append(pod.Spec.Volumes, volumes...)
 
+	switch sidecarProfile.Spec.InjectionMode {
+	case nbv1alpha1.InjectionModeSidecar:
+		container.RestartPolicy = new(corev1.ContainerRestartPolicyAlways)
+		pod.Spec.InitContainers = slices.Insert(pod.Spec.InitContainers, 0, container)
+	case nbv1alpha1.InjectionModeContainer:
+		pod.Spec.Containers = slices.Insert(pod.Spec.Containers, 0, container)
+	default:
+		return fmt.Errorf("unknown injection mode %s", sidecarProfile.Spec.InjectionMode)
+	}
+
+	if pod.Annotations == nil {
+		pod.Annotations = map[string]string{}
+	}
+	pod.Annotations[SidecarProfileAnnotation] = sidecarProfile.Name
+
 	resolvInitContainer := corev1.Container{
 		Name:    "resolv-conf",
 		Image:   d.clientImage,
@@ -263,23 +278,7 @@ func (d *PodNetbirdInjector) Default(ctx context.Context, pod *corev1.Pod) error
 			},
 		},
 	}
-	pod.Spec.InitContainers = append(pod.Spec.InitContainers, resolvInitContainer)
-
-	switch sidecarProfile.Spec.InjectionMode {
-	case nbv1alpha1.InjectionModeSidecar:
-		restartPolicy := corev1.ContainerRestartPolicyAlways
-		container.RestartPolicy = &restartPolicy
-		pod.Spec.InitContainers = append(pod.Spec.InitContainers, container)
-	case nbv1alpha1.InjectionModeContainer:
-		pod.Spec.Containers = append(pod.Spec.Containers, container)
-	default:
-		return fmt.Errorf("unknown injection mode %s", sidecarProfile.Spec.InjectionMode)
-	}
-
-	if pod.Annotations == nil {
-		pod.Annotations = map[string]string{}
-	}
-	pod.Annotations[SidecarProfileAnnotation] = sidecarProfile.Name
+	pod.Spec.InitContainers = slices.Insert(pod.Spec.InitContainers, 0, resolvInitContainer)
 
 	return nil
 }

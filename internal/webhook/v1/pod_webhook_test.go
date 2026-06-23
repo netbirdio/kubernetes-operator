@@ -21,54 +21,87 @@ import (
 func TestPodInjectorSidecarProfile(t *testing.T) {
 	t.Parallel()
 
-	setupKey := &nbv1alpha1.SetupKey{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test",
-			Namespace: "test",
-		},
-		Spec: nbv1alpha1.SetupKeySpec{
-			Name:      "test",
-			Ephemeral: true,
-		},
-	}
-	sidecarProfile := &nbv1alpha1.SidecarProfile{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test",
-			Namespace: "test",
-		},
-		Spec: nbv1alpha1.SidecarProfileSpec{
-			SetupKeyRef: corev1.LocalObjectReference{
-				Name: "test",
-			},
-			InjectionMode: nbv1alpha1.InjectionModeContainer,
-		},
-	}
+	for _, mode := range []nbv1alpha1.InjectionMode{nbv1alpha1.InjectionModeContainer, nbv1alpha1.InjectionModeSidecar} {
+		t.Run(string(mode), func(t *testing.T) {
+			t.Parallel()
 
-	scheme := kruntime.NewScheme()
-	err := corev1.AddToScheme(scheme)
-	require.NoError(t, err)
-	err = nbv1alpha1.AddToScheme(scheme)
-	require.NoError(t, err)
-	k8sClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sidecarProfile, setupKey).Build()
-	injector := PodNetbirdInjector{
-		client:        k8sClient,
-		managementURL: "https://api.netbird.io",
-		clientImage:   "netbirdio/netbird:latest",
-	}
+			setupKey := &nbv1alpha1.SetupKey{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "test",
+				},
+				Spec: nbv1alpha1.SetupKeySpec{
+					Name:      "test",
+					Ephemeral: true,
+				},
+			}
+			sidecarProfile := &nbv1alpha1.SidecarProfile{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "test",
+				},
+				Spec: nbv1alpha1.SidecarProfileSpec{
+					SetupKeyRef: corev1.LocalObjectReference{
+						Name: "test",
+					},
+					InjectionMode: mode,
+				},
+			}
 
-	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test",
-			Namespace: "test",
-		},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{},
-		},
+			scheme := kruntime.NewScheme()
+			err := corev1.AddToScheme(scheme)
+			require.NoError(t, err)
+			err = nbv1alpha1.AddToScheme(scheme)
+			require.NoError(t, err)
+			k8sClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sidecarProfile, setupKey).Build()
+			injector := PodNetbirdInjector{
+				client:        k8sClient,
+				managementURL: "https://api.netbird.io",
+				clientImage:   "netbirdio/netbird:latest",
+			}
+
+			pod := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "test",
+				},
+				Spec: corev1.PodSpec{
+					InitContainers: []corev1.Container{
+						{
+							Name: "app-init",
+						},
+					},
+					Containers: []corev1.Container{
+						{
+							Name: "app",
+						},
+					},
+				},
+			}
+			err = injector.Default(t.Context(), pod)
+			require.NoError(t, err)
+
+			require.EqualT(t, "test", pod.Annotations[SidecarProfileAnnotation])
+			switch mode {
+			case nbv1alpha1.InjectionModeContainer:
+				require.Len(t, pod.Spec.InitContainers, 2)
+				require.EqualT(t, "resolv-conf", pod.Spec.InitContainers[0].Name)
+				require.EqualT(t, "app-init", pod.Spec.InitContainers[1].Name)
+				require.Len(t, pod.Spec.Containers, 2)
+				require.EqualT(t, "netbird", pod.Spec.Containers[0].Name)
+				require.EqualT(t, "app", pod.Spec.Containers[1].Name)
+			case nbv1alpha1.InjectionModeSidecar:
+				require.Len(t, pod.Spec.InitContainers, 3)
+				require.EqualT(t, "resolv-conf", pod.Spec.InitContainers[0].Name)
+				require.Nil(t, pod.Spec.InitContainers[0].RestartPolicy)
+				require.EqualT(t, "netbird", pod.Spec.InitContainers[1].Name)
+				require.EqualT(t, corev1.ContainerRestartPolicyAlways, *pod.Spec.InitContainers[1].RestartPolicy)
+				require.EqualT(t, "app-init", pod.Spec.InitContainers[2].Name)
+				require.Len(t, pod.Spec.Containers, 1)
+				require.EqualT(t, "app", pod.Spec.Containers[0].Name)
+			}
+		})
 	}
-	err = injector.Default(t.Context(), pod)
-	require.NoError(t, err)
-	require.Len(t, pod.Spec.Containers, 1)
-	require.EqualT(t, "netbird", pod.Spec.Containers[0].Name)
 }
 
 var _ = Describe("Pod Webhook", func() {

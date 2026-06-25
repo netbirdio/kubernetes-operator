@@ -15,7 +15,7 @@ IMG_TAG ?= dev
 IMG_REF := $(IMG_REGISTRY)/$(IMG_REPOSITORY):$(IMG_TAG)
 
 .PHONY: generate
-generate: api/v1/zz_generated.deepcopy.go api/v1alpha1/zz_generated.deepcopy.go pkg/applyconfigurations config/crd/bases charts/netbird-operator/crds docs/api-reference.md
+generate: api/v1/zz_generated.deepcopy.go api/v1alpha1/zz_generated.deepcopy.go pkg/applyconfigurations config/crd/bases charts/netbird-operator/crds docs/api-reference.md internal/controller/testdata/crd/gateway-api.yaml
 
 api/v1/zz_generated.deepcopy.go api/v1alpha1/zz_generated.deepcopy.go: $(shell find api -not -name 'zz_generated*') hack/boilerplate.go.txt
 	@go tool controller-gen object:headerFile="hack/boilerplate.go.txt" paths="./..."
@@ -35,6 +35,10 @@ charts/netbird-operator/crds: $(GENERATED_CRDS)
 
 docs/api-reference.md: $(shell find api) docs/.crd-ref-docs.yaml
 	@go tool crd-ref-docs --log-level error --output-path docs/api-reference.md --renderer markdown --source-path api/v1alpha1 --config docs/.crd-ref-docs.yaml
+
+GATEWAY_API_VERSION = $(shell go list -m -f '{{.Version}}' sigs.k8s.io/gateway-api)
+internal/controller/testdata/crd/gateway-api.yaml: go.mod
+	@curl -L https://github.com/kubernetes-sigs/gateway-api/releases/download/$(GATEWAY_API_VERSION)/standard-install.yaml -o internal/controller/testdata/crd/gateway-api.yaml
 
 .PHONY: lint
 lint:

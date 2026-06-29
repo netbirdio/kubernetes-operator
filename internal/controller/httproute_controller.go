@@ -27,7 +27,8 @@ import (
 )
 
 const (
-	HTTPRouteFinalizer = "gateway.netbird.io/httproute"
+	HTTPRouteFinalizer              = "gateway.netbird.io/httproute"
+	BackendRefKindService gwv1.Kind = "Service"
 )
 
 type HTTPRouteReconciler struct {
@@ -75,21 +76,45 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 
 		// Create network resources.
-		svcIdx := map[string]corev1.Service{}
+		svcIdx := map[string]routeServiceTarget{}
 		for _, rule := range hr.Spec.Rules {
 			for _, ref := range rule.BackendRefs {
+				// Skip unsupported BackendRef kinds
+				kind := BackendRefKindService
+				if ref.Kind != nil {
+					kind = *ref.Kind
+				}
+				if kind != BackendRefKindService {
+					logger.Info("skipping unsupported BackendRef kind", "kind", kind, "name", string(ref.Name))
+					continue
+				}
+
 				key := client.ObjectKey{Namespace: hr.Namespace, Name: string(ref.Name)}
 				var svc corev1.Service
 				err := r.Client.Get(ctx, key, &svc)
 				if err != nil {
 					return ctrl.Result{}, err
 				}
-				svcIdx[svc.Name] = svc
+				port := int32(80)
+				if ref.Port != nil {
+					port = *ref.Port
+				} else {
+					logger.Info(
+						"BackendRef port is not set, defaulting to 80",
+						"kind", kind,
+						"name", string(ref.Name),
+					)
+				}
+				svcIdx[svc.Name] = routeServiceTarget{
+					ServiceTarget: svc,
+					Port:          port,
+					Matches:       rule.Matches,
+				}
 			}
 		}
 
 		for _, svc := range svcIdx {
-			controllerRef, err := k8sutil.ControllerReference(&svc, r.Scheme())
+			controllerRef, err := k8sutil.ControllerReference(&svc.ServiceTarget, r.Scheme())
 			if err != nil {
 				return ctrl.Result{}, err
 			}
@@ -98,12 +123,12 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			if err != nil {
 				return ctrl.Result{}, err
 			}
-			netResourceAC := nbv1alpha1ac.NetworkResource(svc.Name, svc.Namespace).
+			netResourceAC := nbv1alpha1ac.NetworkResource(svc.ServiceTarget.Name, svc.ServiceTarget.Namespace).
 				WithOwnerReferences(controllerRef, ownerRef).
 				WithSpec(
 					nbv1alpha1ac.NetworkResourceSpec().
 						WithNetworkRouterRef(nbv1alpha1ac.CrossNamespaceReference().WithName(netRouter.Name).WithNamespace(netRouter.Namespace)).
-						WithServiceRef(corev1.LocalObjectReference{Name: svc.Name}),
+						WithServiceRef(corev1.LocalObjectReference{Name: svc.ServiceTarget.Name}),
 				)
 			err = r.Client.Apply(ctx, netResourceAC, client.ForceOwnership)
 			if err != nil {
@@ -115,8 +140,8 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		for _, svc := range svcIdx {
 			netResource := &nbv1alpha1.NetworkResource{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      svc.Name,
-					Namespace: svc.Namespace,
+					Name:      svc.ServiceTarget.Name,
+					Namespace: svc.ServiceTarget.Namespace,
 				},
 			}
 			err := r.Client.Get(ctx, client.ObjectKeyFromObject(netResource), netResource)
@@ -127,14 +152,42 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
 			}
 
-			target := api.ServiceTarget{
-				Enabled:    true,
-				Path:       nil,
-				TargetId:   netResource.Status.ResourceID,
-				Protocol:   api.ServiceTargetProtocolHttp,
-				TargetType: api.ServiceTargetTargetTypeHost,
+			if len(svc.Matches) == 0 {
+				targets = append(targets, api.ServiceTarget{
+					Enabled:    true,
+					Path:       nil,
+					Port:       int(svc.Port),
+					TargetId:   netResource.Status.ResourceID,
+					Protocol:   api.ServiceTargetProtocolHttp,
+					TargetType: api.ServiceTargetTargetTypeHost,
+				})
+				continue
 			}
-			targets = append(targets, target)
+
+			for _, match := range svc.Matches {
+				var (
+					path          *string
+					targetOptions *api.ServiceTargetOptions
+				)
+				if match.Path != nil {
+					path = match.Path.Value
+					targetOptions = &api.ServiceTargetOptions{
+						// preserve is the default case for HTTPRoute
+						// stripping would be subject to route filters which are currently out of scope
+						PathRewrite: new(api.ServiceTargetOptionsPathRewritePreserve),
+					}
+				}
+				targets = append(targets, api.ServiceTarget{
+					Enabled:    true,
+					Path:       path,
+					Options:    targetOptions,
+					Port:       int(svc.Port),
+					TargetId:   netResource.Status.ResourceID,
+					Protocol:   api.ServiceTargetProtocolHttp,
+					TargetType: api.ServiceTargetTargetTypeHost,
+				})
+			}
+
 		}
 
 		// Create proxy service.
@@ -270,4 +323,10 @@ func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gwv1.HTTPRoute{}).
 		Complete(r)
+}
+
+type routeServiceTarget struct {
+	ServiceTarget corev1.Service
+	Port          int32
+	Matches       []gwv1.HTTPRouteMatch
 }

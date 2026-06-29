@@ -9,6 +9,7 @@ require (
 	github.com/go-logr/logr v1.4.3
 	github.com/go-openapi/testify/v2 v2.6.0
 	github.com/google/uuid v1.6.0
+	github.com/netbirdio/kube-egress-forwarder v0.0.2
 	github.com/netbirdio/netbird v0.72.4
 	github.com/onsi/ginkgo/v2 v2.32.0
 	github.com/onsi/gomega v1.42.1
@@ -79,7 +80,7 @@ require (
 	golang.org/x/crypto v0.53.0 // indirect
 	golang.org/x/net v0.56.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/sync v0.21.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/term v0.44.0 // indirect
 	golang.org/x/text v0.38.0 // indirect

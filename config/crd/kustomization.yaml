@@ -12,4 +12,5 @@ resources:
 - bases/netbird.io_setupkeys.yaml
 - bases/netbird.io_sidecarprofiles.yaml
 - bases/netbird.io_clusterproxies.yaml
+- bases/netbird.io_networkegresses.yaml
 # +kubebuilder:scaffold:crdkustomizeresource

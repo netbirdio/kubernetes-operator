@@ -38,6 +38,7 @@ rules:
   - groups
   - networkrouters
   - networkresources
+  - networkegresses
   - sidecarprofiles
   - clusterproxies
   verbs:
@@ -59,6 +60,7 @@ rules:
   - groups/status
   - networkrouters/status
   - networkresources/status
+  - networkregresses/status
   - sidecarprofiles/status
   - clusterproxies/status
   verbs:
@@ -76,19 +78,60 @@ rules:
   - groups/finalizers
   - networkrouters/finalizers
   - networkresources/finalizers
+  - networkegresses/finalizers
   - sidecarprofiles/finalizers
   verbs:
   - update
+- apiGroups:
+  - "discovery.k8s.io"
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - patch
+  - update
+  - list
+  - watch
+  - create
+  - delete
+- apiGroups:
+  - "rbac.authorization.k8s.io"
+  resources:
+  - roles
+  - rolebindings
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - serviceaccounts
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
   - ""
   resources:
   - services
   verbs:
   - get
+  - patch
+  - update
   - list
   - watch
-  - update
-  - patch
+  - create
+  - delete
 - apiGroups:
   - ""
   resources:
@@ -197,18 +240,6 @@ metadata:
   labels:
     {{- include "netbird-operator.labels" . | nindent 4 }}
 rules:
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:

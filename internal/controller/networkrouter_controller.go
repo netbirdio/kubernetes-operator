@@ -15,6 +15,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,6 +25,7 @@ import (
 	corev1ac "k8s.io/client-go/applyconfigurations/core/v1"
 	metav1ac "k8s.io/client-go/applyconfigurations/meta/v1"
 	policyv1ac "k8s.io/client-go/applyconfigurations/policy/v1"
+	rbacv1ac "k8s.io/client-go/applyconfigurations/rbac/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -35,6 +37,7 @@ import (
 	"github.com/netbirdio/kubernetes-operator/internal/k8sutil"
 	"github.com/netbirdio/kubernetes-operator/internal/netbirdutil"
 	nbv1alpha1ac "github.com/netbirdio/kubernetes-operator/pkg/applyconfigurations/api/v1alpha1"
+	"github.com/netbirdio/kubernetes-operator/pkg/version"
 )
 
 type NetworkRouterReconciler struct {
@@ -191,7 +194,7 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
-	// Create the deployment.
+	// Setup router configuration.
 	selectorLabels := map[string]string{
 		"app.kubernetes.io/name":     "networkrouter",
 		"app.kubernetes.io/instance": req.Name,
@@ -207,6 +210,44 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		clientImage = netRouter.Spec.Image
 	}
 
+	// Create forwarder resources.
+	forwarderName := fmt.Sprintf("networkrouter-%s-forwarder", req.Name)
+	forwarderSvcAC := corev1ac.Service(forwarderName, req.Namespace).
+		WithLabels(map[string]string{ForwarderRouterNameLabel: netRouter.Name}).
+		WithOwnerReferences(ownerRef).
+		WithSpec(
+			corev1ac.ServiceSpec().
+				WithClusterIP("None").
+				WithSelector(selectorLabels),
+		)
+	err = r.Client.Apply(ctx, forwarderSvcAC, client.ForceOwnership)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	saAC := corev1ac.ServiceAccount(forwarderName, req.Namespace).
+		WithOwnerReferences(ownerRef)
+	err = r.Client.Apply(ctx, saAC, client.ForceOwnership)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	roleAC := rbacv1ac.Role(forwarderName, req.Namespace).
+		WithOwnerReferences(ownerRef).
+		WithRules(rbacv1ac.PolicyRule().WithAPIGroups("").WithResources("configmaps").WithVerbs("get", "watch"))
+	err = r.Client.Apply(ctx, roleAC, client.ForceOwnership)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	roleBindAC := rbacv1ac.RoleBinding(forwarderName, req.Namespace).
+		WithOwnerReferences(ownerRef).
+		WithSubjects(rbacv1ac.Subject().WithKind(*saAC.Kind).WithName(*saAC.Name)).
+		WithRoleRef(rbacv1ac.RoleRef().WithKind(*roleAC.Kind).WithName(*roleAC.Name))
+	err = r.Client.Apply(ctx, roleBindAC, client.ForceOwnership)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// Create the deployment.
 	podTemplateSpecAC := corev1ac.PodTemplateSpec().
 		WithLabels(selectorLabels).
 		WithSpec(corev1ac.PodSpec().
@@ -232,65 +273,84 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 					WithReadOnlyRootFilesystem(true),
 				),
 			).
-			WithContainers(corev1ac.Container().
-				WithName("netbird").
-				WithImage(clientImage).
-				WithEnv(
-					corev1ac.EnvVar().
-						WithName("NB_SETUP_KEY").
-						WithValueFrom(corev1ac.EnvVarSource().
-							WithSecretKeyRef(corev1ac.SecretKeySelector().
-								WithName(setupKey.SecretName()).
-								WithKey(SetupKeySecretKey),
+			WithContainers(
+				corev1ac.Container().
+					WithName("netbird").
+					WithImage(clientImage).
+					WithEnv(
+						corev1ac.EnvVar().
+							WithName("NB_SETUP_KEY").
+							WithValueFrom(corev1ac.EnvVarSource().
+								WithSecretKeyRef(corev1ac.SecretKeySelector().
+									WithName(setupKey.SecretName()).
+									WithKey(SetupKeySecretKey),
+								),
 							),
-						),
-					corev1ac.EnvVar().
-						WithName("NB_MANAGEMENT_URL").
-						WithValue(r.ManagementURL),
-					corev1ac.EnvVar().
-						WithName("NB_LOG_LEVEL").
-						WithValue(logLevel),
-					corev1ac.EnvVar().
-						WithName("NB_LOG_FILE").
-						WithValue("console"),
-					corev1ac.EnvVar().
-						WithName("NB_DISABLE_PROFILES").
-						WithValue("true"),
-					corev1ac.EnvVar().
-						WithName("NB_DISABLE_UPDATE_SETTINGS").
-						WithValue("true"),
-					corev1ac.EnvVar().
-						WithName("NB_DAEMON_ADDR").
-						WithValue("unix:///var/run/netbird/netbird.sock"),
-					corev1ac.EnvVar().
-						WithName("NB_ENTRYPOINT_SERVICE_TIMEOUT").
-						WithValue("0"),
-				).
-				WithStartupProbe(corev1ac.Probe().WithExec(corev1ac.ExecAction().WithCommand("netbird", "status", "--check", "startup"))).
-				WithReadinessProbe(corev1ac.Probe().WithExec(corev1ac.ExecAction().WithCommand("netbird", "status", "--check", "ready"))).
-				WithVolumeMounts(
-					corev1ac.VolumeMount().WithName("netbird-run").WithMountPath("/var/run/netbird"),
-					corev1ac.VolumeMount().WithName("netbird-lib").WithMountPath("/var/lib/netbird"),
-					corev1ac.VolumeMount().WithName("ssh-etc").WithMountPath("/etc/ssh"),
-					corev1ac.VolumeMount().WithName("resolv-conf").WithMountPath("/etc/resolv.conf").WithSubPath("resolv.conf"),
-					corev1ac.VolumeMount().WithName("resolv-conf").WithMountPath("/etc/resolv.conf.original.netbird").WithSubPath("resolv.conf.original.netbird"),
-				).
-				WithSecurityContext(corev1ac.SecurityContext().
-					WithReadOnlyRootFilesystem(true).
-					WithCapabilities(corev1ac.Capabilities().
-						WithAdd("NET_ADMIN").
-						WithAdd("SYS_RESOURCE").
-						WithAdd("SYS_ADMIN"),
+						corev1ac.EnvVar().
+							WithName("NB_MANAGEMENT_URL").
+							WithValue(r.ManagementURL),
+						corev1ac.EnvVar().
+							WithName("NB_LOG_LEVEL").
+							WithValue(logLevel),
+						corev1ac.EnvVar().
+							WithName("NB_LOG_FILE").
+							WithValue("console"),
+						corev1ac.EnvVar().
+							WithName("NB_DISABLE_PROFILES").
+							WithValue("true"),
+						corev1ac.EnvVar().
+							WithName("NB_DISABLE_UPDATE_SETTINGS").
+							WithValue("true"),
+						corev1ac.EnvVar().
+							WithName("NB_DAEMON_ADDR").
+							WithValue("unix:///var/run/netbird/netbird.sock"),
+						corev1ac.EnvVar().
+							WithName("NB_ENTRYPOINT_SERVICE_TIMEOUT").
+							WithValue("0"),
 					).
-					WithPrivileged(true),
-				).
-				WithResources(corev1ac.ResourceRequirements().
-					WithRequests(corev1.ResourceList{
-						corev1.ResourceCPU:    resource.MustParse("100m"),
-						corev1.ResourceMemory: resource.MustParse("128Mi"),
-					}),
-				),
+					WithStartupProbe(corev1ac.Probe().WithExec(corev1ac.ExecAction().WithCommand("netbird", "status", "--check", "startup"))).
+					WithReadinessProbe(corev1ac.Probe().WithExec(corev1ac.ExecAction().WithCommand("netbird", "status", "--check", "ready"))).
+					WithVolumeMounts(
+						corev1ac.VolumeMount().WithName("netbird-run").WithMountPath("/var/run/netbird"),
+						corev1ac.VolumeMount().WithName("netbird-lib").WithMountPath("/var/lib/netbird"),
+						corev1ac.VolumeMount().WithName("ssh-etc").WithMountPath("/etc/ssh"),
+						corev1ac.VolumeMount().WithName("resolv-conf").WithMountPath("/etc/resolv.conf").WithSubPath("resolv.conf"),
+						corev1ac.VolumeMount().WithName("resolv-conf").WithMountPath("/etc/resolv.conf.original.netbird").WithSubPath("resolv.conf.original.netbird"),
+					).
+					WithSecurityContext(corev1ac.SecurityContext().
+						WithReadOnlyRootFilesystem(true).
+						WithCapabilities(corev1ac.Capabilities().
+							WithAdd("NET_ADMIN").
+							WithAdd("SYS_RESOURCE").
+							WithAdd("SYS_ADMIN"),
+						).
+						WithPrivileged(true),
+					).
+					WithResources(corev1ac.ResourceRequirements().
+						WithRequests(corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("100m"),
+							corev1.ResourceMemory: resource.MustParse("128Mi"),
+						}),
+					),
+				corev1ac.Container().
+					WithName("kube-egress-forwarder").
+					WithImage(version.KubeEgressForwarderImage).
+					WithArgs("--configmap-name", forwarderName, "--configmap-namespace", req.Namespace).
+					WithVolumeMounts(
+						corev1ac.VolumeMount().WithName("resolv-conf").WithMountPath("/etc/resolv.conf").WithSubPath("resolv.conf"),
+					).
+					WithSecurityContext(corev1ac.SecurityContext().
+						WithCapabilities(corev1ac.Capabilities().WithDrop("ALL")).
+						WithReadOnlyRootFilesystem(true),
+					).
+					WithResources(corev1ac.ResourceRequirements().
+						WithRequests(corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("100m"),
+							corev1.ResourceMemory: resource.MustParse("128Mi"),
+						}),
+					),
 			).
+			WithServiceAccountName(*saAC.Name).
 			WithVolumes(
 				corev1ac.Volume().WithName("netbird-run").WithEmptyDir(corev1ac.EmptyDirVolumeSource()),
 				corev1ac.Volume().WithName("netbird-lib").WithEmptyDir(corev1ac.EmptyDirVolumeSource()),
@@ -421,5 +481,9 @@ func (r *NetworkRouterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&nbv1alpha1.Group{}).
 		Owns(&nbv1alpha1.SetupKey{}).
 		Owns(&appsv1.Deployment{}).
+		Owns(&corev1.Service{}).
+		Owns(&corev1.ServiceAccount{}).
+		Owns(&rbacv1.Role{}).
+		Owns(&rbacv1.RoleBinding{}).
 		Complete(r)
 }

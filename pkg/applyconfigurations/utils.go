@@ -38,6 +38,20 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &apiv1alpha1.GroupSpecApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("GroupStatus"):
 		return &apiv1alpha1.GroupStatusApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NetworkEgress"):
+		return &apiv1alpha1.NetworkEgressApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NetworkEgressFQDNTarget"):
+		return &apiv1alpha1.NetworkEgressFQDNTargetApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NetworkEgressIPTarget"):
+		return &apiv1alpha1.NetworkEgressIPTargetApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NetworkEgressPort"):
+		return &apiv1alpha1.NetworkEgressPortApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NetworkEgressSpec"):
+		return &apiv1alpha1.NetworkEgressSpecApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NetworkEgressStatus"):
+		return &apiv1alpha1.NetworkEgressStatusApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("NetworkEgressTarget"):
+		return &apiv1alpha1.NetworkEgressTargetApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("NetworkResource"):
 		return &apiv1alpha1.NetworkResourceApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("NetworkResourceSpec"):

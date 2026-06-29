@@ -1,0 +1,15 @@
+apiVersion: netbird.io/v1alpha1
+kind: NetworkEgress
+metadata:
+  name: nginx
+  namespace: default
+spec:
+  networkRouterRef:
+    name: prod
+    namespace: netbird
+  target:
+    ip:
+      address: 10.96.92.40
+  ports:
+    - name: http
+      port: 80

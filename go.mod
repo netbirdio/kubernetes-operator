@@ -9,7 +9,7 @@ require (
 	github.com/go-logr/logr v1.4.3
 	github.com/go-openapi/testify/v2 v2.5.1
 	github.com/google/uuid v1.6.0
-	github.com/netbirdio/netbird v0.72.4
+	github.com/netbirdio/netbird v0.74.2
 	github.com/onsi/ginkgo/v2 v2.31.0
 	github.com/onsi/gomega v1.42.0
 	golang.org/x/mod v0.37.0

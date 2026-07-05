@@ -12,7 +12,7 @@ require (
 	github.com/moby/moby/api v1.55.0
 	github.com/moby/moby/client v0.5.0
 	github.com/netbirdio/kubernetes-operator v0.0.0-00010101000000-000000000000
-	github.com/netbirdio/netbird v0.73.2
+	github.com/netbirdio/netbird v0.74.2
 	helm.sh/helm/v4 v4.2.2
 	k8s.io/api v0.36.2
 	k8s.io/apimachinery v0.36.2

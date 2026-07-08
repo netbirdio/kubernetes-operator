@@ -31,6 +31,8 @@ updates:
     open-pull-requests-limit: 15
     labels:
       - "changelog/ignore"
+    ignore:
+      - dependency-name: "github.com/netbirdio/netbird"
     groups:
       gomod-e2e:
         patterns:

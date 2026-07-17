@@ -65,6 +65,8 @@ linters:
           alias: admissionv1
         - pkg: k8s.io/api/policy/v1
           alias: policyv1
+        - pkg: "k8s.io/api/discovery/v1"
+          alias: discoveryv1
         - pkg: k8s.io/client-go/applyconfigurations/meta/v1
           alias: metav1ac
         - pkg: k8s.io/client-go/applyconfigurations/core/v1
@@ -75,6 +77,8 @@ linters:
           alias: appsv1ac
         - pkg: k8s.io/client-go/applyconfigurations/policy/v1
           alias: policyv1ac
+        - pkg: k8s.io/client-go/applyconfigurations/discovery/v1
+          alias: discoveryv1ac
 
         - pkg: sigs.k8s.io/gateway-api/apis/v1
           alias: gwv1

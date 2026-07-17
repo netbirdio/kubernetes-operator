@@ -25,7 +25,7 @@ import (
 	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
 	"github.com/netbirdio/netbird/shared/management/http/api"
 	"helm.sh/helm/v4/pkg/action"
-	"helm.sh/helm/v4/pkg/chart/loader"
+	"helm.sh/helm/v4/pkg/chart/v2/loader"
 	"helm.sh/helm/v4/pkg/downloader"
 	"helm.sh/helm/v4/pkg/getter"
 	"helm.sh/helm/v4/pkg/kube"
@@ -38,6 +38,7 @@ import (
 	kruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	kruntimeutil "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -290,8 +291,8 @@ func TestE2E(t *testing.T) {
 			}
 			err = k8sClient.Create(t.Context(), secret)
 			require.NoError(t, err)
-			installOperator(t, kcPath, false, managementURL)
-			installOperator(t, kcPath, true, managementURL)
+			installOperator(t, k8sClient, kcPath, false, managementURL)
+			installOperator(t, k8sClient, kcPath, true, managementURL)
 
 			t.Run("cluster proxy", testClusterProxy(k8sClient, nbClient))
 		})
@@ -393,7 +394,7 @@ func testClusterProxy(k8sClient client.Client, nbClient *netbird.Client) func(*t
 	}
 }
 
-func installOperator(t *testing.T, kcPath string, dev bool, managementURL string) {
+func installOperator(t *testing.T, k8sClient client.Client, kcPath string, dev bool, managementURL string) {
 	t.Helper()
 
 	regClient, err := registry.NewClient()
@@ -455,6 +456,15 @@ func installOperator(t *testing.T, kcPath string, dev bool, managementURL string
 		_, err = install.RunWithContext(t.Context(), charter, vals)
 		require.NoError(t, err)
 	} else {
+		for _, crd := range charter.CRDObjects() {
+			docs := yaml.NewYAMLOrJSONDecoder(bytes.NewReader(crd.File.Data), 4096)
+			var obj unstructured.Unstructured
+			err := docs.Decode(&obj)
+			require.NoError(t, err)
+			err = k8sClient.Patch(t.Context(), &obj, client.Apply, client.ForceOwnership, client.FieldOwner("helm"))
+			require.NoError(t, err)
+		}
+
 		upgrade := action.NewUpgrade(actionCfg)
 		upgrade.Namespace = netbirdNamespace
 		upgrade.WaitStrategy = kube.StatusWatcherStrategy

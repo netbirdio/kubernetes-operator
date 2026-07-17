@@ -11,6 +11,7 @@ Package v1alpha1 contains API Schema definitions for the  v1alpha1 API group.
 ### Resource Types
 - [ClusterProxy](#clusterproxy)
 - [Group](#group)
+- [NetworkEgress](#networkegress)
 - [NetworkResource](#networkresource)
 - [NetworkRouter](#networkrouter)
 - [SetupKey](#setupkey)
@@ -105,6 +106,7 @@ _Appears in:_
 
 
 _Appears in:_
+- [NetworkEgressSpec](#networkegressspec)
 - [NetworkResourceSpec](#networkresourcespec)
 
 | Field | Description | Default | Validation |
@@ -220,6 +222,129 @@ _Appears in:_
 | --- | --- |
 | `Sidecar` | InjectionModeSidecar injects the client as a sidecar container.<br /> |
 | `Container` | InjectionModeContainer injects the client as a regular container.<br /> |
+
+
+#### NetworkEgress
+
+
+
+NetworkEgress is the Schema for the networkegresses API.
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `netbird.io/v1alpha1` | | |
+| `kind` _string_ | `NetworkEgress` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  | Optional: \{\} <br /> |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  | Optional: \{\} <br /> |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[NetworkEgressSpec](#networkegressspec)_ |  |  | Required: \{\} <br /> |
+| `status` _[NetworkEgressStatus](#networkegressstatus)_ |  | \{ observedGeneration:-1 \} |  |
+
+
+#### NetworkEgressFQDNTarget
+
+
+
+NetworkEgressFQDNTarget matches traffic by an exact domain name (no wildcards).
+
+
+
+_Appears in:_
+- [NetworkEgressTarget](#networkegresstarget)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `hostname` _string_ | Hostname is a fully qualified domain name to match exactly. |  | Pattern: `^([a-zA-Z0-9]([a-zA-Z0-9-]\{0,61\}[a-zA-Z0-9])?\.)+[a-zA-Z]\{2,\}$` <br />Required: \{\} <br /> |
+
+
+#### NetworkEgressIPTarget
+
+
+
+NetworkEgressIPTarget is a single IPv4 or IPv6 address.
+
+
+
+_Appears in:_
+- [NetworkEgressTarget](#networkegresstarget)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `address` _string_ | Address is a single IP address. |  | Required: \{\} <br /> |
+
+
+#### NetworkEgressPort
+
+
+
+
+
+
+
+_Appears in:_
+- [NetworkEgressSpec](#networkegressspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ | Name of the port. |  | MaxLength: 15 <br />MinLength: 1 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br />Required: \{\} <br /> |
+| `port` _integer_ | The port that will be exposed by this service. |  | Maximum: 65535 <br />Minimum: 1 <br />Required: \{\} <br /> |
+
+
+#### NetworkEgressSpec
+
+
+
+NetworkEgressSpec defines the desired state of NetworkEgress.
+
+
+
+_Appears in:_
+- [NetworkEgress](#networkegress)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `networkRouterRef` _[CrossNamespaceReference](#crossnamespacereference)_ | NetworkRouterRef is a reference to the network and router where the resource will be created. |  |  |
+| `target` _[NetworkEgressTarget](#networkegresstarget)_ | Target for egress traffic. |  |  |
+| `ports` _[NetworkEgressPort](#networkegressport) array_ | Ports to the resource to route. |  | MinItems: 1 <br />Required: \{\} <br /> |
+
+
+#### NetworkEgressStatus
+
+
+
+NetworkEgressStatus defines the observed state of NetworkEgress.
+
+
+
+_Appears in:_
+- [NetworkEgress](#networkegress)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `observedGeneration` _integer_ | ObservedGeneration is the last reconciled generation. |  | Optional: \{\} <br /> |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#condition-v1-meta) array_ | Conditions holds the conditions for the NetworkEgress. |  | Optional: \{\} <br /> |
+
+
+#### NetworkEgressTarget
+
+
+
+NetworkEgressTarget describes a single allowed egress destination.
+Exactly one of IP or FQDN must be set.
+
+
+
+_Appears in:_
+- [NetworkEgressSpec](#networkegressspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `ip` _[NetworkEgressIPTarget](#networkegressiptarget)_ | IP targets a single specific IP address (not a CIDR range). |  | Optional: \{\} <br /> |
+| `fqdn` _[NetworkEgressFQDNTarget](#networkegressfqdntarget)_ | FQDN targets an exact domain name (no wildcards). |  | Optional: \{\} <br /> |
 
 
 #### NetworkResource

@@ -312,6 +312,19 @@ func main() {
 			setupLog.Error(err, "Failed to create controller", "controller", "NetworkResource")
 			os.Exit(1)
 		}
+		if err := (&controller.NetworkEgressReconciler{
+			Client:  mgr.GetClient(),
+			Netbird: nbClient,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "Failed to create controller", "controller", "NetworkEgress")
+			os.Exit(1)
+		}
+		if err := (&controller.ForwarderServiceReconciler{
+			Client: mgr.GetClient(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "Failed to create controller", "controller", "ForwarderService")
+			os.Exit(1)
+		}
 		if err := (&controller.ClusterProxyReconciler{
 			Client:        mgr.GetClient(),
 			ApiKey:        netbirdAPIKey,

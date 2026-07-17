@@ -8,8 +8,8 @@ spec:
     name: prod
     namespace: netbird
   target:
-    ip:
-      address: 10.96.92.40
+    fqdn:
+      hostname: nginx.default.prod.company.internal
   ports:
     - name: http
       port: 80

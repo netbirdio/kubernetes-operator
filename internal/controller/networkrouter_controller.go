@@ -299,9 +299,6 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 							WithName("NB_DISABLE_PROFILES").
 							WithValue("true"),
 						corev1ac.EnvVar().
-							WithName("NB_DISABLE_UPDATE_SETTINGS").
-							WithValue("true"),
-						corev1ac.EnvVar().
 							WithName("NB_DAEMON_ADDR").
 							WithValue("unix:///var/run/netbird/netbird.sock"),
 						corev1ac.EnvVar().

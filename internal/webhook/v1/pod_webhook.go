@@ -134,10 +134,6 @@ func (d *PodNetbirdInjector) Default(ctx context.Context, pod *corev1.Pod) error
 			Value: "true",
 		},
 		{
-			Name:  "NB_DISABLE_UPDATE_SETTINGS",
-			Value: "true",
-		},
-		{
 			Name:  "NB_DAEMON_ADDR",
 			Value: "unix:///var/run/netbird/netbird.sock",
 		},

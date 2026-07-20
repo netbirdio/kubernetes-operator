@@ -9,14 +9,11 @@ import (
 	"maps"
 	"net/netip"
 	"strings"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
 	corev1ac "k8s.io/client-go/applyconfigurations/core/v1"
 	discoveryv1ac "k8s.io/client-go/applyconfigurations/discovery/v1"
@@ -37,7 +34,6 @@ const (
 	ForwarderRouterNameLabel   = "netbird.io/forwarder-router-name"
 	EgressRouterNameLabel      = "netbird.io/egress-router-name"
 	EgressRouterNamespaceLabel = "netbird.io/egress-router-namespace"
-	LastUpdatedLabel           = "netbird.io/last-updated"
 )
 
 // ForwarderServiceReconciler reconciles a EndpointSlice object
@@ -96,7 +92,7 @@ func (r *ForwarderServiceReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}
 
 	// Copy router endpoint slices to egress services.
-	lastUpdated := fmt.Sprintf("%d", time.Now().Unix())
+	desired := map[types.NamespacedName]struct{}{}
 
 	for _, egressSvc := range egressSvcList.Items {
 		netEgress := &nbv1alpha1.NetworkEgress{
@@ -140,15 +136,15 @@ func (r *ForwarderServiceReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		for _, endpointSlice := range endpointSliceList.Items {
 			nameSuffx := strings.TrimPrefix(endpointSlice.Name, endpointSlice.GenerateName)
 
-			labels := map[string]string{
-				discoveryv1.LabelServiceName: egressSvc.Name,
-				discoveryv1.LabelManagedBy:   "netbird-operator.netbird.io",
-				LastUpdatedLabel:             lastUpdated,
-			}
+			labels := make(map[string]string, len(egressSvc.Labels)+2)
 			maps.Copy(labels, egressSvc.Labels)
+			labels[discoveryv1.LabelServiceName] = egressSvc.Name
+			labels[discoveryv1.LabelManagedBy] = "netbird-operator.netbird.io"
 
+			name := fmt.Sprintf("%s-%s", egressSvc.Name, nameSuffx)
+			desired[types.NamespacedName{Namespace: egressSvc.Namespace, Name: name}] = struct{}{}
 			endpointACs := toEndpointApplyConfigurations(endpointSlice.Endpoints)
-			endpointSliceAC := discoveryv1ac.EndpointSlice(fmt.Sprintf("%s-%s", egressSvc.Name, nameSuffx), egressSvc.Namespace).
+			endpointSliceAC := discoveryv1ac.EndpointSlice(name, egressSvc.Namespace).
 				WithLabels(labels).
 				WithOwnerReferences(egressSvcOwnerRef).
 				WithAddressType(endpointSlice.AddressType).
@@ -175,29 +171,14 @@ func (r *ForwarderServiceReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}
 
 	// Cleanup old endpoint slices.
-	updateReq, err := labels.NewRequirement(LastUpdatedLabel, selection.NotEquals, []string{lastUpdated})
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	egressNameReq, err := labels.NewRequirement(EgressRouterNameLabel, selection.Equals, []string{routerName})
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	egressNamespaceReq, err := labels.NewRequirement(EgressRouterNamespaceLabel, selection.Equals, []string{req.Namespace})
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	sourceReq, err := labels.NewRequirement(discoveryv1.LabelServiceName, selection.NotEquals, []string{svc.Name})
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	deleteSelector := labels.NewSelector().Add(*updateReq).Add(*egressNameReq).Add(*egressNamespaceReq).Add(*sourceReq)
-
-	err = r.Client.List(ctx, endpointSliceList, client.MatchingLabelsSelector{Selector: deleteSelector})
+	err = r.Client.List(ctx, endpointSliceList, &client.MatchingLabels{EgressRouterNameLabel: routerName, EgressRouterNamespaceLabel: req.Namespace})
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 	for _, item := range endpointSliceList.Items {
+		if _, ok := desired[client.ObjectKeyFromObject(&item)]; ok {
+			continue
+		}
 		if err := r.Client.Delete(ctx, &item); err != nil && !kerrors.IsNotFound(err) {
 			return ctrl.Result{}, err
 		}

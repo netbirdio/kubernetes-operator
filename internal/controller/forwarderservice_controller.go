@@ -9,7 +9,6 @@ import (
 	"maps"
 	"net/netip"
 	"strings"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
@@ -34,10 +33,10 @@ import (
 )
 
 const (
-	ForwarderRouterNameLabel   = "netbird.io/forwarder-router-name"
-	EgressRouterNameLabel      = "netbird.io/egress-router-name"
-	EgressRouterNamespaceLabel = "netbird.io/egress-router-namespace"
-	LastUpdatedLabel           = "netbird.io/last-updated"
+	ForwarderRouterNameLabel        = "netbird.io/forwarder-router-name"
+	EgressRouterNameLabel           = "netbird.io/egress-router-name"
+	EgressRouterNamespaceLabel      = "netbird.io/egress-router-namespace"
+	ForwarderEndpointSliceNameLabel = "netbird.io/forwarder-endpoint-slice-name"
 )
 
 // ForwarderServiceReconciler reconciles a EndpointSlice object
@@ -88,16 +87,12 @@ func (r *ForwarderServiceReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return ctrl.Result{}, err
 	}
 
-	// Get services for egress resources.
+	// Copy router endpoint slices to egress services.
 	egressSvcList := &corev1.ServiceList{}
 	err = r.Client.List(ctx, egressSvcList, &client.MatchingLabels{EgressRouterNameLabel: routerName, EgressRouterNamespaceLabel: req.Namespace})
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-
-	// Copy router endpoint slices to egress services.
-	lastUpdated := fmt.Sprintf("%d", time.Now().Unix())
-
 	for _, egressSvc := range egressSvcList.Items {
 		netEgress := &nbv1alpha1.NetworkEgress{
 			ObjectMeta: metav1.ObjectMeta{
@@ -110,29 +105,10 @@ func (r *ForwarderServiceReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			return ctrl.Result{}, err
 		}
 
-		targetPorts := []int32{}
-		for _, port := range egressSvc.Spec.Ports {
-			dest, err := func() (string, error) {
-				switch {
-				case netEgress.Spec.Target.IP != nil:
-					addr, err := netip.ParseAddr(netEgress.Spec.Target.IP.Address)
-					if err != nil {
-						return "", err
-					}
-					return netip.AddrPortFrom(addr, uint16(port.Port)).String(), nil
-				case netEgress.Spec.Target.FQDN != nil:
-					return fmt.Sprintf("%s:%d", netEgress.Spec.Target.FQDN.Hostname, port.Port), nil
-				}
-				return "", errors.New("egress target not found")
-			}()
-			if err != nil {
-				return ctrl.Result{}, err
-			}
-			rule := ruleMgr.Allocate(port.Protocol, dest)
-			targetPorts = append(targetPorts, rule.Port)
+		portACs, err := toPortApplyConfigurations(ruleMgr, egressSvc.Spec.Ports, netEgress.Spec.Target)
+		if err != nil {
+			return ctrl.Result{}, err
 		}
-		portACs := toPortApplyConfigurations(egressSvc.Spec.Ports, targetPorts)
-
 		egressSvcOwnerRef, err := k8sutil.ControllerReference(&egressSvc, r.Scheme())
 		if err != nil {
 			return ctrl.Result{}, err
@@ -140,12 +116,10 @@ func (r *ForwarderServiceReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		for _, endpointSlice := range endpointSliceList.Items {
 			nameSuffx := strings.TrimPrefix(endpointSlice.Name, endpointSlice.GenerateName)
 
-			labels := map[string]string{
-				discoveryv1.LabelServiceName: egressSvc.Name,
-				discoveryv1.LabelManagedBy:   "netbird-operator.netbird.io",
-				LastUpdatedLabel:             lastUpdated,
-			}
-			maps.Copy(labels, egressSvc.Labels)
+			labels := maps.Clone(egressSvc.Labels)
+			labels[discoveryv1.LabelManagedBy] = "netbird-operator.netbird.io"
+			labels[discoveryv1.LabelServiceName] = egressSvc.Name
+			labels[ForwarderEndpointSliceNameLabel] = endpointSlice.Name
 
 			endpointACs := toEndpointApplyConfigurations(endpointSlice.Endpoints)
 			endpointSliceAC := discoveryv1ac.EndpointSlice(fmt.Sprintf("%s-%s", egressSvc.Name, nameSuffx), egressSvc.Namespace).
@@ -175,10 +149,6 @@ func (r *ForwarderServiceReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}
 
 	// Cleanup old endpoint slices.
-	updateReq, err := labels.NewRequirement(LastUpdatedLabel, selection.NotEquals, []string{lastUpdated})
-	if err != nil {
-		return ctrl.Result{}, err
-	}
 	egressNameReq, err := labels.NewRequirement(EgressRouterNameLabel, selection.Equals, []string{routerName})
 	if err != nil {
 		return ctrl.Result{}, err
@@ -191,8 +161,18 @@ func (r *ForwarderServiceReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	deleteSelector := labels.NewSelector().Add(*updateReq).Add(*egressNameReq).Add(*egressNamespaceReq).Add(*sourceReq)
-
+	deleteSelector := labels.NewSelector().Add(*egressNameReq).Add(*egressNamespaceReq).Add(*sourceReq)
+	if len(endpointSliceList.Items) > 0 {
+		endpointSliceNames := []string{}
+		for _, endpointSlice := range endpointSliceList.Items {
+			endpointSliceNames = append(endpointSliceNames, endpointSlice.Name)
+		}
+		endPointSliceReq, err := labels.NewRequirement(ForwarderEndpointSliceNameLabel, selection.NotIn, endpointSliceNames)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		deleteSelector = deleteSelector.Add(*endPointSliceReq)
+	}
 	err = r.Client.List(ctx, endpointSliceList, client.MatchingLabelsSelector{Selector: deleteSelector})
 	if err != nil {
 		return ctrl.Result{}, err
@@ -331,14 +311,29 @@ func toEndpointApplyConfigurations(endpoints []discoveryv1.Endpoint) []*discover
 	return endpointACs
 }
 
-func toPortApplyConfigurations(ports []corev1.ServicePort, targetPorts []int32) []*discoveryv1ac.EndpointPortApplyConfiguration {
+func toPortApplyConfigurations(ruleMgr *forwarder.RuleManager, ports []corev1.ServicePort, target nbv1alpha1.NetworkEgressTarget) ([]*discoveryv1ac.EndpointPortApplyConfiguration, error) {
 	portACs := make([]*discoveryv1ac.EndpointPortApplyConfiguration, 0, len(ports))
-	for i, port := range ports {
-		portAC := discoveryv1ac.EndpointPort().WithName(port.Name).WithPort(targetPorts[i]).WithProtocol(port.Protocol)
+	for _, port := range ports {
+		dest := ""
+		switch {
+		case target.IP != nil:
+			addr, err := netip.ParseAddr(target.IP.Address)
+			if err != nil {
+				return nil, err
+			}
+			dest = netip.AddrPortFrom(addr, uint16(port.Port)).String()
+		case target.FQDN != nil:
+			dest = fmt.Sprintf("%s:%d", target.FQDN.Hostname, port.Port)
+		default:
+			return nil, errors.New("egress target not found")
+		}
+		rule := ruleMgr.Allocate(port.Protocol, dest)
+
+		portAC := discoveryv1ac.EndpointPort().WithName(port.Name).WithPort(rule.Port).WithProtocol(port.Protocol)
 		if port.AppProtocol != nil {
 			portAC = portAC.WithAppProtocol(*port.AppProtocol)
 		}
 		portACs = append(portACs, portAC)
 	}
-	return portACs
+	return portACs, nil
 }

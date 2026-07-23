@@ -9,7 +9,7 @@ require (
 	github.com/go-logr/logr v1.4.3
 	github.com/go-openapi/testify/v2 v2.6.0
 	github.com/google/uuid v1.6.0
-	github.com/netbirdio/kube-egress-forwarder v0.0.2
+	github.com/netbirdio/kube-egress-forwarder v0.0.3
 	github.com/netbirdio/netbird v0.74.7
 	github.com/onsi/ginkgo/v2 v2.32.0
 	github.com/onsi/gomega v1.42.1

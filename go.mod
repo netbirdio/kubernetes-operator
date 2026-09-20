@@ -11,7 +11,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/netbirdio/kube-egress-forwarder v0.0.3
 	github.com/netbirdio/netbird v0.74.7
-	github.com/onsi/ginkgo/v2 v2.32.0
+	github.com/onsi/ginkgo/v2 v2.33.0
 	github.com/onsi/gomega v1.42.1
 	golang.org/x/mod v0.38.0
 	k8s.io/api v0.36.2

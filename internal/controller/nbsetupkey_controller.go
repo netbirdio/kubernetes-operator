@@ -5,6 +5,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/google/uuid"
 	corev1 "k8s.io/api/core/v1"
@@ -24,6 +25,9 @@ type NBSetupKeyReconciler struct {
 	client.Client
 
 	ReferencedSecrets map[string]types.NamespacedName
+	// referencedSecretsMu guards ReferencedSecrets, which Reconcile writes while
+	// the secret watch handler reads it from another goroutine.
+	referencedSecretsMu sync.RWMutex
 }
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -55,6 +59,7 @@ func (r *NBSetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	// Handle updated secret name
+	r.referencedSecretsMu.Lock()
 	for k, v := range r.ReferencedSecrets {
 		if v == req.NamespacedName {
 			delete(r.ReferencedSecrets, k)
@@ -62,6 +67,7 @@ func (r *NBSetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 	}
 	r.ReferencedSecrets[fmt.Sprintf("%s/%s", nbSetupKey.Namespace, nbSetupKey.Spec.SecretKeyRef.Name)] = req.NamespacedName
+	r.referencedSecretsMu.Unlock()
 
 	secret := corev1.Secret{}
 	err = r.Get(ctx, types.NamespacedName{Namespace: nbSetupKey.Namespace, Name: nbSetupKey.Spec.SecretKeyRef.Name}, &secret)
@@ -125,17 +131,23 @@ func (r *NBSetupKeyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Named("nbsetupkey").
 		Watches(
 			&corev1.Secret{},
-			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
-				if v, ok := r.ReferencedSecrets[fmt.Sprintf("%s/%s", obj.GetNamespace(), obj.GetName())]; ok {
-					return []reconcile.Request{
-						{
-							NamespacedName: v,
-						},
-					}
-				}
-
-				return nil
-			}),
+			handler.EnqueueRequestsFromMapFunc(r.mapSecretToNBSetupKey),
 		). // Trigger reconciliation when a referenced secret changes
 		Complete(r)
+}
+
+// mapSecretToNBSetupKey returns a request for the NBSetupKey referencing the changed secret.
+func (r *NBSetupKeyReconciler) mapSecretToNBSetupKey(_ context.Context, obj client.Object) []reconcile.Request {
+	r.referencedSecretsMu.RLock()
+	v, ok := r.ReferencedSecrets[fmt.Sprintf("%s/%s", obj.GetNamespace(), obj.GetName())]
+	r.referencedSecretsMu.RUnlock()
+	if !ok {
+		return nil
+	}
+
+	return []reconcile.Request{
+		{
+			NamespacedName: v,
+		},
+	}
 }

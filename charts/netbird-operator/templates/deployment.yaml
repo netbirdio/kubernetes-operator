@@ -77,7 +77,7 @@ spec:
           {{- end }}
           ports:
             - name: webhook-server
-              containerPort: {{ .Values.webhook.service.port }}
+              containerPort: {{ .Values.webhook.service.targetPort }}
               protocol: TCP
           livenessProbe:
             failureThreshold: 3

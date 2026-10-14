@@ -15,6 +15,7 @@ import (
 	"github.com/go-openapi/testify/v2/assert"
 	"github.com/go-openapi/testify/v2/require"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -163,4 +164,87 @@ func groupIDs(groups []api.GroupMinimum) []string {
 		ids = append(ids, g.Id)
 	}
 	return ids
+}
+
+// TestNetworkResourceServiceTypes exposes a NodePort and a LoadBalancer Service
+// the way TestNetworkResource exposes a ClusterIP one: through the ClusterIP
+// every non-headless Service has, reachable by DNS name from a peer outside the
+// cluster. A Service with no ClusterIP is reported on the resource, not exposed.
+func TestNetworkResourceServiceTypes(t *testing.T) {
+	t.Parallel()
+	e := requireEnv(t)
+	fx := e.requireNetworkFixtures(t)
+	ns := e.createNamespace(t, "service-types")
+	router := e.createRouter(t, ns, 1)
+
+	for _, serviceType := range []corev1.ServiceType{corev1.ServiceTypeNodePort, corev1.ServiceTypeLoadBalancer} {
+		t.Run(string(serviceType), func(t *testing.T) {
+			t.Parallel()
+			// Kind has no load balancer, so a LoadBalancer Service never gets an
+			// external IP. The operator only needs the ClusterIP it has anyway.
+			svc := e.createBackendOfType(t, ns, strings.ToLower(string(serviceType)), serviceType)
+			require.NotEmpty(t, svc.Spec.ClusterIP)
+
+			res := resourceFor(ns, router, svc)
+			require.NoError(t, e.k8s.Create(t.Context(), res))
+			e.waitReady(t, res)
+
+			nbRes, err := e.nb.Networks.Resources(res.Status.NetworkID).Get(t.Context(), res.Status.ResourceID)
+			require.NoError(t, err)
+			assert.EqualT(t, svc.Spec.ClusterIP, resourceAddr(nbRes.Address), "the resource is the Service's ClusterIP")
+
+			record, err := e.nb.DNSZones.GetRecord(t.Context(), res.Status.DNSZoneID, res.Status.DNSRecordID)
+			require.NoError(t, err)
+			assert.EqualT(t, svc.Spec.ClusterIP, record.Content, "the record points at the ClusterIP")
+
+			fqdn := fmt.Sprintf("%s.%s.%s", svc.Name, ns, dnsZone)
+			requireReachable(t, fx.laptop, fmt.Sprintf("http://%s/hostname", fqdn), svc.Name+"-")
+		})
+	}
+
+	t.Run("ExternalName", func(t *testing.T) {
+		t.Parallel()
+		svc := &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{Name: "externalname", Namespace: ns},
+			Spec: corev1.ServiceSpec{
+				Type:         corev1.ServiceTypeExternalName,
+				ExternalName: "example.com",
+			},
+		}
+		require.NoError(t, e.k8s.Create(t.Context(), svc))
+
+		res := resourceFor(ns, router, svc)
+		require.NoError(t, e.k8s.Create(t.Context(), res))
+		want := "Referenced Service is of type ExternalName and has no ClusterIP."
+		require.NoError(t, eventually(t.Context(), readyTimeout, func(ctx context.Context) error {
+			if err := e.k8s.Get(ctx, client.ObjectKeyFromObject(res), res); err != nil {
+				return err
+			}
+			cond := meta.FindStatusCondition(res.GetConditions(), nbv1alpha1.ReadyCondition)
+			if cond == nil || cond.Status != metav1.ConditionFalse {
+				return fmt.Errorf("%s is not reported as not ready yet", res.Name)
+			}
+			if cond.Message != want {
+				return fmt.Errorf("%s is not ready for another reason: %s", res.Name, cond.Message)
+			}
+			return nil
+		}))
+		assert.Equal(t, "", res.Status.ResourceID, "nothing is created on the server for a Service without a ClusterIP")
+	})
+}
+
+// resourceFor is a NetworkResource that exposes svc through router in the group
+// the fixture policy lets the laptop reach.
+func resourceFor(ns string, router *nbv1alpha1.NetworkRouter, svc *corev1.Service) *nbv1alpha1.NetworkResource {
+	return &nbv1alpha1.NetworkResource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      svc.Name,
+			Namespace: ns,
+		},
+		Spec: nbv1alpha1.NetworkResourceSpec{
+			NetworkRouterRef: nbv1alpha1.CrossNamespaceReference{Name: router.Name, Namespace: ns},
+			ServiceRef:       corev1.LocalObjectReference{Name: svc.Name},
+			Groups:           []nbv1alpha1.GroupReference{{Name: new(resourcesGroup)}},
+		},
+	}
 }

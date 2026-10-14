@@ -33,6 +33,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	kruntime "k8s.io/apimachinery/pkg/runtime"
@@ -295,6 +296,7 @@ func TestE2E(t *testing.T) {
 			installOperator(t, k8sClient, kcPath, true, managementURL)
 
 			t.Run("cluster proxy", testClusterProxy(k8sClient, nbClient))
+			t.Run("network resource", testNetworkResource(k8sClient, nbClient))
 		})
 	}
 }
@@ -385,12 +387,120 @@ func testClusterProxy(k8sClient client.Client, nbClient *netbird.Client) func(*t
 
 		peers, err := nbClient.Peers.List(t.Context())
 		require.NoError(t, err)
-		require.Len(t, peers, 3)
+		// Routing peers from the network resource subtest share the account.
 		dnsLabel := "prod.netbird-kubeapi-proxy.netbird.selfhosted"
-		for _, peer := range peers {
+		proxyPeers := slices.DeleteFunc(peers, func(peer api.Peer) bool {
+			return !slices.Contains(peer.ExtraDnsLabels, dnsLabel)
+		})
+		require.Len(t, proxyPeers, 3)
+		for _, peer := range proxyPeers {
 			require.Len(t, peer.ExtraDnsLabels, 1)
 			require.Equal(t, dnsLabel, peer.ExtraDnsLabels[0])
 		}
+	}
+}
+
+func testNetworkResource(k8sClient client.Client, nbClient *netbird.Client) func(*testing.T) {
+	return func(t *testing.T) {
+		t.Parallel()
+
+		// The NetworkRouter controller looks the zone up but never creates it.
+		allGroup, err := nbClient.Groups.GetByName(t.Context(), "All")
+		require.NoError(t, err)
+		zoneReq := api.ZoneRequest{
+			Name:               "cluster.local",
+			Domain:             "cluster.local",
+			DistributionGroups: []string{allGroup.Id},
+		}
+		zone, err := nbClient.DNSZones.CreateZone(t.Context(), zoneReq)
+		require.NoError(t, err)
+
+		netRouter := &nbv1alpha1.NetworkRouter{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "e2e",
+				Namespace: netbirdNamespace,
+			},
+			Spec: nbv1alpha1.NetworkRouterSpec{
+				DNSZoneRef: nbv1alpha1.DNSZoneReference{
+					Name: zone.Name,
+				},
+			},
+		}
+		err = k8sClient.Create(t.Context(), netRouter)
+		require.NoError(t, err)
+		require.Eventually(t, func(ctx context.Context) error {
+			err := k8sClient.Get(ctx, client.ObjectKeyFromObject(netRouter), netRouter)
+			if err != nil {
+				return err
+			}
+			if !meta.IsStatusConditionTrue(netRouter.Status.Conditions, nbv1alpha1.ReadyCondition) {
+				return errors.New("waiting for network router to be ready")
+			}
+			return nil
+		}, 120*time.Second, 1*time.Second)
+
+		// Kind has no load balancer so the Service stays pending, but it still gets a ClusterIP.
+		svc := &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "e2e",
+				Namespace: netbirdNamespace,
+			},
+			Spec: corev1.ServiceSpec{
+				Type: corev1.ServiceTypeLoadBalancer,
+				Ports: []corev1.ServicePort{
+					{
+						Port: 80,
+					},
+				},
+			},
+		}
+		err = k8sClient.Create(t.Context(), svc)
+		require.NoError(t, err)
+		clusterIP, err := netip.ParseAddr(svc.Spec.ClusterIP)
+		require.NoError(t, err)
+
+		netResource := &nbv1alpha1.NetworkResource{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "e2e",
+				Namespace: netbirdNamespace,
+			},
+			Spec: nbv1alpha1.NetworkResourceSpec{
+				NetworkRouterRef: nbv1alpha1.CrossNamespaceReference{
+					Name:      netRouter.Name,
+					Namespace: netRouter.Namespace,
+				},
+				ServiceRef: corev1.LocalObjectReference{
+					Name: svc.Name,
+				},
+			},
+		}
+		err = k8sClient.Create(t.Context(), netResource)
+		require.NoError(t, err)
+		require.Eventually(t, func(ctx context.Context) error {
+			err := k8sClient.Get(ctx, client.ObjectKeyFromObject(netResource), netResource)
+			if err != nil {
+				return err
+			}
+			if !meta.IsStatusConditionTrue(netResource.Status.Conditions, nbv1alpha1.ReadyCondition) {
+				return errors.New("waiting for network resource to be ready")
+			}
+			return nil
+		}, 60*time.Second, 1*time.Second)
+
+		// The server reports a host address as a single IP prefix.
+		resource, err := nbClient.Networks.Resources(netResource.Status.NetworkID).Get(t.Context(), netResource.Status.ResourceID)
+		require.NoError(t, err)
+		require.Equal(t, netip.PrefixFrom(clusterIP, clusterIP.BitLen()).String(), resource.Address)
+
+		records, err := nbClient.DNSZones.ListRecords(t.Context(), zone.Id)
+		require.NoError(t, err)
+		recordName := fmt.Sprintf("%s.%s.%s", svc.Name, svc.Namespace, zone.Name)
+		idx := slices.IndexFunc(records, func(record api.DNSRecord) bool {
+			return record.Name == recordName
+		})
+		require.NotEqual(t, -1, idx)
+		require.Equal(t, api.DNSRecordTypeA, records[idx].Type)
+		require.Equal(t, clusterIP.String(), records[idx].Content)
 	}
 }
 

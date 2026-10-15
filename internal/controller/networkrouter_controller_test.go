@@ -148,6 +148,12 @@ var _ = Describe("NetworkRouter Controller", func() {
 				}
 			}
 			if override != nil {
+				Expect(dep.Spec.Template.Spec.Containers[0].Env).To(ContainElement(And(
+					HaveField("Name", "NB_SETUP_KEY"),
+					HaveField("Value", BeEmpty()),
+					HaveField("ValueFrom.SecretKeyRef.Name", setupKey.SecretName()),
+					HaveField("ValueFrom.SecretKeyRef.Key", SetupKeySecretKey),
+				)))
 				Expect(dep.Spec.Template.Spec.Containers[0].Env).To(ContainElement(corev1.EnvVar{
 					Name: "EXAMPLE_ENV", Value: "example",
 				}))

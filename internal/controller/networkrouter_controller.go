@@ -382,6 +382,7 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			if err != nil {
 				return ctrl.Result{}, err
 			}
+			podTemplateSpecAC = corev1ac.PodTemplateSpec()
 			err = json.Unmarshal(mergedJSON, &podTemplateSpecAC)
 			if err != nil {
 				return ctrl.Result{}, err

@@ -71,8 +71,8 @@ func (r *NetworkResourceReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		}
 		return ctrl.Result{}, err
 	}
-	if svc.Spec.Type != corev1.ServiceTypeClusterIP {
-		conditions.MarkFalse(netResource, nbv1alpha1.ReadyCondition, nbv1alpha1.DependencyReason, "Referenced Service is not of type ClusterIP.")
+	if svc.Spec.Type == corev1.ServiceTypeExternalName {
+		conditions.MarkFalse(netResource, nbv1alpha1.ReadyCondition, nbv1alpha1.DependencyReason, "Referenced Service is of type ExternalName and has no ClusterIP.")
 		err = sp.Patch(ctx, netResource)
 		if err != nil {
 			return ctrl.Result{}, err

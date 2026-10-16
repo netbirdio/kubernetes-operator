@@ -10,6 +10,7 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -29,10 +30,7 @@ var _ = Describe("NetworkResource Controller", func() {
 		var setupKeyRec *SetupKeyReconciler
 		var groupRec *GroupReconciler
 
-		nn := client.ObjectKey{
-			Name:      "test-resource",
-			Namespace: "network-resource",
-		}
+		var nn client.ObjectKey
 
 		BeforeEach(func() {
 			nbClient := netbirdmock.Client()
@@ -55,12 +53,17 @@ var _ = Describe("NetworkResource Controller", func() {
 				Netbird: nbClient,
 			}
 
+			// Envtest never finishes deleting a namespace, so every spec gets its own.
 			ns := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: nn.Namespace,
+					GenerateName: "network-resource-",
 				},
 			}
 			Expect(k8sClient.Create(ctx, ns)).To(Succeed())
+			nn = client.ObjectKey{
+				Name:      "test-resource",
+				Namespace: ns.Name,
+			}
 		})
 
 		AfterEach(func() {
@@ -77,7 +80,7 @@ var _ = Describe("NetworkResource Controller", func() {
 			Expect(k8sClient.Delete(ctx, ns)).To(Succeed())
 		})
 
-		It("creates a network resource and DNS record", func() {
+		createNetworkRouter := func() *nbv1alpha1.NetworkRouter {
 			zoneReq := api.ZoneRequest{
 				Name:   "cluster.local",
 				Domain: "cluster.local",
@@ -85,7 +88,6 @@ var _ = Describe("NetworkResource Controller", func() {
 			_, err := netRouterRec.Netbird.DNSZones.CreateZone(ctx, zoneReq)
 			Expect(err).ToNot(HaveOccurred())
 
-			// Create network router that we reference.
 			netRouter := &nbv1alpha1.NetworkRouter{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      nn.Name,
@@ -107,22 +109,22 @@ var _ = Describe("NetworkResource Controller", func() {
 				_, err = setupKeyRec.Reconcile(ctx, reconcile.Request{NamespacedName: key})
 				Expect(err).NotTo(HaveOccurred())
 			}
+			return netRouter
+		}
 
+		createService := func(spec corev1.ServiceSpec) *corev1.Service {
 			svc := &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
 					Namespace: nn.Namespace,
 				},
-				Spec: corev1.ServiceSpec{
-					Ports: []corev1.ServicePort{
-						{
-							Port: 8080,
-						},
-					},
-				},
+				Spec: spec,
 			}
 			Expect(k8sClient.Create(ctx, svc)).To(Succeed())
+			return svc
+		}
 
+		reconcileNetworkResource := func(netRouter *nbv1alpha1.NetworkRouter, svc *corev1.Service) *nbv1alpha1.NetworkResource {
 			netResource := &nbv1alpha1.NetworkResource{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      nn.Name,
@@ -139,15 +141,108 @@ var _ = Describe("NetworkResource Controller", func() {
 				},
 			}
 			Expect(k8sClient.Create(ctx, netResource)).To(Succeed())
-			_, err = netResourceRec.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+			_, err := netResourceRec.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
 			Expect(err).NotTo(HaveOccurred())
+			Expect(k8sClient.Get(ctx, nn, netResource)).To(Succeed())
+			return netResource
+		}
 
-			err = k8sClient.Get(ctx, nn, netResource)
-			Expect(err).NotTo(HaveOccurred())
+		expectExposed := func(netResource *nbv1alpha1.NetworkResource, svc *corev1.Service) {
+			Expect(meta.IsStatusConditionTrue(netResource.Status.Conditions, nbv1alpha1.ReadyCondition)).To(BeTrue())
 			Expect(netResource.Status.NetworkID).NotTo(BeEmpty())
 			Expect(netResource.Status.ResourceID).NotTo(BeEmpty())
 			Expect(netResource.Status.DNSZoneID).NotTo(BeEmpty())
 			Expect(netResource.Status.DNSRecordID).NotTo(BeEmpty())
+
+			resource, err := netResourceRec.Netbird.Networks.Resources(netResource.Status.NetworkID).Get(ctx, netResource.Status.ResourceID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(resource.Address).To(Equal(svc.Spec.ClusterIP))
+
+			record, err := netResourceRec.Netbird.DNSZones.GetRecord(ctx, netResource.Status.DNSZoneID, netResource.Status.DNSRecordID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(record.Content).To(Equal(svc.Spec.ClusterIP))
+		}
+
+		expectRejected := func(netResource *nbv1alpha1.NetworkResource, message string) {
+			cond := meta.FindStatusCondition(netResource.Status.Conditions, nbv1alpha1.ReadyCondition)
+			Expect(cond).NotTo(BeNil())
+			Expect(cond.Status).To(Equal(metav1.ConditionFalse))
+			Expect(cond.Message).To(Equal(message))
+			Expect(netResource.Status.ResourceID).To(BeEmpty())
+			Expect(netResource.Status.DNSRecordID).To(BeEmpty())
+		}
+
+		It("creates a network resource and DNS record", func() {
+			netRouter := createNetworkRouter()
+			svc := createService(corev1.ServiceSpec{
+				Ports: []corev1.ServicePort{
+					{
+						Port: 8080,
+					},
+				},
+			})
+
+			netResource := reconcileNetworkResource(netRouter, svc)
+			expectExposed(netResource, svc)
+		})
+
+		It("creates a network resource for a LoadBalancer Service", func() {
+			netRouter := createNetworkRouter()
+			// The API server allocates the ClusterIP even without a cloud provider.
+			svc := createService(corev1.ServiceSpec{
+				Type: corev1.ServiceTypeLoadBalancer,
+				Ports: []corev1.ServicePort{
+					{
+						Port: 8080,
+					},
+				},
+			})
+			Expect(svc.Spec.ClusterIP).NotTo(BeEmpty())
+
+			netResource := reconcileNetworkResource(netRouter, svc)
+			expectExposed(netResource, svc)
+		})
+
+		It("creates a network resource for a NodePort Service", func() {
+			netRouter := createNetworkRouter()
+			svc := createService(corev1.ServiceSpec{
+				Type: corev1.ServiceTypeNodePort,
+				Ports: []corev1.ServicePort{
+					{
+						Port: 8080,
+					},
+				},
+			})
+			Expect(svc.Spec.ClusterIP).NotTo(BeEmpty())
+
+			netResource := reconcileNetworkResource(netRouter, svc)
+			expectExposed(netResource, svc)
+		})
+
+		It("rejects an ExternalName Service", func() {
+			netRouter := createNetworkRouter()
+			svc := createService(corev1.ServiceSpec{
+				Type:         corev1.ServiceTypeExternalName,
+				ExternalName: "example.com",
+			})
+
+			netResource := reconcileNetworkResource(netRouter, svc)
+			expectRejected(netResource, "Referenced Service is of type ExternalName and has no ClusterIP.")
+		})
+
+		It("rejects a headless Service", func() {
+			netRouter := createNetworkRouter()
+			svc := createService(corev1.ServiceSpec{
+				ClusterIP: corev1.ClusterIPNone,
+				Ports: []corev1.ServicePort{
+					{
+						Port: 8080,
+					},
+				},
+			})
+
+			netResource := reconcileNetworkResource(netRouter, svc)
+			expectRejected(netResource, "Referenced Service does not have a ClusterIP set.")
 		})
 	})
 })

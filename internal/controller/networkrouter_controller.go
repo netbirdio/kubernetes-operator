@@ -307,6 +307,15 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 					).
 					WithStartupProbe(corev1ac.Probe().WithExec(corev1ac.ExecAction().WithCommand("netbird", "status", "--check", "startup"))).
 					WithReadinessProbe(corev1ac.Probe().WithExec(corev1ac.ExecAction().WithCommand("netbird", "status", "--check", "ready"))).
+					// Restart the container when the daemon stays logged out (NeedsLogin, LoginFailed or
+					// SessionExpired) for about a minute, for example after management deleted the ephemeral
+					// peer. The daemon never logs in again on its own; a restart enrolls it with the setup key.
+					WithLivenessProbe(corev1ac.Probe().
+						WithExec(corev1ac.ExecAction().WithCommand("netbird", "status", "--check", "ready")).
+						WithTimeoutSeconds(5).
+						WithPeriodSeconds(10).
+						WithFailureThreshold(6),
+					).
 					WithVolumeMounts(
 						corev1ac.VolumeMount().WithName("netbird-run").WithMountPath("/var/run/netbird"),
 						corev1ac.VolumeMount().WithName("netbird-lib").WithMountPath("/var/lib/netbird"),

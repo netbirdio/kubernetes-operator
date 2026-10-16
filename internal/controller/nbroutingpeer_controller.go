@@ -191,6 +191,9 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 								SecurityContext: r.buildSecurityContext(nbrp),
 								Resources:       nbrp.Spec.Resources,
 								VolumeMounts:    nbrp.Spec.VolumeMounts,
+								StartupProbe:    routingPeerStartupProbe(),
+								ReadinessProbe:  routingPeerReadinessProbe(),
+								LivenessProbe:   routingPeerLivenessProbe(),
 							},
 						},
 						Volumes: nbrp.Spec.Volumes,
@@ -261,6 +264,9 @@ func (r *NBRoutingPeerReconciler) handleDeployment(ctx context.Context, req ctrl
 		updatedDeployment.Spec.Template.Spec.Containers[0].SecurityContext = r.buildSecurityContext(nbrp)
 		updatedDeployment.Spec.Template.Spec.Containers[0].Resources = nbrp.Spec.Resources
 		updatedDeployment.Spec.Template.Spec.Containers[0].VolumeMounts = nbrp.Spec.VolumeMounts
+		updatedDeployment.Spec.Template.Spec.Containers[0].StartupProbe = routingPeerStartupProbe()
+		updatedDeployment.Spec.Template.Spec.Containers[0].ReadinessProbe = routingPeerReadinessProbe()
+		updatedDeployment.Spec.Template.Spec.Containers[0].LivenessProbe = routingPeerLivenessProbe()
 
 		patch := client.StrategicMergeFrom(&routingPeerDeployment)
 		bs, _ := patch.Data(updatedDeployment)
@@ -662,6 +668,42 @@ func (r *NBRoutingPeerReconciler) buildSecurityContext(nbrp *nbv1.NBRoutingPeer)
 	}
 
 	return securityContext
+}
+
+// routingPeerProbe builds an exec probe running "netbird status --check <check>".
+// Every field the API server would default is set explicitly, so the update path's
+// strategic merge patch stays empty when nothing changed.
+func routingPeerProbe(check string, periodSeconds, failureThreshold int32) *corev1.Probe {
+	return &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			Exec: &corev1.ExecAction{
+				Command: []string{"netbird", "status", "--check", check},
+			},
+		},
+		TimeoutSeconds:   5,
+		PeriodSeconds:    periodSeconds,
+		SuccessThreshold: 1,
+		FailureThreshold: failureThreshold,
+	}
+}
+
+// routingPeerStartupProbe holds off the readiness and liveness probes until the
+// peer has connected to management and signal for the first time (up to 5 minutes).
+func routingPeerStartupProbe() *corev1.Probe {
+	return routingPeerProbe("startup", 10, 30)
+}
+
+// routingPeerReadinessProbe marks the pod not ready while the daemon is logged out.
+func routingPeerReadinessProbe() *corev1.Probe {
+	return routingPeerProbe("ready", 10, 3)
+}
+
+// routingPeerLivenessProbe restarts the container when the daemon stays logged out
+// (NeedsLogin, LoginFailed or SessionExpired) for about a minute, for example after
+// management deleted the ephemeral peer. The daemon never logs in again on its own;
+// a restart runs "netbird up" with the setup key and enrolls the peer again.
+func routingPeerLivenessProbe() *corev1.Probe {
+	return routingPeerProbe("ready", 10, 6)
 }
 
 // SetupWithManager sets up the controller with the Manager.

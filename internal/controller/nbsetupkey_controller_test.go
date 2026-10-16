@@ -176,6 +176,49 @@ var _ = Describe("NBSetupKey Controller", func() {
 					Expect(controllerReconciler.ReferencedSecrets).To(HaveKey("default/test-resource"))
 				})
 			})
+
+			When("secret events arrive while reconciling", func() {
+				It("should map the secret without racing reconcile", func() {
+					createSecret("setupkey", "EEEEEEEE-EEEE-EEEE-EEEE-EEEEEEEEEEEE")
+
+					controllerReconciler := &NBSetupKeyReconciler{
+						Client:            k8sClient,
+						ReferencedSecrets: make(map[string]types.NamespacedName),
+					}
+					secretObj := &corev1.Secret{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: "default",
+							Name:      resourceName,
+						},
+					}
+
+					// Reconcile and the secret watch handler run in different goroutines in the manager.
+					done := make(chan struct{})
+					go func() {
+						defer GinkgoRecover()
+						defer close(done)
+						for range 50 {
+							_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+								NamespacedName: typeNamespacedName,
+							})
+							Expect(err).NotTo(HaveOccurred())
+						}
+					}()
+					for {
+						select {
+						case <-done:
+							Expect(controllerReconciler.mapSecretToNBSetupKey(ctx, secretObj)).To(Equal([]reconcile.Request{
+								{
+									NamespacedName: typeNamespacedName,
+								},
+							}))
+							return
+						default:
+							controllerReconciler.mapSecretToNBSetupKey(ctx, secretObj)
+						}
+					}
+				})
+			})
 		})
 	})
 })

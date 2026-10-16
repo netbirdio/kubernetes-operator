@@ -108,6 +108,22 @@ func (d *PodNetbirdInjector) Default(ctx context.Context, pod *corev1.Pod) error
 		return err
 	}
 
+	// Add resolv volume to containers.
+	for i, container := range pod.Spec.InitContainers {
+		pod.Spec.InitContainers[i].VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{
+			Name:      "resolv-conf",
+			MountPath: "/etc/resolv.conf",
+			SubPath:   "resolv.conf",
+		})
+	}
+	for i, container := range pod.Spec.Containers {
+		pod.Spec.Containers[i].VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{
+			Name:      "resolv-conf",
+			MountPath: "/etc/resolv.conf",
+			SubPath:   "resolv.conf",
+		})
+	}
+
 	// Add sidecar container.
 	envVars := []corev1.EnvVar{
 		{

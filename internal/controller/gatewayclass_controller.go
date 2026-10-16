@@ -18,7 +18,9 @@ import (
 )
 
 const (
-	GatewayControllerName = "gateway.netbird.io/controller"
+	GatewayControllerName   = "gateway.netbird.io/controller"
+	GatewayClassNamePublic  = "netbird-public"
+	GatewayClassNamePrivate = "netbird-private"
 )
 
 type GatewayClassReconciler struct {
@@ -45,7 +47,7 @@ func (r *GatewayClassReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	// Validate configuration.
 	message := func() string {
-		if gwc.Name != "netbird-public" && gwc.Name != "netbird-private" {
+		if gwc.Name != GatewayClassNamePublic && gwc.Name != GatewayClassNamePrivate {
 			return "GatewayClass name must be netbird-public or netbird-private."
 		}
 		if gwc.Spec.ParametersRef != nil {

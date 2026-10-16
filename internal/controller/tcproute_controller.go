@@ -42,7 +42,7 @@ func (r *TCPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	for _, parent := range tr.Spec.ParentRefs {
-		gw, err := gatewayutil.GetParentGateway(ctx, r.Client, parent, tr.Namespace, GatewayControllerName)
+		gw, _, err := gatewayutil.GetParentGateway(ctx, r.Client, parent, tr.Namespace, GatewayControllerName)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -106,7 +106,7 @@ func (r *TCPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 func (r *TCPRouteReconciler) reconcileDelete(ctx context.Context, sp *patch.SerialPatcher, tr *gwv1alpha2.TCPRoute) (ctrl.Result, error) {
 	for _, parent := range tr.Spec.ParentRefs {
-		gw, err := gatewayutil.GetParentGateway(ctx, r.Client, parent, tr.Namespace, GatewayControllerName)
+		gw, _, err := gatewayutil.GetParentGateway(ctx, r.Client, parent, tr.Namespace, GatewayControllerName)
 		if err != nil {
 			return ctrl.Result{}, err
 		}

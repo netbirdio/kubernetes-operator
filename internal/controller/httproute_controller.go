@@ -4,6 +4,8 @@ package controller
 
 import (
 	"context"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/fluxcd/pkg/runtime/conditions"
@@ -23,12 +25,35 @@ import (
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	"github.com/netbirdio/kubernetes-operator/internal/gatewayutil"
 	"github.com/netbirdio/kubernetes-operator/internal/k8sutil"
+	"github.com/netbirdio/kubernetes-operator/internal/netbirdutil"
 	nbv1alpha1ac "github.com/netbirdio/kubernetes-operator/pkg/applyconfigurations/api/v1alpha1"
 )
 
 const (
 	HTTPRouteFinalizer = "gateway.netbird.io/httproute"
+
+	// proxyServiceOwner is embedded in operator-managed reverse proxy
+	// service names so they can be told apart from services with a similar
+	// shape created outside the operator (e.g. in the NetBird UI).
+	proxyServiceOwner = "netbird-operator"
 )
+
+// proxyServiceName returns the name used for operator-managed reverse proxy
+// services: the hostname, the proxyServiceOwner marker, and the UID of the
+// HTTPRoute that manages it, separated by colons. Embedding the route UID lets
+// each route own its own service even when several routes share a hostname,
+// and keeps operator services distinct from ones created outside the operator
+// (e.g. in the NetBird UI). The marker and UID are always kept; when the full
+// name would exceed the server's 255 character limit the hostname is
+// shortened to leave room for them.
+func proxyServiceName(hostname, routeUID string) string {
+	const maxNameLen = 255
+	marker := ":" + proxyServiceOwner + ":" + routeUID
+	if maxHost := maxNameLen - len(marker); len(hostname) > maxHost {
+		hostname = hostname[:maxHost]
+	}
+	return hostname + marker
+}
 
 type HTTPRouteReconciler struct {
 	client.Client
@@ -52,7 +77,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	for _, parent := range hr.Spec.ParentRefs {
-		gw, err := gatewayutil.GetParentGateway(ctx, r.Client, parent, hr.Namespace, GatewayControllerName)
+		gw, gwc, err := gatewayutil.GetParentGateway(ctx, r.Client, parent, hr.Namespace, GatewayControllerName)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -137,6 +162,19 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			targets = append(targets, target)
 		}
 
+		// Private gateways register a mesh-only reverse proxy service instead
+		// of a public one. The groups that may reach it come from the backend
+		// services' netbird.io/groups annotation; when none is set, access
+		// defaults to denied.
+		private := gwc.Name == GatewayClassNamePrivate
+		var accessGroupIDs []string
+		if private {
+			accessGroupIDs, err = r.privateAccessGroupIDs(ctx, svcIdx, hr.Namespace)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+
 		// Create proxy service.
 		proxyServices, err := r.Netbird.ReverseProxyServices.List(ctx)
 		if err != nil {
@@ -146,31 +184,34 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			proxyReq := api.ServiceRequest{
 				Domain:           string(hostname),
 				Enabled:          true,
-				Name:             string(hostname),
+				Name:             proxyServiceName(string(hostname), string(hr.UID)),
 				Mode:             new(api.ServiceRequestModeHttp),
+				Private:          &private,
 				PassHostHeader:   new(false),
 				RewriteRedirects: new(false),
 				Targets:          &targets,
 			}
+			if private {
+				proxyReq.AccessGroups = &accessGroupIDs
+			}
 
-			err := func() error {
-				for _, proxyService := range proxyServices {
-					if proxyService.Domain != string(hostname) {
-						continue
-					}
-					_, err := r.Netbird.ReverseProxyServices.Update(ctx, proxyService.Id, proxyReq)
-					if err != nil {
-						return err
-					}
+			// Only touch the service this route owns; other services on the
+			// same domain belong to other routes or to the user.
+			updated := false
+			for _, proxyService := range proxyServices {
+				if proxyService.Domain != proxyReq.Domain || proxyService.Name != proxyReq.Name {
+					continue
 				}
-				_, err := r.Netbird.ReverseProxyServices.Create(ctx, proxyReq)
-				if err != nil {
-					return err
+				if _, err := r.Netbird.ReverseProxyServices.Update(ctx, proxyService.Id, proxyReq); err != nil {
+					return ctrl.Result{}, err
 				}
-				return nil
-			}()
-			if err != nil {
-				return ctrl.Result{}, err
+				updated = true
+				break
+			}
+			if !updated {
+				if _, err := r.Netbird.ReverseProxyServices.Create(ctx, proxyReq); err != nil {
+					return ctrl.Result{}, err
+				}
 			}
 		}
 	}
@@ -178,19 +219,42 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return ctrl.Result{}, nil
 }
 
-func (r *HTTPRouteReconciler) reconcileDelete(ctx context.Context, sp *patch.SerialPatcher, hr *gwv1.HTTPRoute) (ctrl.Result, error) {
-	// Index all proxy services.
-	proxyServices, err := r.Netbird.ReverseProxyServices.List(ctx)
-	if err != nil {
-		return ctrl.Result{}, err
+// privateAccessGroupIDs resolves the NetBird groups that may reach a private
+// route over the tunnel. The groups are the union of the backend services'
+// netbird.io/groups annotations; when no group is specified the result is
+// empty, which denies access by default.
+func (r *HTTPRouteReconciler) privateAccessGroupIDs(ctx context.Context, services map[string]corev1.Service, namespace string) ([]string, error) {
+	names := map[string]struct{}{}
+	for _, svc := range services {
+		for g := range strings.SplitSeq(svc.Annotations[serviceGroupsAnnotation], ",") {
+			if g = strings.TrimSpace(g); g != "" {
+				names[g] = struct{}{}
+			}
+		}
 	}
-	proxyIdx := map[string]string{}
-	for _, proxyService := range proxyServices {
-		proxyIdx[proxyService.Domain] = proxyService.Id
+	if len(names) == 0 {
+		return []string{}, nil
 	}
 
+	sorted := make([]string, 0, len(names))
+	for name := range names {
+		sorted = append(sorted, name)
+	}
+	sort.Strings(sorted)
+
+	refs := make([]nbv1alpha1.GroupReference, 0, len(sorted))
+	for _, name := range sorted {
+		n := name
+		refs = append(refs, nbv1alpha1.GroupReference{Name: &n})
+	}
+	return netbirdutil.GetGroupIDs(ctx, r.Client, r.Netbird, refs, namespace)
+}
+
+func (r *HTTPRouteReconciler) reconcileDelete(ctx context.Context, sp *patch.SerialPatcher, hr *gwv1.HTTPRoute) (ctrl.Result, error) {
+	var proxyIdx map[string]string
+
 	for _, parent := range hr.Spec.ParentRefs {
-		gw, err := gatewayutil.GetParentGateway(ctx, r.Client, parent, hr.Namespace, GatewayControllerName)
+		gw, _, err := gatewayutil.GetParentGateway(ctx, r.Client, parent, hr.Namespace, GatewayControllerName)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -244,9 +308,21 @@ func (r *HTTPRouteReconciler) reconcileDelete(ctx context.Context, sp *patch.Ser
 			}
 		}
 
-		// Remove the target from the proxy service.
+		if proxyIdx == nil {
+			proxyServices, err := r.Netbird.ReverseProxyServices.List(ctx)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			proxyIdx = make(map[string]string, len(proxyServices))
+			for _, proxyService := range proxyServices {
+				proxyIdx[proxyService.Name] = proxyService.Id
+			}
+		}
+
+		// Remove the proxy service owned by this route; services with the
+		// same domain owned by other routes are left in place.
 		for _, hostname := range hr.Spec.Hostnames {
-			id, ok := proxyIdx[string(hostname)]
+			id, ok := proxyIdx[proxyServiceName(string(hostname), string(hr.UID))]
 			if !ok {
 				continue
 			}
@@ -258,7 +334,7 @@ func (r *HTTPRouteReconciler) reconcileDelete(ctx context.Context, sp *patch.Ser
 	}
 
 	controllerutil.RemoveFinalizer(hr, k8sutil.Finalizer("httproute"))
-	err = sp.Patch(ctx, hr)
+	err := sp.Patch(ctx, hr)
 	if err != nil {
 		return ctrl.Result{}, err
 	}

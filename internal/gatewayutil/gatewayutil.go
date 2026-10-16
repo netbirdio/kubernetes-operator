@@ -15,27 +15,27 @@ import (
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 )
 
-func GetParentGateway(ctx context.Context, k8sClient client.Client, parent gwv1.ParentReference, namespace, controllerName string) (*gwv1.Gateway, error) {
+func GetParentGateway(ctx context.Context, k8sClient client.Client, parent gwv1.ParentReference, namespace, controllerName string) (*gwv1.Gateway, *gwv1.GatewayClass, error) {
 	if parent.Namespace != nil {
 		namespace = string(*parent.Namespace)
 	}
 	gw := &gwv1.Gateway{}
 	err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: string(parent.Name)}, gw)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	gwc := &gwv1.GatewayClass{}
 	err = k8sClient.Get(ctx, client.ObjectKey{Name: string(gw.Spec.GatewayClassName)}, gwc)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if string(gwc.Spec.ControllerName) != controllerName {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	// TODO (phillebaba): Enforce allowed routes in gateway.
 
-	return gw, nil
+	return gw, gwc, nil
 }
 
 func GetGatewayNetworkRouter(ctx context.Context, k8sClient client.Client, gw *gwv1.Gateway) (*nbv1alpha1.NetworkRouter, error) {

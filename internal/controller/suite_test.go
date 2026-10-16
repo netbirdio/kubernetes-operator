@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	nbv1 "github.com/netbirdio/kubernetes-operator/api/v1"
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
@@ -54,11 +55,17 @@ var _ = BeforeSuite(func() {
 	err = nbv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
+	err = gwv1.Install(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
 	// +kubebuilder:scaffold:scheme
 
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "charts", "netbird-operator", "crds")},
+		CRDDirectoryPaths: []string{
+			filepath.Join("..", "..", "charts", "netbird-operator", "crds"),
+			filepath.Join("..", "..", "internal", "controller", "testdata", "crd"),
+		},
 		ErrorIfCRDPathMissing: true,
 	}
 

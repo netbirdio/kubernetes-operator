@@ -853,6 +853,42 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								Expect(deployment.Spec.Replicas).To(BeEquivalentTo(new(int32(0))))
 								Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(1))
 								Expect(deployment.Spec.Template.Spec.Containers[0].Image).To(Equal(controllerReconciler.ClientImage))
+
+								container := deployment.Spec.Template.Spec.Containers[0]
+								Expect(container.StartupProbe).NotTo(BeNil())
+								Expect(container.StartupProbe.Exec.Command).To(Equal([]string{"netbird", "status", "--check", "startup"}))
+								Expect(container.ReadinessProbe).NotTo(BeNil())
+								Expect(container.ReadinessProbe.Exec.Command).To(Equal([]string{"netbird", "status", "--check", "ready"}))
+								Expect(container.LivenessProbe).NotTo(BeNil())
+								Expect(container.LivenessProbe.Exec.Command).To(Equal([]string{"netbird", "status", "--check", "ready"}))
+								Expect(container.LivenessProbe.FailureThreshold).To(BeEquivalentTo(6))
+							})
+						})
+
+						When("Deployment exists without probes", func() {
+							It("should add the probes", func() {
+								_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+									NamespacedName: typeNamespacedName,
+								})
+								Expect(err).NotTo(HaveOccurred())
+
+								deployment := &appsv1.Deployment{}
+								Expect(k8sClient.Get(ctx, typeNamespacedName, deployment)).To(Succeed())
+								deployment.Spec.Template.Spec.Containers[0].StartupProbe = nil
+								deployment.Spec.Template.Spec.Containers[0].ReadinessProbe = nil
+								deployment.Spec.Template.Spec.Containers[0].LivenessProbe = nil
+								Expect(k8sClient.Update(ctx, deployment)).To(Succeed())
+
+								_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
+									NamespacedName: typeNamespacedName,
+								})
+								Expect(err).NotTo(HaveOccurred())
+								deployment = &appsv1.Deployment{}
+								Expect(k8sClient.Get(ctx, typeNamespacedName, deployment)).To(Succeed())
+								container := deployment.Spec.Template.Spec.Containers[0]
+								Expect(container.StartupProbe).NotTo(BeNil())
+								Expect(container.ReadinessProbe).NotTo(BeNil())
+								Expect(container.LivenessProbe).NotTo(BeNil())
 							})
 						})
 

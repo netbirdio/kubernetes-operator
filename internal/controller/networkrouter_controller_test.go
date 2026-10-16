@@ -158,6 +158,11 @@ var _ = Describe("NetworkRouter Controller", func() {
 					Name: "EXAMPLE_ENV", Value: "example",
 				}))
 			}
+			nbContainer := dep.Spec.Template.Spec.Containers[0]
+			Expect(nbContainer.Name).To(Equal("netbird"))
+			Expect(nbContainer.LivenessProbe).NotTo(BeNil())
+			Expect(nbContainer.LivenessProbe.Exec.Command).To(Equal([]string{"netbird", "status", "--check", "ready"}))
+			Expect(nbContainer.LivenessProbe.FailureThreshold).To(BeEquivalentTo(6))
 
 			routingPeerResp, err := netRouterRec.Netbird.Networks.Routers(netRouter.Status.NetworkID).Get(ctx, netRouter.Status.RoutingPeerID)
 			Expect(err).NotTo(HaveOccurred())

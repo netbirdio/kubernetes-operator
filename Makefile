@@ -43,13 +43,15 @@ internal/controller/testdata/crd/gateway-api.yaml: go.mod
 .PHONY: lint
 lint:
 	@golangci-lint run ./...
+	@cd test/e2e && golangci-lint run --build-tags e2e ./...
 
 .PHONY: test-unit
 test-unit: setup-envtest
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -v ./... -coverprofile=coverage.txt
 
+.PHONY: test-e2e
 test-e2e: build-image
-	cd ./test/e2e && IMG_REF=${IMG_REF} go test ./... -v -count 1
+	cd ./test/e2e && IMG_REF=${IMG_REF} go test -tags e2e ./... -v -count 1 -timeout 30m
 
 .PHONY: build
 build: generate bin/linux-$(shell go env GOARCH)/netbird-operator

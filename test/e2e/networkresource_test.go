@@ -112,7 +112,11 @@ func (e *environment) setResourceGroups(t *testing.T, res *nbv1alpha1.NetworkRes
 // starts with want.
 func requireReachable(t *testing.T, peer *harness.Client, url, want string) {
 	t.Helper()
-	require.Eventually(t, func(ctx context.Context) error {
+	require.NoError(t, waitReachable(t.Context(), peer, url, want))
+}
+
+func waitReachable(ctx context.Context, peer *harness.Client, url, want string) error {
+	return eventually(ctx, reachTimeout, func(ctx context.Context) error {
 		body, err := httpGet(ctx, peer, url)
 		if err != nil {
 			return err
@@ -121,7 +125,7 @@ func requireReachable(t *testing.T, peer *harness.Client, url, want string) {
 			return fmt.Errorf("GET %s answered %q, want a body starting with %q", url, body, want)
 		}
 		return nil
-	}, reachTimeout, 3*time.Second)
+	})
 }
 
 // requireUnreachable waits until GETs from the peer fail unreachableFailures

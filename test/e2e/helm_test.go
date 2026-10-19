@@ -71,6 +71,11 @@ func (e *environment) installOperator(ctx context.Context, operatorImage, apiKey
 		if err := e.helmInstallOrUpgrade(ctx, cfg, chartPath, e.operatorValues()); err != nil {
 			return fmt.Errorf("install the published chart %s: %w", version, err)
 		}
+		log.Printf("e2e: creating objects with the published operator")
+		e.upgrade, err = e.createUpgradeFixtures(ctx)
+		if err != nil {
+			return fmt.Errorf("create objects with the published operator %s: %w", version, err)
+		}
 	}
 
 	vals, err := e.devValues(operatorImage)
@@ -92,6 +97,10 @@ func (e *environment) operatorValues() map[string]any {
 		"managementURL":      managementURL,
 		"routingClientImage": e.clientImage,
 		"gatewayAPI": map[string]any{
+			"enabled": true,
+		},
+		// Installs the NBGroup webhook the deprecated v1 path relies on.
+		"ingress": map[string]any{
 			"enabled": true,
 		},
 		"webhook": map[string]any{

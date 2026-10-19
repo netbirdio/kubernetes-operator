@@ -119,16 +119,18 @@ func (e *environment) onlyPod(t *testing.T, namespace, app string) corev1.Pod {
 	return pods.Items[0]
 }
 
-// waitPeerWithLabel waits for a connected peer carrying the extra DNS label.
+// waitPeerWithLabel waits for a connected peer carrying the extra DNS label. The
+// API lists extra labels as names in the account's DNS domain.
 func (e *environment) waitPeerWithLabel(t *testing.T, label string) api.Peer {
 	t.Helper()
+	name := label + "." + netbirdDNSDomain
 	var peer api.Peer
 	require.Eventually(t, func(ctx context.Context) error {
 		peers, err := e.nb.Peers.List(ctx)
 		if err != nil {
 			return err
 		}
-		idx := slices.IndexFunc(peers, func(p api.Peer) bool { return slices.Contains(p.ExtraDnsLabels, label) })
+		idx := slices.IndexFunc(peers, func(p api.Peer) bool { return slices.Contains(p.ExtraDnsLabels, name) })
 		if idx == -1 {
 			return fmt.Errorf("no peer carries the label %s", label)
 		}

@@ -141,6 +141,10 @@ ingress:
   namespacedNetworks: false
   # Allow creating policies through Service annotations
   allowAutomaticPolicyCreation: false
+  # The routing peer template still reads this, so releases installed with
+  # ingress enabled before its other options were removed keep rendering.
+  router:
+    enabled: false
 
 cluster:
   # Cluster DNS name (used for webhooks certificates and for network resource DNS names)

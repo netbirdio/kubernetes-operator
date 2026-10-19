@@ -122,7 +122,7 @@ func (e *environment) createNetworkFixtures(ctx context.Context) (*networkFixtur
 		return fx, fmt.Errorf("start the %s peer: %w", laptopName, err)
 	}
 	if err := fx.laptop.WaitConnected(ctx, 3*time.Minute); err != nil {
-		return fx, fmt.Errorf("connect the %s peer: %w\n%s", laptopName, err, tail(fx.laptop.Logs(ctx), serverLogLines))
+		return fx, fmt.Errorf("connect the %s peer: %w\n%s", laptopName, err, tail(fx.laptop.Logs(ctx)))
 	}
 	return fx, nil
 }

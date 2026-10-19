@@ -7,7 +7,9 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"log"
 	"testing"
+	"time"
 
 	"github.com/go-openapi/testify/v2/assert"
 	corev1 "k8s.io/api/core/v1"
@@ -37,7 +39,7 @@ type upgradeFixtures struct {
 // createUpgradeFixtures has the published operator expose a Service and create
 // a group, and confirms the Service is reachable, before the upgrade replaces
 // that operator.
-func (e *environment) createUpgradeFixtures(ctx context.Context) (*upgradeFixtures, error) {
+func (e *environment) createUpgradeFixtures(ctx context.Context) (_ *upgradeFixtures, err error) {
 	e.networkOnce.Do(func() {
 		e.network, e.networkErr = e.createNetworkFixtures(ctx)
 	})
@@ -49,6 +51,14 @@ func (e *environment) createUpgradeFixtures(ctx context.Context) (*upgradeFixtur
 	if err := e.k8s.Create(ctx, ns); err != nil {
 		return nil, err
 	}
+	defer func() {
+		if err == nil {
+			return
+		}
+		dctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		log.Printf("e2e: namespace %s:\n%s", ns.Name, e.describeNamespace(dctx, ns.Name))
+	}()
 	group := &nbv1alpha1.Group{
 		ObjectMeta: metav1.ObjectMeta{Name: "group", Namespace: ns.Name},
 		Spec:       nbv1alpha1.GroupSpec{Name: "e2e-upgrade-" + rand.String(6)},

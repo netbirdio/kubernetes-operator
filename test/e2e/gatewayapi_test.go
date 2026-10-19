@@ -141,7 +141,7 @@ func (e *environment) startProxy(ctx context.Context) (*harness.Proxy, error) {
 		return false, nil
 	})
 	if err != nil {
-		return proxy, fmt.Errorf("wait for the proxy cluster to come online: %w\n%s", err, tail(proxy.Logs(ctx), serverLogLines))
+		return proxy, fmt.Errorf("wait for the proxy cluster to come online: %w\n%s", err, tail(proxy.Logs(ctx)))
 	}
 	return proxy, nil
 }

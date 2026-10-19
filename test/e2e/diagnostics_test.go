@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"slices"
 	"strings"
 	"testing"
@@ -40,10 +41,23 @@ func requireEnv(t *testing.T) *environment {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
-		t.Logf("netbird-server log (tail):\n%s", tail(e.srv.Logs(ctx), serverLogLines))
+		t.Logf("netbird-server log (tail):\n%s", tail(e.srv.Logs(ctx)))
 		t.Logf("namespace %s:\n%s", netbirdNamespace, e.describeNamespace(ctx, netbirdNamespace))
 	})
 	return e
+}
+
+// logDiagnostics logs what requireEnv logs for a failed test, for a failure
+// before any test ran.
+func (e *environment) logDiagnostics() {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	if e.srv != nil {
+		log.Printf("e2e: netbird-server log (tail):\n%s", tail(e.srv.Logs(ctx)))
+	}
+	if e.clientset != nil {
+		log.Printf("e2e: namespace %s:\n%s", netbirdNamespace, e.describeNamespace(ctx, netbirdNamespace))
+	}
 }
 
 // createNamespace creates a namespace for one test, named after prefix. When the
@@ -140,11 +154,11 @@ func eventTime(ev corev1.Event) time.Time {
 	return ev.EventTime.Time
 }
 
-// tail returns the last n lines of a log.
-func tail(log string, n int) string {
-	lines := strings.Split(strings.TrimRight(log, "\n"), "\n")
-	if len(lines) > n {
-		lines = lines[len(lines)-n:]
+// tail returns the last serverLogLines lines of a log.
+func tail(logs string) string {
+	lines := strings.Split(strings.TrimRight(logs, "\n"), "\n")
+	if len(lines) > serverLogLines {
+		lines = lines[len(lines)-serverLogLines:]
 	}
 	return strings.Join(lines, "\n")
 }

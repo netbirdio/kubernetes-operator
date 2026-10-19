@@ -85,12 +85,15 @@ func (e *environment) installOperator(ctx context.Context, operatorImage, apiKey
 }
 
 // operatorValues are the values every install shares: the deployment's
-// management address, the client build the agents run, and self-signed webhook
-// certificates instead of cert-manager.
+// management address, the client build the agents run, Gateway API support,
+// and self-signed webhook certificates instead of cert-manager.
 func (e *environment) operatorValues() map[string]any {
 	return map[string]any{
 		"managementURL":      managementURL,
 		"routingClientImage": e.clientImage,
+		"gatewayAPI": map[string]any{
+			"enabled": true,
+		},
 		"webhook": map[string]any{
 			"enableCertManager": false,
 		},

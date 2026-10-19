@@ -627,6 +627,35 @@ var _ = Describe("NBPolicy Controller", func() {
 				err = k8sClient.Get(ctx, typeNamespacedName, nbpolicy)
 				Expect(errors.IsNotFound(err)).To(BeTrue())
 			})
+
+			It("should finish when the policies are already gone", func() {
+				controllerReconciler := &NBPolicyReconciler{
+					Client:  k8sClient,
+					Netbird: netbirdClient,
+				}
+
+				nbpolicy.Status.TCPPolicyID = new("policyidtcp")
+				nbpolicy.Status.UDPPolicyID = new("policyidudp")
+				Expect(k8sClient.Status().Update(ctx, nbpolicy)).To(Succeed())
+
+				Expect(k8sClient.Delete(ctx, nbpolicy)).To(Succeed())
+
+				for _, id := range []string{"policyidtcp", "policyidudp"} {
+					mux.HandleFunc("/api/policies/"+id, func(w http.ResponseWriter, r *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, err := w.Write([]byte(`{"message":"policy not found","code":404}`))
+						Expect(err).NotTo(HaveOccurred())
+					})
+				}
+
+				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+					NamespacedName: typeNamespacedName,
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				err = k8sClient.Get(ctx, typeNamespacedName, nbpolicy)
+				Expect(errors.IsNotFound(err)).To(BeTrue())
+			})
 		})
 	})
 })

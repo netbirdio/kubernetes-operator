@@ -351,14 +351,14 @@ func (r *NBPolicyReconciler) syncPolicy(ctx context.Context, nbPolicy *nbv1.NBPo
 func (r *NBPolicyReconciler) handleDelete(ctx context.Context, nbPolicy *nbv1.NBPolicy, logger logr.Logger) error {
 	if nbPolicy.Status.TCPPolicyID != nil {
 		err := r.Netbird.Policies.Delete(ctx, *nbPolicy.Status.TCPPolicyID)
-		if err != nil && !strings.Contains("not found", err.Error()) {
+		if err != nil && !netbird.IsNotFound(err) {
 			return err
 		}
 		nbPolicy.Status.TCPPolicyID = nil
 	}
 	if nbPolicy.Status.UDPPolicyID != nil {
 		err := r.Netbird.Policies.Delete(ctx, *nbPolicy.Status.UDPPolicyID)
-		if err != nil && !strings.Contains("not found", err.Error()) {
+		if err != nil && !netbird.IsNotFound(err) {
 			return err
 		}
 		nbPolicy.Status.UDPPolicyID = nil

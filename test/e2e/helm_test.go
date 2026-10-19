@@ -99,10 +99,6 @@ func (e *environment) operatorValues() map[string]any {
 		"gatewayAPI": map[string]any{
 			"enabled": true,
 		},
-		// Installs the NBGroup webhook the deprecated v1 path relies on.
-		"ingress": map[string]any{
-			"enabled": true,
-		},
 		"webhook": map[string]any{
 			"enableCertManager": false,
 		},

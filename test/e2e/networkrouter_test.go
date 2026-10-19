@@ -28,19 +28,19 @@ func TestNetworkRouter(t *testing.T) {
 	e.requireNetworkFixtures(t)
 	ns := e.createNamespace(t, "router")
 
-	router := e.createRouter(t, ns, "router", 3)
+	router := e.createRouter(t, ns, 3)
 	require.NotEmpty(t, router.Status.NetworkID, "status.networkID")
 	require.NotEmpty(t, router.Status.RoutingPeerID, "status.routingPeerID")
 
 	dep := &appsv1.Deployment{}
-	require.NoError(t, e.k8s.Get(t.Context(), client.ObjectKey{Namespace: ns, Name: "networkrouter-router"}, dep))
+	require.NoError(t, e.k8s.Get(t.Context(), client.ObjectKey{Namespace: ns, Name: "networkrouter-" + router.Name}, dep))
 	assert.EqualT(t, int32(3), dep.Status.ReadyReplicas, "Ready must mean every routing peer is ready")
 
 	group := &nbv1alpha1.Group{}
-	require.NoError(t, e.k8s.Get(t.Context(), client.ObjectKey{Namespace: ns, Name: "networkrouter-router"}, group))
+	require.NoError(t, e.k8s.Get(t.Context(), client.ObjectKey{Namespace: ns, Name: "networkrouter-" + router.Name}, group))
 	require.NotEmpty(t, group.Status.GroupID, "the router's group has no NetBird ID")
 	setupKey := &nbv1alpha1.SetupKey{}
-	require.NoError(t, e.k8s.Get(t.Context(), client.ObjectKey{Namespace: ns, Name: "networkrouter-router"}, setupKey))
+	require.NoError(t, e.k8s.Get(t.Context(), client.ObjectKey{Namespace: ns, Name: "networkrouter-" + router.Name}, setupKey))
 	require.NotEmpty(t, setupKey.Status.SetupKeyID, "the router's setup key has no NetBird ID")
 
 	network, err := e.nb.Networks.Get(t.Context(), router.Status.NetworkID)

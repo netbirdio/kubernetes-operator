@@ -95,7 +95,7 @@ var _ = Describe("NBGroup Webhook", func() {
 						OwnerReferences: []metav1.OwnerReference{
 							{
 								APIVersion: nbv1.GroupVersion.Identifier(),
-								Kind:       nbResource.Kind,
+								Kind:       "NBResource",
 								Name:       nbResource.Name,
 								UID:        nbResource.UID,
 							},
@@ -141,7 +141,7 @@ var _ = Describe("NBGroup Webhook", func() {
 						OwnerReferences: []metav1.OwnerReference{
 							{
 								APIVersion: nbv1.GroupVersion.Identifier(),
-								Kind:       nbrp.Kind,
+								Kind:       "NBRoutingPeer",
 								Name:       nbrp.Name,
 								UID:        nbrp.UID,
 							},

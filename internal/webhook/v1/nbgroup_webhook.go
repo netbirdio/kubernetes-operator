@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -50,7 +51,12 @@ func (v *NBGroupCustomValidator) ValidateDelete(ctx context.Context, nbgroup *nb
 	nbgrouplog.Info("Validation for NBGroup upon deletion", "name", nbgroup.GetName())
 
 	for _, o := range nbgroup.OwnerReferences {
-		if o.Kind == (&nbv1.NBResource{}).Kind {
+		gv, err := schema.ParseGroupVersion(o.APIVersion)
+		if err != nil || gv.Group != nbv1.GroupVersion.Group {
+			continue
+		}
+		switch o.Kind {
+		case "NBResource":
 			var nbResource nbv1.NBResource
 			err := v.client.Get(ctx, types.NamespacedName{Namespace: nbgroup.Namespace, Name: o.Name}, &nbResource)
 			if err != nil && !errors.IsNotFound(err) {
@@ -59,8 +65,7 @@ func (v *NBGroupCustomValidator) ValidateDelete(ctx context.Context, nbgroup *nb
 			if err == nil && nbResource.DeletionTimestamp == nil {
 				return nil, fmt.Errorf("group attached to NBResource %s/%s", nbgroup.Namespace, o.Name)
 			}
-		}
-		if o.Kind == (&nbv1.NBRoutingPeer{}).Kind {
+		case "NBRoutingPeer":
 			var nbResource nbv1.NBRoutingPeer
 			err := v.client.Get(ctx, types.NamespacedName{Namespace: nbgroup.Namespace, Name: o.Name}, &nbResource)
 			if err != nil && !errors.IsNotFound(err) {

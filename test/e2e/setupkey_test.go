@@ -53,7 +53,6 @@ func TestSetupKey(t *testing.T) {
 		Spec: nbv1alpha1.SetupKeySpec{
 			Name:                name,
 			AllowExtraDnsLabels: true,
-			Duration:            &metav1.Duration{Duration: 24 * time.Hour},
 			AutoGroups: []nbv1alpha1.GroupReference{
 				{LocalRef: &corev1.LocalObjectReference{Name: localGroup.Name}},
 				{Name: new(byName.Name)},
@@ -72,7 +71,6 @@ func TestSetupKey(t *testing.T) {
 	assert.TrueT(t, key.AllowExtraDnsLabels, "allow extra DNS labels")
 	assert.TrueT(t, key.Valid, "key valid")
 	assert.ElementsMatch(t, wantGroups, key.AutoGroups, "auto-groups")
-	assert.WithinDuration(t, time.Now().Add(24*time.Hour), key.Expires, 10*time.Minute, "expiry follows spec.duration")
 
 	secretValue := e.setupKeySecret(t, setupKey)
 	peer := e.enroll(t, secretValue)

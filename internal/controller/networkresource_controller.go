@@ -4,6 +4,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -120,7 +121,11 @@ func (r *NetworkResourceReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, err
 	}
 
-	controllerutil.AddFinalizer(netResource, k8sutil.Finalizer("networkresource"))
+	if controllerutil.AddFinalizer(netResource, k8sutil.Finalizer("networkresource")) {
+		if err := sp.Patch(ctx, netResource); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
 
 	resourceID, err := func() (string, error) {
 		netReq := api.NetworkResourceRequest{
@@ -163,37 +168,32 @@ func (r *NetworkResourceReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	// If zone has changed we need to delete the old records.
 	if netResource.Status.DNSZoneID != "" && netResource.Status.DNSZoneID != zone.Id {
-		err = r.Netbird.DNSZones.DeleteRecord(ctx, netResource.Status.DNSZoneID, netResource.Status.DNSRecordID)
-		if err != nil && !netbird.IsNotFound(err) {
-			return ctrl.Result{}, err
+		if netResource.Status.DNSRecordID != "" {
+			err = r.Netbird.DNSZones.DeleteRecord(ctx, netResource.Status.DNSZoneID, netResource.Status.DNSRecordID)
+			if err != nil && !netbird.IsNotFound(err) {
+				return ctrl.Result{}, err
+			}
 		}
 		netResource.Status.DNSZoneID = ""
 		netResource.Status.DNSRecordID = ""
 	}
 
-	recordID, err := func() (string, error) {
-		dnsReq := api.DNSRecordRequest{
-			Content: svc.Spec.ClusterIP,
-			Name:    strings.Join([]string{svc.Name, svc.Namespace, zone.Name}, "."),
-			Ttl:     int(5 * time.Minute / time.Second),
-			Type:    api.DNSRecordTypeA,
-		}
-		if netResource.Status.DNSZoneID != "" && netResource.Status.DNSRecordID != "" {
-			recordResp, err := r.Netbird.DNSZones.UpdateRecord(ctx, netResource.Status.DNSZoneID, netResource.Status.DNSRecordID, dnsReq)
-			if err != nil && !netbird.IsNotFound(err) {
-				return "", err
-			}
-			if err == nil {
-				return recordResp.Id, nil
-			}
-		}
-		recordResp, err := r.Netbird.DNSZones.CreateRecord(ctx, zone.Id, dnsReq)
-		if err != nil {
-			return "", err
-		}
-		return recordResp.Id, nil
-	}()
+	dnsReq := api.DNSRecordRequest{
+		Content: svc.Spec.ClusterIP,
+		Name:    strings.Join([]string{svc.Name, svc.Namespace, zone.Name}, "."),
+		Ttl:     int(5 * time.Minute / time.Second),
+		Type:    api.DNSRecordTypeA,
+	}
+	recordID, err := r.ensureDNSRecord(ctx, netResource, zone.Id, dnsReq)
 	if err != nil {
+		var conflictErr *dnsRecordConflictError
+		if errors.As(err, &conflictErr) {
+			conditions.MarkFalse(netResource, nbv1alpha1.ReadyCondition, nbv1alpha1.DNSConflictReason, "%s", conflictErr.Error())
+			if patchErr := sp.Patch(ctx, netResource, patch.WithStatusObservedGeneration{}); patchErr != nil {
+				return ctrl.Result{}, patchErr
+			}
+			return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
+		}
 		return ctrl.Result{}, err
 	}
 	netResource.Status.DNSZoneID = zone.Id
@@ -205,6 +205,97 @@ func (r *NetworkResourceReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
+}
+
+type dnsRecordConflictError struct {
+	message string
+}
+
+func (e *dnsRecordConflictError) Error() string {
+	return e.message
+}
+
+func selectDNSRecord(records []api.DNSRecord, request api.DNSRecordRequest) (*api.DNSRecord, error) {
+	var exact *api.DNSRecord
+	for i := range records {
+		record := &records[i]
+		if record.Name != request.Name {
+			continue
+		}
+		if record.Type != request.Type || record.Content != request.Content {
+			return nil, &dnsRecordConflictError{message: fmt.Sprintf("DNS name %q already exists with different type or content", request.Name)}
+		}
+		if exact != nil {
+			return nil, &dnsRecordConflictError{message: fmt.Sprintf("DNS name %q has multiple matching records", request.Name)}
+		}
+		exact = record
+	}
+	return exact, nil
+}
+
+func (r *NetworkResourceReconciler) adoptDNSRecord(ctx context.Context, netResource *nbv1alpha1.NetworkResource, zoneID string, request api.DNSRecordRequest) (*api.DNSRecord, error) {
+	records, err := r.Netbird.DNSZones.ListRecords(ctx, zoneID)
+	if err != nil {
+		return nil, err
+	}
+	record, err := selectDNSRecord(records, request)
+	if err != nil || record == nil {
+		return record, err
+	}
+
+	var resources nbv1alpha1.NetworkResourceList
+	if err := r.List(ctx, &resources); err != nil {
+		return nil, err
+	}
+	for i := range resources.Items {
+		owner := &resources.Items[i]
+		if owner.Namespace == netResource.Namespace && owner.Name == netResource.Name {
+			continue
+		}
+		if owner.Status.DNSZoneID == zoneID && owner.Status.DNSRecordID == record.Id {
+			return nil, &dnsRecordConflictError{message: fmt.Sprintf("DNS record %q is already owned by NetworkResource %s/%s", request.Name, owner.Namespace, owner.Name)}
+		}
+	}
+	return record, nil
+}
+
+func (r *NetworkResourceReconciler) ensureDNSRecord(ctx context.Context, netResource *nbv1alpha1.NetworkResource, zoneID string, request api.DNSRecordRequest) (string, error) {
+	if netResource.Status.DNSZoneID != "" && netResource.Status.DNSRecordID != "" {
+		record, err := r.Netbird.DNSZones.UpdateRecord(ctx, netResource.Status.DNSZoneID, netResource.Status.DNSRecordID, request)
+		if err == nil {
+			return record.Id, nil
+		}
+		if !netbird.IsNotFound(err) {
+			return "", err
+		}
+	}
+
+	record, err := r.adoptDNSRecord(ctx, netResource, zoneID, request)
+	if err != nil {
+		return "", err
+	}
+	if record != nil {
+		return record.Id, nil
+	}
+
+	record, createErr := r.Netbird.DNSZones.CreateRecord(ctx, zoneID, request)
+	if createErr == nil {
+		return record.Id, nil
+	}
+
+	// The management API may have committed the record before the client saw
+	// an error, or another reconciliation may have won the create race.
+	record, adoptErr := r.adoptDNSRecord(ctx, netResource, zoneID, request)
+	if adoptErr == nil && record != nil {
+		return record.Id, nil
+	}
+	if adoptErr != nil {
+		var conflictErr *dnsRecordConflictError
+		if errors.As(adoptErr, &conflictErr) {
+			return "", conflictErr
+		}
+	}
+	return "", createErr
 }
 
 func (r *NetworkResourceReconciler) reconcileDelete(ctx context.Context, sp *patch.SerialPatcher, netResource *nbv1alpha1.NetworkResource) (ctrl.Result, error) {

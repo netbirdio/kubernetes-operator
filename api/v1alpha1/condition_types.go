@@ -5,6 +5,7 @@ package v1alpha1
 const ReadyCondition = "Ready"
 
 const (
-	ReconciledReason = "Reconciled"
-	DependencyReason = "Dependency"
+	ReconciledReason  = "Reconciled"
+	DependencyReason  = "Dependency"
+	DNSConflictReason = "DNSConflict"
 )

@@ -68,36 +68,36 @@ func TestValidation(t *testing.T) {
 			},
 			{
 				name:     "valid network egress",
-				manifest: `{kind: NetworkEgress, spec: {networkRouterRef: {name: r, namespace: n}, target: {ip: {address: 10.0.0.1}}, ports: [{name: http, port: 80}]}}`,
+				manifest: `{kind: NetworkEgress, spec: {networkRouterRef: {name: router, namespace: router-ns}, target: {ip: {address: 10.0.0.1}}, ports: [{name: http, port: 80}]}}`,
 			},
 			{
 				name:     "egress to something that is not an IP",
-				manifest: `{kind: NetworkEgress, spec: {networkRouterRef: {name: r, namespace: n}, target: {ip: {address: 10.0.0.0/24}}, ports: [{name: http, port: 80}]}}`,
+				manifest: `{kind: NetworkEgress, spec: {networkRouterRef: {name: router, namespace: router-ns}, target: {ip: {address: 10.0.0.0/24}}, ports: [{name: http, port: 80}]}}`,
 				wantErr:  "address must be a valid IPv4 or IPv6 address",
 			},
 			{
 				name:     "egress to an IP and an FQDN at once",
-				manifest: `{kind: NetworkEgress, spec: {networkRouterRef: {name: r, namespace: n}, target: {ip: {address: 10.0.0.1}, fqdn: {hostname: example.com}}, ports: [{name: http, port: 80}]}}`,
+				manifest: `{kind: NetworkEgress, spec: {networkRouterRef: {name: router, namespace: router-ns}, target: {ip: {address: 10.0.0.1}, fqdn: {hostname: example.com}}, ports: [{name: http, port: 80}]}}`,
 				wantErr:  "exactly one of ip or fqdn must be set",
 			},
 			{
 				name:     "egress to a wildcard",
-				manifest: `{kind: NetworkEgress, spec: {networkRouterRef: {name: r, namespace: n}, target: {fqdn: {hostname: "*.example.com"}}, ports: [{name: http, port: 80}]}}`,
+				manifest: `{kind: NetworkEgress, spec: {networkRouterRef: {name: router, namespace: router-ns}, target: {fqdn: {hostname: "*.example.com"}}, ports: [{name: http, port: 80}]}}`,
 				wantErr:  "spec.target.fqdn.hostname",
 			},
 			{
 				name:     "egress without ports",
-				manifest: `{kind: NetworkEgress, spec: {networkRouterRef: {name: r, namespace: n}, target: {ip: {address: 10.0.0.1}}, ports: []}}`,
+				manifest: `{kind: NetworkEgress, spec: {networkRouterRef: {name: router, namespace: router-ns}, target: {ip: {address: 10.0.0.1}}, ports: []}}`,
 				wantErr:  "spec.ports",
 			},
 			{
 				name:     "egress port out of range",
-				manifest: `{kind: NetworkEgress, spec: {networkRouterRef: {name: r, namespace: n}, target: {ip: {address: 10.0.0.1}}, ports: [{name: http, port: 65536}]}}`,
+				manifest: `{kind: NetworkEgress, spec: {networkRouterRef: {name: router, namespace: router-ns}, target: {ip: {address: 10.0.0.1}}, ports: [{name: http, port: 65536}]}}`,
 				wantErr:  "spec.ports[0].port",
 			},
 			{
 				name:     "egress port name with capitals",
-				manifest: `{kind: NetworkEgress, spec: {networkRouterRef: {name: r, namespace: n}, target: {ip: {address: 10.0.0.1}}, ports: [{name: HTTP, port: 80}]}}`,
+				manifest: `{kind: NetworkEgress, spec: {networkRouterRef: {name: router, namespace: router-ns}, target: {ip: {address: 10.0.0.1}}, ports: [{name: HTTP, port: 80}]}}`,
 				wantErr:  "spec.ports[0].name",
 			},
 		} {
@@ -146,14 +146,14 @@ func TestValidation(t *testing.T) {
 			},
 			{
 				name:     "network resource router",
-				manifest: `{kind: NetworkResource, spec: {networkRouterRef: {name: r, namespace: n}, serviceRef: {name: s}}}`,
+				manifest: `{kind: NetworkResource, spec: {networkRouterRef: {name: router, namespace: router-ns}, serviceRef: {name: s}}}`,
 				field:    []string{"spec", "networkRouterRef", "name"},
 				value:    "other",
 				wantErr:  "Value is immutable",
 			},
 			{
 				name:     "network egress router",
-				manifest: `{kind: NetworkEgress, spec: {networkRouterRef: {name: r, namespace: n}, target: {ip: {address: 10.0.0.1}}, ports: [{name: http, port: 80}]}}`,
+				manifest: `{kind: NetworkEgress, spec: {networkRouterRef: {name: router, namespace: router-ns}, target: {ip: {address: 10.0.0.1}}, ports: [{name: http, port: 80}]}}`,
 				field:    []string{"spec", "networkRouterRef", "namespace"},
 				value:    "other",
 				wantErr:  "Value is immutable",
@@ -181,7 +181,8 @@ func TestValidation(t *testing.T) {
 }
 
 // manifest builds an operator object from a compact YAML document holding its
-// kind and spec.
+// kind and spec. The documents are read as YAML 1.1, where a bare y or n is a
+// boolean, so short placeholder names are spelled out.
 func manifest(t *testing.T, namespace, name, doc string) *unstructured.Unstructured {
 	t.Helper()
 	obj := &unstructured.Unstructured{}

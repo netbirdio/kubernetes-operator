@@ -88,7 +88,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	if !conditions.Has(netRouter, nbv1alpha1.ReadyCondition) {
+	if !conditions.IsTrue(netRouter, nbv1alpha1.ReadyCondition) {
 		// TODO (phillebaba): Should watch routing peer instead of retrying when not found.
 		cond := metav1.Condition{
 			Type:    string(gwv1.GatewayConditionProgrammed),

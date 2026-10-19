@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -78,6 +79,13 @@ type environment struct {
 	clientset  kubernetes.Interface
 
 	workDir string
+
+	// The network fixtures, and the peer outside the cluster that checks access
+	// through them, start on first use, so a run that does not route traffic
+	// does not pay for them.
+	networkOnce sync.Once
+	network     *networkFixtures
+	networkErr  error
 }
 
 // bootstrap brings the environment up. On error it returns whatever it got as
@@ -244,6 +252,11 @@ func (e *environment) teardown() {
 	if e.kind != nil {
 		if err := e.kind.Delete(kindClusterName, e.kubeconfig); err != nil {
 			log.Printf("e2e: delete the Kind cluster: %v", err)
+		}
+	}
+	if e.network != nil && e.network.laptop != nil {
+		if err := e.network.laptop.Terminate(ctx); err != nil {
+			log.Printf("e2e: terminate the %s peer: %v", laptopName, err)
 		}
 	}
 	if e.srv != nil {

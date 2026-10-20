@@ -16,6 +16,13 @@ jobs:
           go-version-file: go.mod
       - name: Run linter
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a #v9.3.0
+      # The e2e tests are a separate module behind the e2e build tag, so the pass
+      # above sees none of them.
+      - name: Run linter (e2e)
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a #v9.3.0
+        with:
+          working-directory: test/e2e
+          args: --build-tags e2e
   test:
     runs-on: ubuntu-latest
     steps:
@@ -28,6 +35,7 @@ jobs:
       - name: Verify go mod is not dirty
         run: |
           go mod tidy
+          (cd test/e2e && go mod tidy)
           git diff --exit-code
       - name: Verify generate is not dirty
         run: |
@@ -40,20 +48,3 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: unit
-  e2e:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
-      - name: Setup Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e #v7.0.0
-        with:
-          go-version-file: test/e2e/go.mod
-      - run: docker inspect $(docker network ls -q)
-      - name: Run e2e tests
-        run: make -B test-e2e
-      - name: Debug on failure
-        if: failure()
-        run: |
-          docker ps -a
-          docker inspect $(docker ps -a -q)

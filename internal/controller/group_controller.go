@@ -4,6 +4,8 @@ package controller
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/fluxcd/pkg/runtime/conditions"
@@ -21,6 +23,10 @@ import (
 
 type GroupReconciler struct {
 	client.Client
+	// APIReader reads Group resources straight from the API server when deciding
+	// whether another Group owns a NetBird group, so that a Group that has just taken a
+	// group is seen even before the cache catches up with its status.
+	APIReader client.Reader
 
 	Netbird *netbird.Client
 }
@@ -72,6 +78,27 @@ func (r *GroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 				}
 			}
 		}
+		// NetBird refuses a second group with the same name, so a group that already
+		// exists under this name (created by hand, or by this resource before its status
+		// was lost, as after restoring NetBird's database into a new cluster) is adopted
+		// rather than recreated, unless another Group already owns it.
+		groups, err := r.Netbird.Groups.List(ctx)
+		if err != nil {
+			return "", err
+		}
+		for _, g := range groups {
+			if g.Name != group.Spec.Name {
+				continue
+			}
+			owner, err := r.ownerOf(ctx, group, g.Id)
+			if err != nil {
+				return "", err
+			}
+			if owner != nil {
+				return "", &groupOwnedError{owner: client.ObjectKeyFromObject(owner)}
+			}
+			return g.Id, nil
+		}
 		groupReq := api.GroupRequest{
 			Name: group.Spec.Name,
 		}
@@ -81,6 +108,15 @@ func (r *GroupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		}
 		return resp.Id, nil
 	}()
+	var owned *groupOwnedError
+	if errors.As(err, &owned) {
+		conditions.MarkFalse(group, nbv1alpha1.ReadyCondition, nbv1alpha1.ConflictReason, "%s", owned.Error())
+		err = sp.Patch(ctx, group, patch.WithStatusObservedGeneration{})
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{RequeueAfter: 15 * time.Minute}, nil
+	}
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -108,6 +144,34 @@ func (r *GroupReconciler) reconcileDelete(ctx context.Context, sp *patch.SerialP
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
+}
+
+// groupOwnedError reports a NetBird group that another Group resource already owns.
+type groupOwnedError struct {
+	owner client.ObjectKey
+}
+
+func (e *groupOwnedError) Error() string {
+	return fmt.Sprintf("A Netbird group with this name already belongs to Group %s.", e.owner)
+}
+
+// ownerOf returns the Group resource, other than group, whose status holds the Netbird
+// group id, or nil if there is none. It reads from the API server rather than the cache:
+// Groups are reconciled one at a time, so every status written by an earlier reconcile
+// is visible, and two Groups cannot both take the same group.
+func (r *GroupReconciler) ownerOf(ctx context.Context, group *nbv1alpha1.Group, id string) (*nbv1alpha1.Group, error) {
+	groups := &nbv1alpha1.GroupList{}
+	err := r.APIReader.List(ctx, groups)
+	if err != nil {
+		return nil, err
+	}
+	for i := range groups.Items {
+		other := &groups.Items[i]
+		if other.UID != group.UID && other.Status.GroupID == id {
+			return other, nil
+		}
+	}
+	return nil, nil
 }
 
 func (r *GroupReconciler) SetupWithManager(mgr ctrl.Manager) error {

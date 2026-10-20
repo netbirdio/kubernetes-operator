@@ -73,14 +73,19 @@ func TestHTTPRoute(t *testing.T) {
 	e.waitReady(t, res)
 	assert.EqualT(t, router.Name, res.Spec.NetworkRouterRef.Name, "the resource goes through the Gateway's router")
 
-	requireProxyServices(t, e, host, 1, res.Status.ResourceID)
+	serviceID := requireProxyServices(t, e, host, 1, res.Status.ResourceID)
 	requireProxyAnswers(t, proxy, host, svc.Name+"-")
 
-	// Reconciling the route again must update its proxy service in place.
+	// Reconciling the route again must update its proxy service in place. Each
+	// look is a single listing, so a service deleted and recreated in between
+	// shows up as a missing service or a new ID instead of being waited out.
 	e.touch(t, route)
 	for range 5 {
 		time.Sleep(2 * time.Second)
-		requireProxyServices(t, e, host, 1, res.Status.ResourceID)
+		services, err := proxyServicesFor(t.Context(), e, host)
+		require.NoError(t, err)
+		require.Len(t, services, 1, "proxy services for %s after the route was reconciled again", host)
+		assert.EqualT(t, serviceID, services[0].Id, "reconciling the route again replaced its proxy service")
 	}
 
 	require.NoError(t, e.k8s.Delete(t.Context(), route))
@@ -168,28 +173,44 @@ func (e *environment) createGateway(t *testing.T, namespace, name, class, router
 }
 
 // requireProxyServices waits until the server holds exactly want proxy services
-// for the domain, and when it holds one, that it targets the resource.
-func requireProxyServices(t *testing.T, e *environment, domain string, want int, resourceID string) {
+// for the domain, and when it holds one, that it targets the resource. It
+// returns that service's ID.
+func requireProxyServices(t *testing.T, e *environment, domain string, want int, resourceID string) string {
 	t.Helper()
+	var id string
 	require.Eventually(t, func(ctx context.Context) error {
-		services, err := e.nb.ReverseProxyServices.List(ctx)
+		matching, err := proxyServicesFor(ctx, e, domain)
 		if err != nil {
 			return err
-		}
-		var matching []api.Service
-		for _, s := range services {
-			if s.Domain == domain {
-				matching = append(matching, s)
-			}
 		}
 		if len(matching) != want {
 			return fmt.Errorf("%d proxy services for %s, want %d", len(matching), domain, want)
 		}
-		if want == 1 && (len(matching[0].Targets) != 1 || matching[0].Targets[0].TargetId != resourceID) {
+		if want != 1 {
+			return nil
+		}
+		if len(matching[0].Targets) != 1 || matching[0].Targets[0].TargetId != resourceID {
 			return fmt.Errorf("the proxy service for %s targets %+v, want the resource %s", domain, matching[0].Targets, resourceID)
 		}
+		id = matching[0].Id
 		return nil
 	}, readyTimeout, 2*time.Second)
+	return id
+}
+
+// proxyServicesFor lists the proxy services the server holds for the domain.
+func proxyServicesFor(ctx context.Context, e *environment, domain string) ([]api.Service, error) {
+	services, err := e.nb.ReverseProxyServices.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var matching []api.Service
+	for _, s := range services {
+		if s.Domain == domain {
+			matching = append(matching, s)
+		}
+	}
+	return matching, nil
 }
 
 // requireProxyAnswers waits until the reverse proxy serves the domain with a

@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/rand"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
@@ -26,6 +27,10 @@ const (
 	// which workload a request reached.
 	agnhostImage = "registry.k8s.io/e2e-test-images/agnhost:2.53"
 	backendPort  = 8080
+	// backendServicePort is the port a backend's Service exposes. It is the
+	// default HTTP port because the operator gives reverse-proxy targets no port
+	// of their own, whatever the HTTPRoute's backendRef says.
+	backendServicePort = 80
 
 	readyTimeout = 5 * time.Minute
 )
@@ -69,12 +74,14 @@ func (e *environment) waitGone(t *testing.T, obj client.Object) {
 }
 
 // createRouter creates a NetworkRouter in the fixture DNS zone and waits until
-// its routing peers are up.
-func (e *environment) createRouter(t *testing.T, namespace, name string, replicas int32) *nbv1alpha1.NetworkRouter {
+// its routing peers are up. The operator names the router's NetBird network
+// after the object alone, so the name is random to keep the tests' networks
+// apart.
+func (e *environment) createRouter(t *testing.T, namespace string, replicas int32) *nbv1alpha1.NetworkRouter {
 	t.Helper()
 	router := &nbv1alpha1.NetworkRouter{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
+			Name:      "router-" + rand.String(5),
 			Namespace: namespace,
 		},
 		Spec: nbv1alpha1.NetworkRouterSpec{
@@ -133,7 +140,7 @@ func (e *environment) createBackend(t *testing.T, namespace, name string) *corev
 			Ports: []corev1.ServicePort{
 				{
 					Name:       "http",
-					Port:       backendPort,
+					Port:       backendServicePort,
 					TargetPort: intstr.FromInt32(backendPort),
 				},
 			},

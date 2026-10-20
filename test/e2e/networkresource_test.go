@@ -38,7 +38,7 @@ func TestNetworkResource(t *testing.T) {
 	fx := e.requireNetworkFixtures(t)
 	ns := e.createNamespace(t, "resource")
 
-	router := e.createRouter(t, ns, "router", 1)
+	router := e.createRouter(t, ns, 1)
 	svc := e.createBackend(t, ns, "web")
 
 	res := &nbv1alpha1.NetworkResource{
@@ -72,7 +72,7 @@ func TestNetworkResource(t *testing.T) {
 	assert.EqualT(t, api.DNSRecordTypeA, record.Type, "record type")
 	assert.EqualT(t, svc.Spec.ClusterIP, record.Content, "the record points at the ClusterIP")
 
-	url := fmt.Sprintf("http://%s:%d/hostname", fqdn, backendPort)
+	url := fmt.Sprintf("http://%s/hostname", fqdn)
 	requireReachable(t, fx.laptop, url, svc.Name+"-")
 
 	// Moving the resource out of the group the policy covers has to cut the peer

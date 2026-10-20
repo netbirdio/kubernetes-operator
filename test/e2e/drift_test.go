@@ -34,7 +34,7 @@ func TestNetworkDrift(t *testing.T) {
 	fx := e.requireNetworkFixtures(t)
 	ns := e.createNamespace(t, "drift")
 
-	router := e.createRouter(t, ns, "router", 1)
+	router := e.createRouter(t, ns, 1)
 	svc := e.createBackend(t, ns, "web")
 	res := &nbv1alpha1.NetworkResource{
 		ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: ns},
@@ -46,7 +46,7 @@ func TestNetworkDrift(t *testing.T) {
 	}
 	require.NoError(t, e.k8s.Create(t.Context(), res))
 	e.waitReady(t, res)
-	url := fmt.Sprintf("http://%s.%s.%s:%d/hostname", svc.Name, ns, dnsZone, backendPort)
+	url := fmt.Sprintf("http://%s.%s.%s/hostname", svc.Name, ns, dnsZone)
 	requireReachable(t, fx.laptop, url, svc.Name+"-")
 
 	t.Run("network resource deleted", func(t *testing.T) {

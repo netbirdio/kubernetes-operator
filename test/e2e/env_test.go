@@ -24,6 +24,8 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	"sigs.k8s.io/kind/pkg/cluster"
 
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
@@ -86,6 +88,11 @@ type environment struct {
 	networkOnce sync.Once
 	network     *networkFixtures
 	networkErr  error
+
+	// The reverse proxy starts on first use too.
+	proxyOnce sync.Once
+	proxy     *harness.Proxy
+	proxyErr  error
 }
 
 // bootstrap brings the environment up. On error it returns whatever it got as
@@ -126,6 +133,9 @@ func bootstrap(ctx context.Context) (*environment, error) {
 		return env, err
 	}
 	if err := env.checkManagementReachable(ctx); err != nil {
+		return env, err
+	}
+	if err := env.installGatewayAPI(ctx); err != nil {
 		return env, err
 	}
 
@@ -254,6 +264,11 @@ func (e *environment) teardown() {
 			log.Printf("e2e: delete the Kind cluster: %v", err)
 		}
 	}
+	if e.proxy != nil {
+		if err := e.proxy.Terminate(ctx); err != nil {
+			log.Printf("e2e: terminate the reverse proxy: %v", err)
+		}
+	}
 	if e.network != nil && e.network.laptop != nil {
 		if err := e.network.laptop.Terminate(ctx); err != nil {
 			log.Printf("e2e: terminate the %s peer: %v", laptopName, err)
@@ -316,6 +331,8 @@ func newScheme() *kruntime.Scheme {
 	scheme := kruntime.NewScheme()
 	kruntimeutil.Must(clientgoscheme.AddToScheme(scheme))
 	kruntimeutil.Must(nbv1alpha1.AddToScheme(scheme))
+	kruntimeutil.Must(gwv1.AddToScheme(scheme))
+	kruntimeutil.Must(gwv1alpha2.AddToScheme(scheme))
 	return scheme
 }
 

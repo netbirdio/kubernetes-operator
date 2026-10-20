@@ -8,10 +8,12 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/go-openapi/testify/v2/assert"
+	"github.com/go-openapi/testify/v2/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -135,6 +137,11 @@ func TestUpgrade(t *testing.T) {
 	fx := e.requireNetworkFixtures(t)
 	u := e.upgrade
 
+	// Only the operator under test deploys the client this run built. Until the
+	// router's pods run it, the statuses below can still be the published
+	// operator's, and the ID checks would compare that operator with itself.
+	e.requireRoutingPeersOn(t, u.router, e.clientImage)
+
 	group := &nbv1alpha1.Group{ObjectMeta: metav1.ObjectMeta{Name: u.group.Name, Namespace: u.group.Namespace}}
 	e.waitReady(t, group)
 	assert.EqualT(t, u.groupID, group.Status.GroupID, "the upgrade recreated the group")
@@ -150,4 +157,41 @@ func TestUpgrade(t *testing.T) {
 	assert.EqualT(t, u.dnsRecordID, res.Status.DNSRecordID, "the upgrade recreated the DNS record")
 
 	requireReachable(t, fx.laptop, u.url, u.want)
+}
+
+// requireRoutingPeersOn waits until every routing peer pod of the router runs
+// the client image and is ready, with none of an older template left.
+func (e *environment) requireRoutingPeersOn(t *testing.T, router client.ObjectKey, image string) {
+	t.Helper()
+	require.Eventually(t, func(ctx context.Context) error {
+		pods := &corev1.PodList{}
+		if err := e.k8s.List(ctx, pods, client.InNamespace(router.Namespace), client.MatchingLabels{
+			"app.kubernetes.io/name":     "networkrouter",
+			"app.kubernetes.io/instance": router.Name,
+		}); err != nil {
+			return err
+		}
+		if len(pods.Items) == 0 {
+			return fmt.Errorf("router %s has no routing peer pods", router)
+		}
+		for _, pod := range pods.Items {
+			if pod.DeletionTimestamp != nil {
+				return fmt.Errorf("routing peer pod %s is still terminating", pod.Name)
+			}
+			idx := slices.IndexFunc(pod.Spec.Containers, func(c corev1.Container) bool { return c.Name == "netbird" })
+			if idx == -1 || pod.Spec.Containers[idx].Image != image {
+				return fmt.Errorf("routing peer pod %s does not run %s yet", pod.Name, image)
+			}
+			if !podReady(pod) {
+				return fmt.Errorf("routing peer pod %s is not ready", pod.Name)
+			}
+		}
+		return nil
+	}, readyTimeout, 2*time.Second)
+}
+
+func podReady(pod corev1.Pod) bool {
+	return slices.ContainsFunc(pod.Status.Conditions, func(c corev1.PodCondition) bool {
+		return c.Type == corev1.PodReady && c.Status == corev1.ConditionTrue
+	})
 }

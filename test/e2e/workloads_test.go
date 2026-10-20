@@ -145,3 +145,18 @@ func (e *environment) createBackend(t *testing.T, namespace, name string) *corev
 	}, readyTimeout, 2*time.Second)
 	return svc
 }
+
+// touch changes an annotation to make the operator reconcile the object now.
+// Most controllers otherwise only resync every 15 minutes, which is how long a
+// change made behind the operator's back can go unnoticed.
+func (e *environment) touch(t *testing.T, obj client.Object) {
+	t.Helper()
+	require.NoError(t, e.k8s.Get(t.Context(), client.ObjectKeyFromObject(obj), obj))
+	annotations := obj.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+	annotations["e2e.netbird.io/touched"] = time.Now().Format(time.RFC3339Nano)
+	obj.SetAnnotations(annotations)
+	require.NoError(t, e.k8s.Update(t.Context(), obj))
+}

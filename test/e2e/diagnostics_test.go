@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-openapi/testify/v2/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -25,10 +26,9 @@ const (
 )
 
 // requireEnv returns the environment TestMain brought up and, should the test
-// fail, logs what is needed to tell why: the server log, and the pods and events
-// in the operator's namespace and in the namespaces the test names. Everything
-// is torn down before the run reports, so the failure has to carry this with it.
-func requireEnv(t *testing.T, namespaces ...string) *environment {
+// fail, logs the server's log and the operator's namespace. Everything is torn
+// down before the run reports, so a failure has to carry this with it.
+func requireEnv(t *testing.T) *environment {
 	t.Helper()
 	if testEnv == nil {
 		t.Fatal("the e2e environment was not bootstrapped; run the suite through TestMain with -tags e2e")
@@ -41,11 +41,30 @@ func requireEnv(t *testing.T, namespaces ...string) *environment {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 		t.Logf("netbird-server log (tail):\n%s", tail(e.srv.Logs(ctx), serverLogLines))
-		for _, ns := range append([]string{netbirdNamespace}, namespaces...) {
-			t.Logf("namespace %s:\n%s", ns, e.describeNamespace(ctx, ns))
-		}
+		t.Logf("namespace %s:\n%s", netbirdNamespace, e.describeNamespace(ctx, netbirdNamespace))
 	})
 	return e
+}
+
+// createNamespace creates a namespace for one test, named after prefix. When the
+// test passes the namespace is deleted with it; when it fails the namespace is
+// described in the test's log instead, and left for the teardown.
+func (e *environment) createNamespace(t *testing.T, prefix string) string {
+	t.Helper()
+	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{GenerateName: prefix + "-"}}
+	require.NoError(t, e.k8s.Create(t.Context(), ns))
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		if t.Failed() {
+			t.Logf("namespace %s:\n%s", ns.Name, e.describeNamespace(ctx, ns.Name))
+			return
+		}
+		if err := e.k8s.Delete(ctx, ns); err != nil {
+			t.Logf("delete namespace %s: %v", ns.Name, err)
+		}
+	})
+	return ns.Name
 }
 
 // describeNamespace summarizes the pods, their logs and the recent events in a

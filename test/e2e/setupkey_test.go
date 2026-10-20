@@ -27,9 +27,10 @@ import (
 const setupKeySecretKey = "setup-key"
 
 // TestSetupKey checks that a SetupKey ends up on the server as specified, with
-// auto-groups given in each of the three ways a reference can be written, that
-// the key in its Secret really enrolls a peer into those groups, and that a key
-// revoked behind the operator's back is replaced.
+// auto-groups given in each of the three ways a reference can be written and an
+// expiry that follows spec.duration, that the key in its Secret really enrolls a
+// peer into those groups, and that a key revoked behind the operator's back is
+// replaced.
 func TestSetupKey(t *testing.T) {
 	t.Parallel()
 	e := requireEnv(t)
@@ -76,6 +77,18 @@ func TestSetupKey(t *testing.T) {
 	peer := e.enroll(t, secretValue)
 	assert.ElementsMatch(t, append([]string{e.allGroupID(t)}, wantGroups...), groupIDs(peer.Groups),
 		"a peer enrolled with the key lands in its auto-groups")
+
+	// The key is written in YAML because metav1.Duration marshals 24h as 24h0m0s,
+	// which the CRD's pattern refuses.
+	t.Run("expiry follows spec.duration", func(t *testing.T) {
+		doc := fmt.Sprintf(`{kind: SetupKey, spec: {name: e2e-expiring-%s, ephemeral: false, duration: 24h}}`, rand.String(6))
+		require.NoError(t, e.k8s.Create(t.Context(), manifest(t, ns, "expiring", doc)))
+		expiring := &nbv1alpha1.SetupKey{ObjectMeta: metav1.ObjectMeta{Name: "expiring", Namespace: ns}}
+		e.waitReady(t, expiring)
+		expiringKey, err := e.nb.SetupKeys.Get(t.Context(), expiring.Status.SetupKeyID)
+		require.NoError(t, err)
+		assert.WithinDuration(t, time.Now().Add(24*time.Hour), expiringKey.Expires, 10*time.Minute, "expiry follows spec.duration")
+	})
 
 	t.Run("revoked on the server", func(t *testing.T) {
 		_, err := e.nb.SetupKeys.Update(t.Context(), keyID, api.PutApiSetupKeysKeyIdJSONRequestBody{

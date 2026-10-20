@@ -36,7 +36,7 @@ jobs:
         kind-node: ${{ fromJSON((github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.full_matrix)) && '["v0.32.0-v1.34.9","v0.32.0-v1.35.6","v0.32.0-v1.36.2","v0.32.0-v1.37.0"]' || '["v0.32.0-v1.37.0"]') }}
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
         with:
           persist-credentials: false
       - name: Setup Go
@@ -85,7 +85,7 @@ jobs:
         run: go test -tags e2e ./... -v -count 1 -timeout 30m
       - name: Upload diagnostics
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a #v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 #v7.0.2
         with:
           name: e2e-${{ matrix.kind-node }}
           path: ${{ runner.temp }}/e2e-artifacts

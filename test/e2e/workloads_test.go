@@ -93,9 +93,7 @@ func (e *environment) waitGone(t *testing.T, obj client.Object) {
 }
 
 // createRouter creates a NetworkRouter in the fixture DNS zone and waits until
-// its routing peers are up. The operator names the router's NetBird network
-// after the object alone, so the name is random to keep the tests' networks
-// apart.
+// its routing peers are up.
 func (e *environment) createRouter(t *testing.T, namespace string, replicas int32) *nbv1alpha1.NetworkRouter {
 	t.Helper()
 	router, err := e.newRouter(t.Context(), namespace, replicas)
@@ -103,8 +101,28 @@ func (e *environment) createRouter(t *testing.T, namespace string, replicas int3
 	return router
 }
 
+// startRouter creates a NetworkRouter like createRouter but does not wait for
+// its routing peers.
+func (e *environment) startRouter(t *testing.T, namespace string, replicas int32) *nbv1alpha1.NetworkRouter {
+	t.Helper()
+	router := routerFor(namespace, replicas)
+	require.NoError(t, e.k8s.Create(t.Context(), router))
+	return router
+}
+
 func (e *environment) newRouter(ctx context.Context, namespace string, replicas int32) (*nbv1alpha1.NetworkRouter, error) {
-	router := &nbv1alpha1.NetworkRouter{
+	router := routerFor(namespace, replicas)
+	if err := e.k8s.Create(ctx, router); err != nil {
+		return nil, err
+	}
+	return router, e.waitReadyCtx(ctx, router)
+}
+
+// routerFor builds a NetworkRouter in the fixture DNS zone. The operator names
+// the router's NetBird network after the object alone, so the name is random to
+// keep the tests' networks apart.
+func routerFor(namespace string, replicas int32) *nbv1alpha1.NetworkRouter {
+	return &nbv1alpha1.NetworkRouter{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "router-" + rand.String(5),
 			Namespace: namespace,
@@ -116,22 +134,28 @@ func (e *environment) newRouter(ctx context.Context, namespace string, replicas 
 			},
 		},
 	}
-	if err := e.k8s.Create(ctx, router); err != nil {
-		return nil, err
-	}
-	return router, e.waitReadyCtx(ctx, router)
 }
 
 // createBackend deploys an HTTP server behind a ClusterIP Service of the same
 // name and waits until it serves.
 func (e *environment) createBackend(t *testing.T, namespace, name string) *corev1.Service {
 	t.Helper()
-	svc, err := e.newBackend(t.Context(), namespace, name)
+	return e.createBackendOnPort(t, namespace, name, backendServicePort)
+}
+
+// createBackendOnPort is createBackend with the Service exposing port.
+func (e *environment) createBackendOnPort(t *testing.T, namespace, name string, port int32) *corev1.Service {
+	t.Helper()
+	svc, err := e.newBackendOnPort(t.Context(), namespace, name, port)
 	require.NoError(t, err)
 	return svc
 }
 
 func (e *environment) newBackend(ctx context.Context, namespace, name string) (*corev1.Service, error) {
+	return e.newBackendOnPort(ctx, namespace, name, backendServicePort)
+}
+
+func (e *environment) newBackendOnPort(ctx context.Context, namespace, name string, port int32) (*corev1.Service, error) {
 	labels := map[string]string{"app": name}
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -174,7 +198,7 @@ func (e *environment) newBackend(ctx context.Context, namespace, name string) (*
 			Ports: []corev1.ServicePort{
 				{
 					Name:       "http",
-					Port:       backendServicePort,
+					Port:       port,
 					TargetPort: intstr.FromInt32(backendPort),
 				},
 			},

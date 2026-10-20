@@ -47,26 +47,8 @@ func TestHTTPRoute(t *testing.T) {
 	gw := e.createGateway(t, ns, "public", publicGatewayClass, router.Name)
 	svc := e.createBackend(t, ns, "web")
 
-	host := fmt.Sprintf("web-%s.%s", rand.String(6), harness.AgentNetworkCluster)
-	route := &gwv1.HTTPRoute{
-		ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: ns},
-		Spec: gwv1.HTTPRouteSpec{
-			CommonRouteSpec: gwv1.CommonRouteSpec{
-				ParentRefs: []gwv1.ParentReference{{Name: gwv1.ObjectName(gw.Name)}},
-			},
-			Hostnames: []gwv1.Hostname{gwv1.Hostname(host)},
-			Rules: []gwv1.HTTPRouteRule{
-				{
-					BackendRefs: []gwv1.HTTPBackendRef{
-						{BackendRef: gwv1.BackendRef{BackendObjectReference: gwv1.BackendObjectReference{
-							Name: gwv1.ObjectName(svc.Name),
-							Port: new(gwv1.PortNumber(backendServicePort)),
-						}}},
-					},
-				},
-			},
-		},
-	}
+	host := proxyHost("web")
+	route := httpRoute(ns, "web", gw.Name, host, svc.Name, backendServicePort)
 	require.NoError(t, e.k8s.Create(t.Context(), route))
 
 	res := &nbv1alpha1.NetworkResource{ObjectMeta: metav1.ObjectMeta{Name: svc.Name, Namespace: ns}}
@@ -113,24 +95,7 @@ func TestTCPRoute(t *testing.T) {
 	gw := e.createGateway(t, ns, "private", privateGatewayClass, router.Name)
 	svc := e.createBackend(t, ns, "web")
 
-	route := &gwv1alpha2.TCPRoute{
-		ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: ns},
-		Spec: gwv1alpha2.TCPRouteSpec{
-			CommonRouteSpec: gwv1.CommonRouteSpec{
-				ParentRefs: []gwv1.ParentReference{{Name: gwv1.ObjectName(gw.Name)}},
-			},
-			Rules: []gwv1alpha2.TCPRouteRule{
-				{
-					BackendRefs: []gwv1.BackendRef{
-						{BackendObjectReference: gwv1.BackendObjectReference{
-							Name: gwv1.ObjectName(svc.Name),
-							Port: new(gwv1.PortNumber(backendServicePort)),
-						}},
-					},
-				},
-			},
-		},
-	}
+	route := tcpRoute(ns, "web", gw.Name, svc.Name, backendServicePort)
 	require.NoError(t, e.k8s.Create(t.Context(), route))
 
 	res := &nbv1alpha1.NetworkResource{ObjectMeta: metav1.ObjectMeta{Name: svc.Name, Namespace: ns}}
@@ -146,11 +111,130 @@ func TestTCPRoute(t *testing.T) {
 	requireGone(t, "network resource", resourceID, e.nb.Networks.Resources(router.Status.NetworkID).Get)
 }
 
-// createGateway creates a Gateway of the class whose single listener names the
-// NetworkRouter, and waits until it is programmed.
-func (e *environment) createGateway(t *testing.T, namespace, name, class, router string) *gwv1.Gateway {
-	t.Helper()
-	gw := &gwv1.Gateway{
+// TestRoutesAppliedWithGateway applies a router, its Gateways and their routes
+// together, the way one kubectl apply or a GitOps sync does. A Gateway is only
+// programmed once its router's peers are ready, so the routes reach the operator
+// before their Gateways are programmed, and have to be served once they are.
+func TestRoutesAppliedWithGateway(t *testing.T) {
+	t.Parallel()
+	e := requireEnv(t)
+	e.requireNetworkFixtures(t)
+	proxy := e.requireProxy(t)
+	ns := e.createNamespace(t, "routes-applied")
+
+	web := e.createBackend(t, ns, "web")
+	tcp := e.createBackend(t, ns, "tcp")
+
+	router := e.startRouter(t, ns, 1)
+	public := gatewayFor(ns, "public", publicGatewayClass, router.Name)
+	private := gatewayFor(ns, "private", privateGatewayClass, router.Name)
+	host := proxyHost("web")
+	for _, obj := range []client.Object{
+		public,
+		private,
+		httpRoute(ns, "web", public.Name, host, web.Name, backendServicePort),
+		tcpRoute(ns, "tcp", private.Name, tcp.Name, backendServicePort),
+	} {
+		require.NoError(t, e.k8s.Create(t.Context(), obj))
+	}
+
+	t.Run("HTTPRoute", func(t *testing.T) {
+		t.Parallel()
+		res := &nbv1alpha1.NetworkResource{ObjectMeta: metav1.ObjectMeta{Name: web.Name, Namespace: ns}}
+		e.waitReady(t, res)
+		requireProxyServices(t, e, host, 1, res.Status.ResourceID)
+		requireProxyAnswers(t, proxy, host, web.Name+"-")
+	})
+	t.Run("TCPRoute", func(t *testing.T) {
+		t.Parallel()
+		res := &nbv1alpha1.NetworkResource{ObjectMeta: metav1.ObjectMeta{Name: tcp.Name, Namespace: ns}}
+		e.waitReady(t, res)
+	})
+}
+
+// TestHTTPRouteBackendPort publishes a Service that listens on a port other than
+// 80. The proxy service has to target the port the HTTPRoute's backendRef names,
+// or the proxy reaches nothing.
+func TestHTTPRouteBackendPort(t *testing.T) {
+	t.Parallel()
+	e := requireEnv(t)
+	e.requireNetworkFixtures(t)
+	proxy := e.requireProxy(t)
+	ns := e.createNamespace(t, "backend-port")
+
+	router := e.createRouter(t, ns, 1)
+	gw := e.createGateway(t, ns, "public", publicGatewayClass, router.Name)
+	svc := e.createBackendOnPort(t, ns, "web", backendPort)
+
+	host := proxyHost("web")
+	require.NoError(t, e.k8s.Create(t.Context(), httpRoute(ns, "web", gw.Name, host, svc.Name, backendPort)))
+
+	res := &nbv1alpha1.NetworkResource{ObjectMeta: metav1.ObjectMeta{Name: svc.Name, Namespace: ns}}
+	e.waitReady(t, res)
+	requireProxyServices(t, e, host, 1, res.Status.ResourceID)
+	services, err := proxyServicesFor(t.Context(), e, host)
+	require.NoError(t, err)
+	require.Len(t, services, 1, "proxy services for %s", host)
+	assert.EqualT(t, backendPort, services[0].Targets[0].Port, "the proxy target's port is the one the backendRef names")
+	requireProxyAnswers(t, proxy, host, svc.Name+"-")
+}
+
+// proxyHost returns a unique hostname on the proxy cluster's domain.
+func proxyHost(prefix string) string {
+	return fmt.Sprintf("%s-%s.%s", prefix, rand.String(6), harness.AgentNetworkCluster)
+}
+
+// httpRoute builds an HTTPRoute that serves host from the Service's port
+// through the Gateway.
+func httpRoute(namespace, name, gateway, host, service string, port gwv1.PortNumber) *gwv1.HTTPRoute {
+	return &gwv1.HTTPRoute{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+		Spec: gwv1.HTTPRouteSpec{
+			CommonRouteSpec: gwv1.CommonRouteSpec{
+				ParentRefs: []gwv1.ParentReference{{Name: gwv1.ObjectName(gateway)}},
+			},
+			Hostnames: []gwv1.Hostname{gwv1.Hostname(host)},
+			Rules: []gwv1.HTTPRouteRule{
+				{
+					BackendRefs: []gwv1.HTTPBackendRef{
+						{BackendRef: gwv1.BackendRef{BackendObjectReference: gwv1.BackendObjectReference{
+							Name: gwv1.ObjectName(service),
+							Port: new(port),
+						}}},
+					},
+				},
+			},
+		},
+	}
+}
+
+// tcpRoute builds a TCPRoute that exposes the Service's port through the
+// Gateway.
+func tcpRoute(namespace, name, gateway, service string, port gwv1.PortNumber) *gwv1alpha2.TCPRoute {
+	return &gwv1alpha2.TCPRoute{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+		Spec: gwv1alpha2.TCPRouteSpec{
+			CommonRouteSpec: gwv1.CommonRouteSpec{
+				ParentRefs: []gwv1.ParentReference{{Name: gwv1.ObjectName(gateway)}},
+			},
+			Rules: []gwv1alpha2.TCPRouteRule{
+				{
+					BackendRefs: []gwv1.BackendRef{
+						{BackendObjectReference: gwv1.BackendObjectReference{
+							Name: gwv1.ObjectName(service),
+							Port: new(port),
+						}},
+					},
+				},
+			},
+		},
+	}
+}
+
+// gatewayFor builds a Gateway of the class whose single listener names the
+// NetworkRouter.
+func gatewayFor(namespace, name, class, router string) *gwv1.Gateway {
+	return &gwv1.Gateway{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
 		Spec: gwv1.GatewaySpec{
 			GatewayClassName: gwv1.ObjectName(class),
@@ -159,6 +243,13 @@ func (e *environment) createGateway(t *testing.T, namespace, name, class, router
 			},
 		},
 	}
+}
+
+// createGateway creates a Gateway of the class whose single listener names the
+// NetworkRouter, and waits until it is programmed.
+func (e *environment) createGateway(t *testing.T, namespace, name, class, router string) *gwv1.Gateway {
+	t.Helper()
+	gw := gatewayFor(namespace, name, class, router)
 	require.NoError(t, e.k8s.Create(t.Context(), gw))
 	require.Eventually(t, func(ctx context.Context) error {
 		if err := e.k8s.Get(ctx, client.ObjectKeyFromObject(gw), gw); err != nil {

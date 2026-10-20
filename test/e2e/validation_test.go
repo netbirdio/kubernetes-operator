@@ -48,6 +48,14 @@ func TestValidation(t *testing.T) {
 				manifest: `{kind: SetupKey, spec: {name: e2e-valid, ephemeral: true, duration: 24h, autoGroups: [{name: All}]}}`,
 			},
 			{
+				name:     "setup key duration as Go writes it",
+				manifest: `{kind: SetupKey, spec: {name: e2e-go-duration, ephemeral: true, duration: 24h0m0s}}`,
+			},
+			{
+				name:     "setup key duration in seconds",
+				manifest: `{kind: SetupKey, spec: {name: e2e-seconds, ephemeral: true, duration: 3600s}}`,
+			},
+			{
 				name:     "setup key duration in days",
 				manifest: `{kind: SetupKey, spec: {name: e2e-days, ephemeral: true, duration: 1d}}`,
 				wantErr:  "spec.duration",

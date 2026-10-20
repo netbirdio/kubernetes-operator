@@ -78,12 +78,17 @@ func TestSetupKey(t *testing.T) {
 	assert.ElementsMatch(t, append([]string{e.allGroupID(t)}, wantGroups...), groupIDs(peer.Groups),
 		"a peer enrolled with the key lands in its auto-groups")
 
-	// The key is written in YAML because metav1.Duration marshals 24h as 24h0m0s,
-	// which the CRD's pattern refuses.
+	// The key is created from Go, where metav1.Duration marshals 24h as 24h0m0s:
+	// what any Go client, the operator's own API types included, sends.
 	t.Run("expiry follows spec.duration", func(t *testing.T) {
-		doc := fmt.Sprintf(`{kind: SetupKey, spec: {name: e2e-expiring-%s, ephemeral: false, duration: 24h}}`, rand.String(6))
-		require.NoError(t, e.k8s.Create(t.Context(), manifest(t, ns, "expiring", doc)))
-		expiring := &nbv1alpha1.SetupKey{ObjectMeta: metav1.ObjectMeta{Name: "expiring", Namespace: ns}}
+		expiring := &nbv1alpha1.SetupKey{
+			ObjectMeta: metav1.ObjectMeta{Name: "expiring", Namespace: ns},
+			Spec: nbv1alpha1.SetupKeySpec{
+				Name:     "e2e-expiring-" + rand.String(6),
+				Duration: &metav1.Duration{Duration: 24 * time.Hour},
+			},
+		}
+		require.NoError(t, e.k8s.Create(t.Context(), expiring), "create a SetupKey with spec.duration 24h0m0s")
 		e.waitReady(t, expiring)
 		expiringKey, err := e.nb.SetupKeys.Get(t.Context(), expiring.Status.SetupKeyID)
 		require.NoError(t, err)

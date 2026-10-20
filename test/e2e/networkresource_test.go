@@ -23,7 +23,10 @@ import (
 	"github.com/netbirdio/netbird/shared/management/http/api"
 )
 
-const reachTimeout = 3 * time.Minute
+const (
+	reachTimeout        = 3 * time.Minute
+	unreachableFailures = 3
+)
 
 // TestNetworkResource exposes a Service through a NetworkRouter and checks it
 // the way a user would see it: a peer outside the cluster reaches the Service by
@@ -73,12 +76,14 @@ func TestNetworkResource(t *testing.T) {
 	requireReachable(t, fx.laptop, url, svc.Name+"-")
 
 	// Moving the resource out of the group the policy covers has to cut the peer
-	// off, without the resource being recreated along the way.
+	// off, and moving it back has to restore access, without the resource being
+	// recreated either way.
 	e.setResourceGroups(t, res, "All")
 	requireUnreachable(t, fx.laptop, url)
-	assert.EqualT(t, resourceID, res.Status.ResourceID, "changing groups recreated the resource")
+	assert.EqualT(t, resourceID, res.Status.ResourceID, "moving the resource out of the group recreated it")
 	e.setResourceGroups(t, res, resourcesGroup)
 	requireReachable(t, fx.laptop, url, svc.Name+"-")
+	assert.EqualT(t, resourceID, res.Status.ResourceID, "moving the resource back into the group recreated it")
 
 	require.NoError(t, e.k8s.Delete(t.Context(), res))
 	e.waitGone(t, res)
@@ -119,13 +124,21 @@ func requireReachable(t *testing.T, peer *harness.Client, url, want string) {
 	}, reachTimeout, 3*time.Second)
 }
 
-// requireUnreachable waits until a GET from the peer fails.
+// requireUnreachable waits until GETs from the peer fail unreachableFailures
+// times in a row, so a single dropped request cannot pass for access that was
+// never cut.
 func requireUnreachable(t *testing.T, peer *harness.Client, url string) {
 	t.Helper()
+	failures := 0
 	require.Eventually(t, func(ctx context.Context) error {
 		body, err := httpGet(ctx, peer, url)
 		if err == nil {
+			failures = 0
 			return fmt.Errorf("GET %s still answers: %q", url, body)
+		}
+		failures++
+		if failures < unreachableFailures {
+			return fmt.Errorf("GET %s failed %d of %d times in a row: %w", url, failures, unreachableFailures, err)
 		}
 		return nil
 	}, reachTimeout, 3*time.Second)

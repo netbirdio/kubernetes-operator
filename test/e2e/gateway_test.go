@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -84,11 +85,12 @@ func TestHTTPRoute(t *testing.T) {
 }
 
 // TestTCPRoute checks that a TCPRoute exposes its backend as a network resource
-// in the Gateway's network, and that deleting the route removes it.
+// in the Gateway's network that a peer reaches over raw TCP, and that deleting
+// the route removes it.
 func TestTCPRoute(t *testing.T) {
 	t.Parallel()
 	e := requireEnv(t)
-	e.requireNetworkFixtures(t)
+	fx := e.requireNetworkFixtures(t)
 	ns := e.createNamespace(t, "tcproute")
 
 	router := e.createRouter(t, ns, 1)
@@ -104,6 +106,10 @@ func TestTCPRoute(t *testing.T) {
 	require.NoError(t, err)
 	assert.EqualT(t, svc.Spec.ClusterIP, resourceAddr(nbRes.Address), "the resource is the Service's ClusterIP")
 
+	removePolicy := e.allowClientsToResource(t, fx, res.Status.ResourceID)
+	requireTCPAnswers(t, fx.laptop, resourceFQDN(svc.Name, ns), backendServicePort, svc.Name+"-")
+	removePolicy()
+
 	resourceID := res.Status.ResourceID
 	require.NoError(t, e.k8s.Delete(t.Context(), route))
 	e.waitGone(t, route)
@@ -118,7 +124,7 @@ func TestTCPRoute(t *testing.T) {
 func TestRoutesAppliedWithGateway(t *testing.T) {
 	t.Parallel()
 	e := requireEnv(t)
-	e.requireNetworkFixtures(t)
+	fx := e.requireNetworkFixtures(t)
 	proxy := e.requireProxy(t)
 	ns := e.createNamespace(t, "routes-applied")
 
@@ -149,6 +155,8 @@ func TestRoutesAppliedWithGateway(t *testing.T) {
 		t.Parallel()
 		res := &nbv1alpha1.NetworkResource{ObjectMeta: metav1.ObjectMeta{Name: tcp.Name, Namespace: ns}}
 		e.waitReady(t, res)
+		e.allowClientsToResource(t, fx, res.Status.ResourceID)
+		requireTCPAnswers(t, fx.laptop, resourceFQDN(tcp.Name, ns), backendServicePort, tcp.Name+"-")
 	})
 }
 
@@ -177,6 +185,69 @@ func TestHTTPRouteBackendPort(t *testing.T) {
 	require.Len(t, services, 1, "proxy services for %s", host)
 	assert.EqualT(t, backendPort, services[0].Targets[0].Port, "the proxy target's port is the one the backendRef names")
 	requireProxyAnswers(t, proxy, host, svc.Name+"-")
+}
+
+// allowClientsToResource creates a policy that lets the clients group reach the
+// network resource itself, which is how a user grants access to a resource a
+// route created in no group. The returned func deletes the policy, which has to
+// go before the resource can; it also runs when the test ends.
+func (e *environment) allowClientsToResource(t *testing.T, fx *networkFixtures, resourceID string) func() {
+	t.Helper()
+	name := "e2e-clients-to-" + resourceID
+	policy, err := e.nb.Policies.Create(t.Context(), api.PostApiPoliciesJSONRequestBody{
+		Name:    name,
+		Enabled: true,
+		Rules: []api.PolicyRuleUpdate{
+			{
+				Name:                name,
+				Enabled:             true,
+				Action:              api.PolicyRuleUpdateActionAccept,
+				Protocol:            api.PolicyRuleUpdateProtocolAll,
+				Sources:             &[]string{fx.clientsGroupID},
+				DestinationResource: &api.Resource{Id: resourceID, Type: api.ResourceTypeHost},
+			},
+		},
+	})
+	require.NoError(t, err)
+	var once sync.Once
+	remove := func() {
+		once.Do(func() {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			defer cancel()
+			if err := e.nb.Policies.Delete(ctx, *policy.Id); err != nil {
+				t.Errorf("delete policy %s: %v", name, err)
+			}
+		})
+	}
+	t.Cleanup(remove)
+	return remove
+}
+
+// requireTCPAnswers waits until nc, run on the peer, gets an answer naming the
+// backend over a raw TCP connection to host:port. The request it writes is
+// plain HTTP because that is what the backend speaks.
+func requireTCPAnswers(t *testing.T, peer *harness.Client, host string, port int32, want string) {
+	t.Helper()
+	script := fmt.Sprintf(`printf 'GET /hostname HTTP/1.0\r\n\r\n' | nc -w 5 %s %d`, host, port)
+	require.Eventually(t, func(ctx context.Context) error {
+		code, out, err := peer.Exec(ctx, "sh", "-c", script)
+		if err != nil {
+			return err
+		}
+		if code != 0 {
+			return fmt.Errorf("nc %s %d from %s failed (exit %d): %s", host, port, peer.Hostname(), code, out)
+		}
+		if !strings.Contains(out, want) {
+			return fmt.Errorf("nc %s %d answered %q, want a response naming %q", host, port, out, want)
+		}
+		return nil
+	}, reachTimeout, 3*time.Second)
+}
+
+// resourceFQDN is the DNS name the operator gives a Service's network resource
+// in the fixture zone.
+func resourceFQDN(service, namespace string) string {
+	return fmt.Sprintf("%s.%s.%s", service, namespace, dnsZone)
 }
 
 // proxyHost returns a unique hostname on the proxy cluster's domain.

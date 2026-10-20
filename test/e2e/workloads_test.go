@@ -17,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
@@ -45,7 +46,11 @@ type conditionedObject interface {
 // generation, and returns with obj holding that state.
 func (e *environment) waitReady(t *testing.T, obj conditionedObject) {
 	t.Helper()
-	require.Eventually(t, func(ctx context.Context) error {
+	require.NoError(t, e.waitReadyCtx(t.Context(), obj))
+}
+
+func (e *environment) waitReadyCtx(ctx context.Context, obj conditionedObject) error {
+	return eventually(ctx, readyTimeout, func(ctx context.Context) error {
 		if err := e.k8s.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
 			return err
 		}
@@ -58,7 +63,21 @@ func (e *environment) waitReady(t *testing.T, obj conditionedObject) {
 				obj.GetName(), obj.GetGeneration(), cond.Status, cond.Reason, cond.Message)
 		}
 		return nil
-	}, readyTimeout, 2*time.Second)
+	})
+}
+
+// eventually polls fn until it succeeds and, when the timeout passes first,
+// returns the last error fn gave, which is the one that says what was missing.
+func eventually(ctx context.Context, timeout time.Duration, fn func(context.Context) error) error {
+	var last error
+	err := wait.PollUntilContextTimeout(ctx, 2*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+		last = fn(ctx)
+		return last == nil, nil
+	})
+	if err != nil && last != nil {
+		return fmt.Errorf("%w: %w", err, last)
+	}
+	return err
 }
 
 // waitGone waits until a deleted object, finalizers and all, is gone.
@@ -79,6 +98,12 @@ func (e *environment) waitGone(t *testing.T, obj client.Object) {
 // apart.
 func (e *environment) createRouter(t *testing.T, namespace string, replicas int32) *nbv1alpha1.NetworkRouter {
 	t.Helper()
+	router, err := e.newRouter(t.Context(), namespace, replicas)
+	require.NoError(t, err)
+	return router
+}
+
+func (e *environment) newRouter(ctx context.Context, namespace string, replicas int32) (*nbv1alpha1.NetworkRouter, error) {
 	router := &nbv1alpha1.NetworkRouter{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "router-" + rand.String(5),
@@ -91,15 +116,22 @@ func (e *environment) createRouter(t *testing.T, namespace string, replicas int3
 			},
 		},
 	}
-	require.NoError(t, e.k8s.Create(t.Context(), router))
-	e.waitReady(t, router)
-	return router
+	if err := e.k8s.Create(ctx, router); err != nil {
+		return nil, err
+	}
+	return router, e.waitReadyCtx(ctx, router)
 }
 
 // createBackend deploys an HTTP server behind a ClusterIP Service of the same
 // name and waits until it serves.
 func (e *environment) createBackend(t *testing.T, namespace, name string) *corev1.Service {
 	t.Helper()
+	svc, err := e.newBackend(t.Context(), namespace, name)
+	require.NoError(t, err)
+	return svc
+}
+
+func (e *environment) newBackend(ctx context.Context, namespace, name string) (*corev1.Service, error) {
 	labels := map[string]string{"app": name}
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -128,7 +160,9 @@ func (e *environment) createBackend(t *testing.T, namespace, name string) *corev
 			},
 		},
 	}
-	require.NoError(t, e.k8s.Create(t.Context(), dep))
+	if err := e.k8s.Create(ctx, dep); err != nil {
+		return nil, err
+	}
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -146,11 +180,12 @@ func (e *environment) createBackend(t *testing.T, namespace, name string) *corev
 			},
 		},
 	}
-	require.NoError(t, e.k8s.Create(t.Context(), svc))
-	require.Eventually(t, func(ctx context.Context) error {
+	if err := e.k8s.Create(ctx, svc); err != nil {
+		return nil, err
+	}
+	return svc, eventually(ctx, readyTimeout, func(ctx context.Context) error {
 		return e.workloadCurrent(ctx, "Deployment", namespace, name)
-	}, readyTimeout, 2*time.Second)
-	return svc
+	})
 }
 
 // touch changes an annotation to make the operator reconcile the object now.

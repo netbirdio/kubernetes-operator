@@ -28,6 +28,7 @@ import (
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	"sigs.k8s.io/kind/pkg/cluster"
 
+	nbv1 "github.com/netbirdio/kubernetes-operator/api/v1"
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	"github.com/netbirdio/netbird/e2e/harness"
 	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
@@ -93,6 +94,10 @@ type environment struct {
 	proxyOnce sync.Once
 	proxy     *harness.Proxy
 	proxyErr  error
+
+	// upgrade holds what the published operator created before the upgrade;
+	// nil when the run skipped the upgrade.
+	upgrade *upgradeFixtures
 }
 
 // bootstrap brings the environment up. On error it returns whatever it got as
@@ -201,41 +206,49 @@ func (e *environment) createCluster() error {
 // without the check its absence shows up much later as peers that never
 // connect, with nothing pointing at DNS or the network.
 func (e *environment) checkManagementReachable(ctx context.Context) error {
+	script := fmt.Sprintf("wget -q -O /dev/null -T 5 %s/api/instance", managementURL)
+	if err := e.runCheck(ctx, metav1.NamespaceDefault, "management-reachable", script); err != nil {
+		return fmt.Errorf("pods in the cluster cannot reach management at %s: %w", managementURL, err)
+	}
+	return nil
+}
+
+// runCheck runs a shell command in a pod, from the client image, until it
+// succeeds or about two minutes pass, and returns the pod's log if it never
+// does. It is how a test checks what a workload inside the cluster can reach.
+func (e *environment) runCheck(ctx context.Context, namespace, name, script string) error {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "management-reachable",
-			Namespace: metav1.NamespaceDefault,
+			Name:      name,
+			Namespace: namespace,
 		},
 		Spec: corev1.PodSpec{
 			RestartPolicy: corev1.RestartPolicyNever,
 			Containers: []corev1.Container{
 				{
-					Name:  "check",
-					Image: e.clientImage,
-					Command: []string{"sh", "-c", fmt.Sprintf(
-						"for i in $(seq 30); do wget -q -O /dev/null -T 5 %s/api/instance && exit 0; sleep 2; done; exit 1",
-						managementURL,
-					)},
+					Name:    "check",
+					Image:   e.clientImage,
+					Command: []string{"sh", "-c", fmt.Sprintf("for i in $(seq 40); do %s && exit 0; sleep 3; done; exit 1", script)},
 				},
 			},
 		},
 	}
-	// The namespace's default service account appears a moment after the node
-	// reports ready, and admission refuses the pod until it does.
+	// A namespace's default service account appears a moment after the
+	// namespace, and admission refuses the pod until it does.
 	var createErr error
 	err := wait.PollUntilContextTimeout(ctx, 2*time.Second, time.Minute, true, func(ctx context.Context) (bool, error) {
 		createErr = e.k8s.Create(ctx, pod)
 		return createErr == nil, nil
 	})
 	if err != nil {
-		return fmt.Errorf("create the management reachability check: %w (%w)", err, createErr)
+		return fmt.Errorf("create pod %s: %w (%w)", name, err, createErr)
 	}
 	defer func() {
 		_ = e.k8s.Delete(context.Background(), pod)
 	}()
 
 	var phase corev1.PodPhase
-	err = wait.PollUntilContextTimeout(ctx, 2*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
+	err = wait.PollUntilContextTimeout(ctx, 2*time.Second, 4*time.Minute, true, func(ctx context.Context) (bool, error) {
 		if err := e.k8s.Get(ctx, client.ObjectKeyFromObject(pod), pod); err != nil {
 			return false, err
 		}
@@ -245,8 +258,8 @@ func (e *environment) checkManagementReachable(ctx context.Context) error {
 	if err == nil && phase == corev1.PodSucceeded {
 		return nil
 	}
-	return fmt.Errorf("pods in the cluster cannot reach management at %s (phase %q, %v); check log:\n%s",
-		managementURL, phase, err, e.podLogTail(context.Background(), pod.Namespace, pod.Name, "check", 20))
+	return fmt.Errorf("%q never succeeded in pod %s (phase %q, %v); log:\n%s",
+		script, name, phase, err, e.podLogTail(context.Background(), namespace, name, "check", 20))
 }
 
 // teardown removes the cluster before the deployment: the Kind nodes sit on the
@@ -331,6 +344,7 @@ func newScheme() *kruntime.Scheme {
 	scheme := kruntime.NewScheme()
 	kruntimeutil.Must(clientgoscheme.AddToScheme(scheme))
 	kruntimeutil.Must(nbv1alpha1.AddToScheme(scheme))
+	kruntimeutil.Must(nbv1.AddToScheme(scheme))
 	kruntimeutil.Must(gwv1.AddToScheme(scheme))
 	kruntimeutil.Must(gwv1alpha2.AddToScheme(scheme))
 	return scheme

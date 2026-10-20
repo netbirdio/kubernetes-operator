@@ -51,6 +51,7 @@ func run(m *testing.M) int {
 	if err != nil {
 		log.Printf("e2e: %v", err)
 		if env != nil {
+			env.logDiagnostics()
 			env.collectArtifacts()
 		}
 		return 1

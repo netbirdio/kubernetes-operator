@@ -126,12 +126,22 @@ func (e *environment) newRouter(ctx context.Context, namespace string, replicas 
 // name and waits until it serves.
 func (e *environment) createBackend(t *testing.T, namespace, name string) *corev1.Service {
 	t.Helper()
-	svc, err := e.newBackend(t.Context(), namespace, name)
+	return e.createBackendOfType(t, namespace, name, corev1.ServiceTypeClusterIP)
+}
+
+// createBackendOfType is createBackend with a Service of the given type.
+func (e *environment) createBackendOfType(t *testing.T, namespace, name string, serviceType corev1.ServiceType) *corev1.Service {
+	t.Helper()
+	svc, err := e.newBackendOfType(t.Context(), namespace, name, serviceType)
 	require.NoError(t, err)
 	return svc
 }
 
 func (e *environment) newBackend(ctx context.Context, namespace, name string) (*corev1.Service, error) {
+	return e.newBackendOfType(ctx, namespace, name, corev1.ServiceTypeClusterIP)
+}
+
+func (e *environment) newBackendOfType(ctx context.Context, namespace, name string, serviceType corev1.ServiceType) (*corev1.Service, error) {
 	labels := map[string]string{"app": name}
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -169,7 +179,7 @@ func (e *environment) newBackend(ctx context.Context, namespace, name string) (*
 			Namespace: namespace,
 		},
 		Spec: corev1.ServiceSpec{
-			Type:     corev1.ServiceTypeClusterIP,
+			Type:     serviceType,
 			Selector: labels,
 			Ports: []corev1.ServicePort{
 				{

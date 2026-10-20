@@ -11,7 +11,7 @@ require (
 	github.com/fluxcd/cli-utils v1.2.2
 	github.com/go-openapi/testify/v2 v2.6.0
 	github.com/netbirdio/kubernetes-operator v0.0.0-00010101000000-000000000000
-	github.com/netbirdio/netbird v0.81.2-0.20261019164901-ea8fea57b0d9
+	github.com/netbirdio/netbird v0.81.2-0.20261020122105-569b9aa169c0
 	helm.sh/helm/v4 v4.2.3
 	k8s.io/api v0.36.2
 	k8s.io/apimachinery v0.36.2

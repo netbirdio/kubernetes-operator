@@ -15,6 +15,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
@@ -275,9 +277,34 @@ func proxyServicesByDomain(services []api.Service) map[string][]string {
 	return idx
 }
 
-// SetupWithManager sets up the controller with the Manager.
+// SetupWithManager sets up the controller with the Manager. A route is skipped
+// while its Gateway is not programmed, so a change to a Gateway reconciles the
+// routes that reference it.
 func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gwv1.HTTPRoute{}).
+		Watches(&gwv1.Gateway{}, handler.EnqueueRequestsFromMapFunc(r.routesForGateway)).
 		Complete(r)
+}
+
+// routesForGateway returns a request for every HTTPRoute that references the
+// Gateway.
+func (r *HTTPRouteReconciler) routesForGateway(ctx context.Context, obj client.Object) []reconcile.Request {
+	gw, ok := obj.(*gwv1.Gateway)
+	if !ok {
+		return nil
+	}
+	routes := &gwv1.HTTPRouteList{}
+	if err := r.List(ctx, routes); err != nil {
+		ctrl.Log.WithName("HTTPRoute").Error(err, "list routes for gateway", "namespace", gw.Namespace, "name", gw.Name)
+		return nil
+	}
+	var reqs []reconcile.Request
+	for i := range routes.Items {
+		route := &routes.Items[i]
+		if gatewayutil.ReferencesGateway(route.Spec.ParentRefs, route.Namespace, gw) {
+			reqs = append(reqs, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(route)})
+		}
+	}
+	return reqs
 }

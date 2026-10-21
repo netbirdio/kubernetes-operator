@@ -29,8 +29,8 @@ const (
 	agnhostImage = "registry.k8s.io/e2e-test-images/agnhost:2.53"
 	backendPort  = 8080
 	// backendServicePort is the port a backend's Service exposes. It is the
-	// default HTTP port because the operator gives reverse-proxy targets no port
-	// of their own, whatever the HTTPRoute's backendRef says.
+	// default HTTP port so a request to a network resource needs no port of its
+	// own; TestHTTPRouteBackendPort covers a Service on another one.
 	backendServicePort = 80
 
 	readyTimeout = 5 * time.Minute

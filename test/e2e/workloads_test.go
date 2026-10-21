@@ -49,8 +49,19 @@ func (e *environment) waitReady(t *testing.T, obj conditionedObject) {
 	require.NoError(t, e.waitReadyCtx(t.Context(), obj))
 }
 
+// waitReadyWithin is waitReady with its own timeout, for a test that expects
+// the operator to act faster than readyTimeout allows.
+func (e *environment) waitReadyWithin(t *testing.T, obj conditionedObject, timeout time.Duration) {
+	t.Helper()
+	require.NoError(t, e.waitReadyFor(t.Context(), obj, timeout))
+}
+
 func (e *environment) waitReadyCtx(ctx context.Context, obj conditionedObject) error {
-	return eventually(ctx, readyTimeout, func(ctx context.Context) error {
+	return e.waitReadyFor(ctx, obj, readyTimeout)
+}
+
+func (e *environment) waitReadyFor(ctx context.Context, obj conditionedObject, timeout time.Duration) error {
+	return eventually(ctx, timeout, func(ctx context.Context) error {
 		if err := e.k8s.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
 			return err
 		}
@@ -68,11 +79,16 @@ func (e *environment) waitReadyCtx(ctx context.Context, obj conditionedObject) e
 
 // eventually polls fn until it succeeds and, when the timeout passes first,
 // returns the last error fn gave, which is the one that says what was missing.
+// An attempt the deadline cut short only says that time ran out, so its error
+// does not replace that one.
 func eventually(ctx context.Context, timeout time.Duration, fn func(context.Context) error) error {
 	var last error
 	err := wait.PollUntilContextTimeout(ctx, 2*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
-		last = fn(ctx)
-		return last == nil, nil
+		fnErr := fn(ctx)
+		if fnErr != nil && ctx.Err() == nil {
+			last = fnErr
+		}
+		return fnErr == nil, nil
 	})
 	if err != nil && last != nil {
 		return fmt.Errorf("%w: %w", err, last)

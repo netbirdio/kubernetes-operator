@@ -30,6 +30,10 @@ import (
 const (
 	publicGatewayClass  = "netbird-public"
 	privateGatewayClass = "netbird-private"
+
+	// routeTimeout is how long a route may take to be served once its Gateway is
+	// programmed. The operator only has to create a network resource by then.
+	routeTimeout = time.Minute
 )
 
 // TestHTTPRoute publishes a Service through an HTTPRoute and requests it the
@@ -120,7 +124,9 @@ func TestTCPRoute(t *testing.T) {
 // TestRoutesAppliedWithGateway applies a router, its Gateways and their routes
 // together, the way one kubectl apply or a GitOps sync does. A Gateway is only
 // programmed once its router's peers are ready, so the routes reach the operator
-// before their Gateways are programmed, and have to be served once they are.
+// before their Gateways are programmed, and have to be served soon after they
+// are. Getting the Gateways programmed is not what is under test, so it gets the
+// usual timeout; the routes then get routeTimeout.
 func TestRoutesAppliedWithGateway(t *testing.T) {
 	t.Parallel()
 	e := requireEnv(t)
@@ -143,18 +149,20 @@ func TestRoutesAppliedWithGateway(t *testing.T) {
 	} {
 		require.NoError(t, e.k8s.Create(t.Context(), obj))
 	}
+	e.waitProgrammed(t, public)
+	e.waitProgrammed(t, private)
 
 	t.Run("HTTPRoute", func(t *testing.T) {
 		t.Parallel()
 		res := &nbv1alpha1.NetworkResource{ObjectMeta: metav1.ObjectMeta{Name: web.Name, Namespace: ns}}
-		e.waitReady(t, res)
+		e.waitReadyWithin(t, res, routeTimeout)
 		requireProxyServices(t, e, host, 1, res.Status.ResourceID)
 		requireProxyAnswers(t, proxy, host, web.Name+"-")
 	})
 	t.Run("TCPRoute", func(t *testing.T) {
 		t.Parallel()
 		res := &nbv1alpha1.NetworkResource{ObjectMeta: metav1.ObjectMeta{Name: tcp.Name, Namespace: ns}}
-		e.waitReady(t, res)
+		e.waitReadyWithin(t, res, routeTimeout)
 		e.allowClientsToResource(t, fx, res.Status.ResourceID)
 		requireTCPAnswers(t, fx.laptop, resourceFQDN(tcp.Name, ns), backendServicePort, tcp.Name+"-")
 	})
@@ -183,7 +191,9 @@ func TestHTTPRouteBackendPort(t *testing.T) {
 	services, err := proxyServicesFor(t.Context(), e, host)
 	require.NoError(t, err)
 	require.Len(t, services, 1, "proxy services for %s", host)
-	assert.EqualT(t, backendPort, services[0].Targets[0].Port, "the proxy target's port is the one the backendRef names")
+	// No request can reach the Service through a target on another port, so a
+	// wrong port fails here rather than after the traffic check times out.
+	require.EqualT(t, backendPort, services[0].Targets[0].Port, "the proxy target's port is the one the backendRef names")
 	requireProxyAnswers(t, proxy, host, svc.Name+"-")
 }
 
@@ -322,16 +332,22 @@ func (e *environment) createGateway(t *testing.T, namespace, name, class, router
 	t.Helper()
 	gw := gatewayFor(namespace, name, class, router)
 	require.NoError(t, e.k8s.Create(t.Context(), gw))
+	e.waitProgrammed(t, gw)
+	return gw
+}
+
+// waitProgrammed waits until the Gateway is programmed.
+func (e *environment) waitProgrammed(t *testing.T, gw *gwv1.Gateway) {
+	t.Helper()
 	require.Eventually(t, func(ctx context.Context) error {
 		if err := e.k8s.Get(ctx, client.ObjectKeyFromObject(gw), gw); err != nil {
 			return err
 		}
 		if !meta.IsStatusConditionTrue(gw.Status.Conditions, string(gwv1.GatewayConditionProgrammed)) {
-			return fmt.Errorf("gateway %s is not programmed: %v", name, gw.Status.Conditions)
+			return fmt.Errorf("gateway %s is not programmed: %v", gw.Name, gw.Status.Conditions)
 		}
 		return nil
 	}, readyTimeout, 2*time.Second)
-	return gw
 }
 
 // requireProxyServices waits until the server holds exactly want proxy services

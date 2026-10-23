@@ -6,7 +6,7 @@ toolchain go1.26.5
 
 require (
 	github.com/fluxcd/pkg/runtime v0.111.0
-	github.com/go-logr/logr v1.4.3
+	github.com/go-logr/logr v1.4.4
 	github.com/go-openapi/testify/v2 v2.6.0
 	github.com/google/uuid v1.6.0
 	github.com/netbirdio/kube-egress-forwarder v0.0.3

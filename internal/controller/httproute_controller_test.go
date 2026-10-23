@@ -146,5 +146,26 @@ var _ = Describe("HTTPRoute Controller", func() {
 			Expect(services[0].Targets).To(HaveLen(1))
 			Expect(services[0].Targets[0].TargetId).To(Equal("resource-1"))
 		})
+
+		It("reconciles the routes that reference a changed Gateway", func() {
+			gw := &gwv1.Gateway{}
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: route.Namespace, Name: "gateway"}, gw)).To(Succeed())
+
+			// A route in another namespace that names a Gateway of the same name
+			// means the one in its own namespace, so it must not be reconciled.
+			otherNS := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "httproute-" + rand.String(5)}}
+			Expect(k8sClient.Create(ctx, otherNS)).To(Succeed())
+			other := &gwv1.HTTPRoute{
+				ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: otherNS.Name},
+				Spec: gwv1.HTTPRouteSpec{
+					CommonRouteSpec: gwv1.CommonRouteSpec{
+						ParentRefs: []gwv1.ParentReference{{Name: gwv1.ObjectName(gw.Name)}},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, other)).To(Succeed())
+
+			Expect(rec.routesForGateway(ctx, gw)).To(ConsistOf(reconcile.Request{NamespacedName: route}))
+		})
 	})
 })

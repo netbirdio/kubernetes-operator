@@ -391,10 +391,14 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			if err != nil {
 				return ctrl.Result{}, err
 			}
-			err = json.Unmarshal(mergedJSON, &podTemplateSpecAC)
+			// Into a fresh value: decoding into the populated struct reuses its
+			// env slice elements, leaving entries with both value and valueFrom.
+			merged := corev1ac.PodTemplateSpec()
+			err = json.Unmarshal(mergedJSON, merged)
 			if err != nil {
 				return ctrl.Result{}, err
 			}
+			podTemplateSpecAC = merged
 		}
 	}
 	maps.Copy(workloadLabels, selectorLabels)

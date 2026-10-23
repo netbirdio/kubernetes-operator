@@ -306,8 +306,9 @@ func main() {
 			os.Exit(1)
 		}
 		if err := (&controller.NetworkResourceReconciler{
-			Client:  mgr.GetClient(),
-			Netbird: nbClient,
+			Client:      mgr.GetClient(),
+			Netbird:     nbClient,
+			ClusterName: clusterName,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "Failed to create controller", "controller", "NetworkResource")
 			os.Exit(1)

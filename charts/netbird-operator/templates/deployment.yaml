@@ -119,17 +119,17 @@ spec:
           resources:
             {{- toYaml .Values.operator.resources | nindent 12 }}
           volumeMounts:
-          - mountPath: /tmp/k8s-webhook-server/serving-certs
-            name: webhook-certs
-            readOnly: true
+            - mountPath: /tmp/k8s-webhook-server/serving-certs
+              name: webhook-certs
+              readOnly: true
           {{- with .Values.operator.volumeMounts }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
       volumes:
-      - name: webhook-certs
-        secret:
-          defaultMode: 420
-          secretName: {{ template "netbird-operator.webhookCertSecret" . }}
+        - name: webhook-certs
+          secret:
+            defaultMode: 420
+            secretName: {{ template "netbird-operator.webhookCertSecret" . }}
       {{- with .Values.operator.volumes }}
         {{- toYaml . | nindent 8 }}
       {{- end }}

@@ -73,7 +73,7 @@ var _ = Describe("HTTPRoute Controller", func() {
 			svc := &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: ns.Name},
 				Spec: corev1.ServiceSpec{
-					Ports: []corev1.ServicePort{{Name: "http", Port: 80}},
+					Ports: []corev1.ServicePort{{Name: "http", Port: 8080}},
 				},
 			}
 			Expect(k8sClient.Create(ctx, svc)).To(Succeed())
@@ -89,7 +89,7 @@ var _ = Describe("HTTPRoute Controller", func() {
 							BackendRefs: []gwv1.HTTPBackendRef{
 								{BackendRef: gwv1.BackendRef{BackendObjectReference: gwv1.BackendObjectReference{
 									Name: gwv1.ObjectName(svc.Name),
-									Port: new(gwv1.PortNumber(80)),
+									Port: new(gwv1.PortNumber(8080)),
 								}}},
 							},
 						},
@@ -145,6 +145,16 @@ var _ = Describe("HTTPRoute Controller", func() {
 			Expect(services).To(HaveLen(1))
 			Expect(services[0].Targets).To(HaveLen(1))
 			Expect(services[0].Targets[0].TargetId).To(Equal("resource-1"))
+		})
+
+		It("targets the Service port the backendRef names", func() {
+			_, err := rec.Reconcile(ctx, reconcile.Request{NamespacedName: route})
+			Expect(err).NotTo(HaveOccurred())
+
+			services := proxyServices()
+			Expect(services).To(HaveLen(1))
+			Expect(services[0].Targets).To(HaveLen(1))
+			Expect(services[0].Targets[0].Port).To(Equal(8080))
 		})
 
 		It("reconciles the routes that reference a changed Gateway", func() {

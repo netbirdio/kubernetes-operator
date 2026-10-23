@@ -8,4 +8,5 @@ const (
 	ReconciledReason  = "Reconciled"
 	DependencyReason  = "Dependency"
 	ProgressingReason = "Progressing"
+	ConflictReason    = "Conflict"
 )

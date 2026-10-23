@@ -298,6 +298,13 @@ func main() {
 			setupLog.Error(err, "Failed to create controller", "controller", "Group")
 			os.Exit(1)
 		}
+		if err := (&controller.PolicyReconciler{
+			Client:  mgr.GetClient(),
+			Netbird: nbClient,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "Failed to create controller", "controller", "Policy")
+			os.Exit(1)
+		}
 		if err := (&controller.NetworkRouterReconciler{
 			Client:        mgr.GetClient(),
 			Netbird:       nbClient,

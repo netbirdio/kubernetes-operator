@@ -36,6 +36,7 @@ rules:
   - nbpolicies
   - setupkeys
   - groups
+  - policies
   - networkrouters
   - networkresources
   - networkegresses
@@ -58,6 +59,7 @@ rules:
   - nbpolicies/status
   - setupkeys/status
   - groups/status
+  - policies/status
   - networkrouters/status
   - networkresources/status
   - networkegresses/status
@@ -76,6 +78,7 @@ rules:
   - nbpolicies/finalizers
   - setupkeys/finalizers
   - groups/finalizers
+  - policies/finalizers
   - networkrouters/finalizers
   - networkresources/finalizers
   - networkegresses/finalizers

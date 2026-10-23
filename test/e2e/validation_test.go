@@ -100,6 +100,25 @@ func TestValidation(t *testing.T) {
 				manifest: `{kind: NetworkEgress, spec: {networkRouterRef: {name: router, namespace: router-ns}, target: {ip: {address: 10.0.0.1}}, ports: [{name: HTTP, port: 80}]}}`,
 				wantErr:  "spec.ports[0].name",
 			},
+			{
+				name:     "valid policy",
+				manifest: `{kind: Policy, spec: {name: e2e-valid, sourceGroups: [{name: All}], destinationGroups: [{name: All}], protocol: tcp, ports: [443], portRanges: [{start: 8000, end: 8080}]}}`,
+			},
+			{
+				name:     "policy ports without tcp or udp",
+				manifest: `{kind: Policy, spec: {name: e2e-ports, sourceGroups: [{name: All}], destinationGroups: [{name: All}], protocol: all, ports: [443]}}`,
+				wantErr:  "ports and portRanges require protocol tcp or udp",
+			},
+			{
+				name:     "policy port range that ends before it starts",
+				manifest: `{kind: Policy, spec: {name: e2e-range, sourceGroups: [{name: All}], destinationGroups: [{name: All}], protocol: tcp, portRanges: [{start: 9000, end: 8000}]}}`,
+				wantErr:  "start must not be greater than end",
+			},
+			{
+				name:     "policy without source groups",
+				manifest: `{kind: Policy, spec: {name: e2e-sources, sourceGroups: [], destinationGroups: [{name: All}]}}`,
+				wantErr:  "spec.sourceGroups",
+			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				obj := manifest(t, ns, "valid", tc.manifest)

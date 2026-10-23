@@ -102,6 +102,28 @@ func RecordingClient() (*netbird.Client, *Recorder) {
 		return output
 	})
 
+	addHandler(mux, "policies", func(id string, input api.PolicyUpdate, output api.Policy) api.Policy {
+		output.Id = &id
+		output.Name = input.Name
+		output.Description = input.Description
+		output.Enabled = input.Enabled
+		output.Rules = []api.PolicyRule{}
+		for _, rule := range input.Rules {
+			output.Rules = append(output.Rules, api.PolicyRule{
+				Name:          rule.Name,
+				Enabled:       rule.Enabled,
+				Action:        api.PolicyRuleAction(rule.Action),
+				Bidirectional: rule.Bidirectional,
+				Protocol:      api.PolicyRuleProtocol(rule.Protocol),
+				Ports:         rule.Ports,
+				PortRanges:    rule.PortRanges,
+				Sources:       groupMinimums(rule.Sources),
+				Destinations:  groupMinimums(rule.Destinations),
+			})
+		}
+		return output
+	})
+
 	addHandler(mux, "reverse-proxies/services", func(id string, input api.ServiceRequest, output api.Service) api.Service {
 		output.Id = id
 		output.Name = input.Name
@@ -124,6 +146,18 @@ func RecordingClient() (*netbird.Client, *Recorder) {
 	return netbird.New(srv.URL, "ABC"), rec
 }
 
+// groupMinimums turns group IDs into the group references a policy rule returns.
+func groupMinimums(ids *[]string) *[]api.GroupMinimum {
+	if ids == nil {
+		return nil
+	}
+	groups := []api.GroupMinimum{}
+	for _, id := range *ids {
+		groups = append(groups, api.GroupMinimum{Id: id})
+	}
+	return &groups
+}
+
 func addHandler[T, U any](mux *http.ServeMux, resource string, convertFn func(string, U, T) T) {
 	var itemMx sync.RWMutex
 	store := map[string]T{}
@@ -132,8 +166,13 @@ func addHandler[T, U any](mux *http.ServeMux, resource string, convertFn func(st
 		itemMx.RLock()
 		defer itemMx.RUnlock()
 
+		// Like the Netbird API, a name query returns only the items with that name.
+		name := req.URL.Query().Get("name")
 		items := make([]T, 0, len(store))
 		for _, v := range store {
+			if name != "" && itemName(v) != name {
+				continue
+			}
 			items = append(items, v)
 		}
 		b, err := json.Marshal(items)
@@ -245,4 +284,20 @@ func addHandler[T, U any](mux *http.ServeMux, resource string, convertFn func(st
 		}
 		delete(store, id)
 	}))
+}
+
+// itemName returns the name field of an API item, or "" if it has none.
+func itemName(item any) string {
+	b, err := json.Marshal(item)
+	if err != nil {
+		return ""
+	}
+	var named struct {
+		Name string `json:"name"`
+	}
+	err = json.Unmarshal(b, &named)
+	if err != nil {
+		return ""
+	}
+	return named.Name
 }

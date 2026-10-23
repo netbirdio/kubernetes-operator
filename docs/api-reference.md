@@ -14,6 +14,7 @@ Package v1alpha1 contains API Schema definitions for the  v1alpha1 API group.
 - [NetworkEgress](#networkegress)
 - [NetworkResource](#networkresource)
 - [NetworkRouter](#networkrouter)
+- [Policy](#policy)
 - [SetupKey](#setupkey)
 - [SidecarProfile](#sidecarprofile)
 
@@ -164,6 +165,7 @@ Group is the Schema for the groups API.
 _Appears in:_
 - [ClusterProxySpec](#clusterproxyspec)
 - [NetworkResourceSpec](#networkresourcespec)
+- [PolicySpec](#policyspec)
 - [SetupKeySpec](#setupkeyspec)
 
 | Field | Description | Default | Validation |
@@ -465,6 +467,89 @@ _Appears in:_
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#condition-v1-meta) array_ | Conditions holds the conditions for the NetworkRouter. |  | Optional: \{\} <br /> |
 | `routingPeerID` _string_ | RoutingPeerID is the id of the created routing peer. |  | Optional: \{\} <br /> |
 | `networkID` _string_ | NetworkID is the id of the network the routing peer was created in. |  | Optional: \{\} <br /> |
+
+
+#### Policy
+
+
+
+Policy is the Schema for the policies API.
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `netbird.io/v1alpha1` | | |
+| `kind` _string_ | `Policy` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  | Optional: \{\} <br /> |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  | Optional: \{\} <br /> |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[PolicySpec](#policyspec)_ |  |  | Required: \{\} <br /> |
+| `status` _[PolicyStatus](#policystatus)_ |  | \{ observedGeneration:-1 \} |  |
+
+
+#### PolicySpec
+
+
+
+PolicySpec defines the desired state of Policy. A policy holds one rule that lets the
+peers of the source groups reach the peers and network resources of the destination
+groups.
+
+
+
+_Appears in:_
+- [Policy](#policy)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ | Name of the policy. |  | MinLength: 1 <br /> |
+| `description` _string_ | Description of the policy. |  | Optional: \{\} <br /> |
+| `enabled` _boolean_ | Enabled sets whether the policy is applied. | true | Optional: \{\} <br /> |
+| `action` _string_ | Action accepts or drops the traffic the rule matches. | accept | Enum: [accept drop] <br />Optional: \{\} <br /> |
+| `sourceGroups` _[GroupReference](#groupreference) array_ | SourceGroups are the groups whose peers the rule applies to. |  | MinItems: 1 <br /> |
+| `destinationGroups` _[GroupReference](#groupreference) array_ | DestinationGroups are the groups whose peers and resources the source peers reach. |  | MinItems: 1 <br /> |
+| `protocol` _string_ | Protocol of the traffic the rule matches. | all | Enum: [all tcp udp icmp] <br />Optional: \{\} <br /> |
+| `ports` _integer array_ | Ports the rule matches. Requires protocol tcp or udp; without ports or port ranges,<br />every port matches. |  | items:Maximum: 65535 <br />items:Minimum: 1 <br />Optional: \{\} <br /> |
+| `portRanges` _[PortRange](#portrange) array_ | PortRanges the rule matches. Requires protocol tcp or udp. |  | Optional: \{\} <br /> |
+| `bidirectional` _boolean_ | Bidirectional lets the destination peers also reach the source peers. |  | Optional: \{\} <br /> |
+
+
+#### PolicyStatus
+
+
+
+PolicyStatus defines the observed state of Policy.
+
+
+
+_Appears in:_
+- [Policy](#policy)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `observedGeneration` _integer_ | ObservedGeneration is the last reconciled generation. |  | Optional: \{\} <br /> |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#condition-v1-meta) array_ | Conditions holds the conditions for the Policy. |  | Optional: \{\} <br /> |
+| `policyID` _string_ | PolicyID is the id of the created policy. |  | Optional: \{\} <br /> |
+
+
+#### PortRange
+
+
+
+PortRange is an inclusive range of ports.
+
+
+
+_Appears in:_
+- [PolicySpec](#policyspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `start` _integer_ | Start is the first port of the range. |  | Maximum: 65535 <br />Minimum: 1 <br /> |
+| `end` _integer_ | End is the last port of the range. |  | Maximum: 65535 <br />Minimum: 1 <br /> |
 
 
 #### SetupKey

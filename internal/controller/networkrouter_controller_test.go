@@ -11,7 +11,9 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/rand"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -29,12 +31,15 @@ var _ = Describe("NetworkRouter Controller", func() {
 		var setupKeyRec *SetupKeyReconciler
 		var groupRec *GroupReconciler
 
-		nn := client.ObjectKey{
-			Name:      "test-resource",
-			Namespace: "network-router",
-		}
+		var nn client.ObjectKey
 
 		BeforeEach(func() {
+			// envtest runs no namespace controller, so a deleted namespace never goes
+			// away and each spec needs its own.
+			nn = client.ObjectKey{
+				Name:      "test-resource",
+				Namespace: "network-router-" + rand.String(5),
+			}
 			nbClient := netbirdmock.Client()
 			netRouterRec = &NetworkRouterReconciler{
 				Client:        k8sClient,
@@ -141,10 +146,79 @@ var _ = Describe("NetworkRouter Controller", func() {
 			err = k8sClient.Get(ctx, client.ObjectKeyFromObject(dep), dep)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(dep.OwnerReferences[0].UID).To(Equal(netRouter.UID))
+			nbContainer := dep.Spec.Template.Spec.Containers[0]
+			Expect(nbContainer.Name).To(Equal("netbird"))
+			Expect(nbContainer.LivenessProbe).NotTo(BeNil())
+			Expect(nbContainer.LivenessProbe.Exec.Command).To(Equal([]string{"netbird", "status", "--check", "ready"}))
+			Expect(nbContainer.LivenessProbe.FailureThreshold).To(BeEquivalentTo(6))
 
 			routingPeerResp, err := netRouterRec.Netbird.Networks.Routers(netRouter.Status.NetworkID).Get(ctx, netRouter.Status.RoutingPeerID)
 			Expect(err).NotTo(HaveOccurred())
 			Expect((*routingPeerResp.PeerGroups)[0]).To(Equal(group.Status.GroupID))
+		})
+
+		It("is ready only while every routing peer is ready", func() {
+			zoneReq := api.ZoneRequest{
+				Name:   "cluster.local",
+				Domain: "cluster.local",
+			}
+			_, err := netRouterRec.Netbird.DNSZones.CreateZone(ctx, zoneReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			netRouter := &nbv1alpha1.NetworkRouter{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      nn.Name,
+					Namespace: nn.Namespace,
+				},
+				Spec: nbv1alpha1.NetworkRouterSpec{
+					DNSZoneRef: nbv1alpha1.DNSZoneReference{
+						Name: "cluster.local",
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, netRouter)).To(Succeed())
+			group := client.ObjectKey{Name: fmt.Sprintf("networkrouter-%s", netRouter.Name), Namespace: nn.Namespace}
+			reconcileAll := func() {
+				_, err := netRouterRec.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+				Expect(err).NotTo(HaveOccurred())
+				_, err = groupRec.Reconcile(ctx, reconcile.Request{NamespacedName: group})
+				Expect(err).NotTo(HaveOccurred())
+				_, err = setupKeyRec.Reconcile(ctx, reconcile.Request{NamespacedName: group})
+				Expect(err).NotTo(HaveOccurred())
+			}
+			ready := func() metav1.ConditionStatus {
+				Expect(k8sClient.Get(ctx, nn, netRouter)).To(Succeed())
+				cond := meta.FindStatusCondition(netRouter.Status.Conditions, nbv1alpha1.ReadyCondition)
+				Expect(cond).NotTo(BeNil())
+				return cond.Status
+			}
+			setReadyReplicas := func(n int32) {
+				dep := &appsv1.Deployment{}
+				Expect(k8sClient.Get(ctx, group, dep)).To(Succeed())
+				dep.Status.ObservedGeneration = dep.Generation
+				dep.Status.Replicas = 3
+				dep.Status.UpdatedReplicas = 3
+				dep.Status.ReadyReplicas = n
+				Expect(k8sClient.Status().Update(ctx, dep)).To(Succeed())
+				_, err := netRouterRec.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+				Expect(err).NotTo(HaveOccurred())
+			}
+
+			// The Deployment controller does not run here, so the Deployment's status
+			// stays empty: the state right after the operator first applies it.
+			for range 3 {
+				reconcileAll()
+			}
+			Expect(ready()).To(Equal(metav1.ConditionFalse))
+
+			setReadyReplicas(2)
+			Expect(ready()).To(Equal(metav1.ConditionFalse))
+
+			setReadyReplicas(3)
+			Expect(ready()).To(Equal(metav1.ConditionTrue))
+
+			setReadyReplicas(1)
+			Expect(ready()).To(Equal(metav1.ConditionFalse))
 		})
 	})
 })

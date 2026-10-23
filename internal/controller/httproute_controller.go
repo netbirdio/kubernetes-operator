@@ -142,6 +142,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		if err != nil {
 			return ctrl.Result{}, err
 		}
+		proxyIdx := proxyServicesByDomain(proxyServices)
 		for _, hostname := range hr.Spec.Hostnames {
 			proxyReq := api.ServiceRequest{
 				Domain:           string(hostname),
@@ -152,23 +153,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				RewriteRedirects: new(false),
 				Targets:          &targets,
 			}
-
-			err := func() error {
-				for _, proxyService := range proxyServices {
-					if proxyService.Domain != string(hostname) {
-						continue
-					}
-					_, err := r.Netbird.ReverseProxyServices.Update(ctx, proxyService.Id, proxyReq)
-					if err != nil {
-						return err
-					}
-				}
-				_, err := r.Netbird.ReverseProxyServices.Create(ctx, proxyReq)
-				if err != nil {
-					return err
-				}
-				return nil
-			}()
+			err := r.applyProxyService(ctx, proxyReq, proxyIdx[string(hostname)])
 			if err != nil {
 				return ctrl.Result{}, err
 			}
@@ -184,10 +169,7 @@ func (r *HTTPRouteReconciler) reconcileDelete(ctx context.Context, sp *patch.Ser
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	proxyIdx := map[string]string{}
-	for _, proxyService := range proxyServices {
-		proxyIdx[proxyService.Domain] = proxyService.Id
-	}
+	proxyIdx := proxyServicesByDomain(proxyServices)
 
 	for _, parent := range hr.Spec.ParentRefs {
 		gw, err := gatewayutil.GetParentGateway(ctx, r.Client, parent, hr.Namespace, GatewayControllerName)
@@ -246,13 +228,11 @@ func (r *HTTPRouteReconciler) reconcileDelete(ctx context.Context, sp *patch.Ser
 
 		// Remove the target from the proxy service.
 		for _, hostname := range hr.Spec.Hostnames {
-			id, ok := proxyIdx[string(hostname)]
-			if !ok {
-				continue
-			}
-			err = r.Netbird.ReverseProxyServices.Delete(ctx, id)
-			if err != nil && !netbird.IsNotFound(err) {
-				return ctrl.Result{}, err
+			for _, id := range proxyIdx[string(hostname)] {
+				err = r.Netbird.ReverseProxyServices.Delete(ctx, id)
+				if err != nil && !netbird.IsNotFound(err) {
+					return ctrl.Result{}, err
+				}
 			}
 		}
 	}
@@ -263,6 +243,36 @@ func (r *HTTPRouteReconciler) reconcileDelete(ctx context.Context, sp *patch.Ser
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
+}
+
+// applyProxyService makes the request the one proxy service for its domain. It
+// updates the first of the existing services and deletes the rest, which older
+// versions of this controller left behind by creating a service on every
+// reconcile.
+func (r *HTTPRouteReconciler) applyProxyService(ctx context.Context, req api.ServiceRequest, existing []string) error {
+	if len(existing) == 0 {
+		_, err := r.Netbird.ReverseProxyServices.Create(ctx, req)
+		return err
+	}
+	if _, err := r.Netbird.ReverseProxyServices.Update(ctx, existing[0], req); err != nil {
+		return err
+	}
+	for _, id := range existing[1:] {
+		err := r.Netbird.ReverseProxyServices.Delete(ctx, id)
+		if err != nil && !netbird.IsNotFound(err) {
+			return err
+		}
+	}
+	return nil
+}
+
+// proxyServicesByDomain indexes proxy service IDs by the domain they serve.
+func proxyServicesByDomain(services []api.Service) map[string][]string {
+	idx := map[string][]string{}
+	for _, svc := range services {
+		idx[svc.Domain] = append(idx[svc.Domain], svc.Id)
+	}
+	return idx
 }
 
 // SetupWithManager sets up the controller with the Manager.

@@ -1,0 +1,92 @@
+# End-to-end tests: the operator in a Kind cluster against a NetBird deployment
+# the tests stand up themselves. test/e2e/main_test.go describes the setup.
+#
+# The deployment comes from NetBird's own e2e harness at the revision pinned in
+# test/e2e/go.mod, and the harness builds the server and the client the agents
+# run from that revision's source. Kubernetes is the one dimension worth paying
+# for more than one deployment: a pull request runs the newest version, and main
+# and a dispatch that asks for it run every supported one.
+name: e2e
+on:
+  pull_request:
+  push:
+    branches:
+      - 'main'
+  workflow_dispatch:
+    inputs:
+      full_matrix:
+        description: 'Run every supported Kubernetes version'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: e2e (${{ matrix.kind-node }})
+    runs-on: ubuntu-latest
+    # Above the test step's own budget, so an overrun fails that step with its
+    # diagnostics rather than cancelling the job.
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        # Kind node images built for the Kind version in test/e2e/go.mod.
+        kind-node: ${{ fromJSON((github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.full_matrix)) && '["v0.32.0-v1.34.9","v0.32.0-v1.35.6","v0.32.0-v1.36.2","v0.32.0-v1.37.0"]' || '["v0.32.0-v1.37.0"]') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e #v7.0.0
+        with:
+          go-version-file: test/e2e/go.mod
+          cache-dependency-path: |
+            go.sum
+            test/e2e/go.sum
+      # The harness exports its layer cache, which the default docker driver
+      # cannot do. The builder is not made the default, so the operator image is
+      # still built into the local image store; only the test step selects it.
+      - name: Setup Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 #v4.4.1
+        with:
+          driver: docker-container
+          use: false
+      # The netbird source is the build context, so the cache only holds for one
+      # pinned revision. Keyed on go.sum, so a bump misses on purpose.
+      - name: Restore image layer cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 #v6.1.0
+        with:
+          path: /tmp/nb-buildx-cache
+          key: nb-buildx-${{ hashFiles('test/e2e/go.sum') }}
+          restore-keys: nb-buildx-
+      # The harness finds its build context through `go list -m`, so the netbird
+      # module has to be in the module cache before the tests start.
+      - name: Download modules
+        working-directory: test/e2e
+        run: go mod download github.com/netbirdio/netbird
+      - name: Build operator image
+        run: make build-image
+      - name: Run e2e tests
+        working-directory: test/e2e
+        # Above the go test timeout plus the bootstrap before it, which builds the
+        # images and falls outside that timeout. Killing the step first would lose
+        # the panic trace that names the hung test.
+        timeout-minutes: 70
+        env:
+          IMG_REF: ghcr.io/netbirdio/netbird-operator:dev
+          NB_E2E_KIND_NODE_IMAGE: ghcr.io/spegel-org/test-images/kind-node:${{ matrix.kind-node }}
+          NB_E2E_BUILDX_CACHE: /tmp/nb-buildx-cache
+          NB_E2E_ARTIFACTS_DIR: ${{ runner.temp }}/e2e-artifacts
+          BUILDX_BUILDER: ${{ steps.buildx.outputs.name }}
+        run: go test -tags e2e ./... -v -count 1 -timeout 30m
+      - name: Upload diagnostics
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 #v7.0.2
+        with:
+          name: e2e-${{ matrix.kind-node }}
+          path: ${{ runner.temp }}/e2e-artifacts
+          if-no-files-found: ignore

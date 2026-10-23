@@ -74,6 +74,17 @@ func Client() *netbird.Client {
 		return output
 	})
 
+	addHandler(mux, "reverse-proxies/services", func(id string, input api.ServiceRequest, output api.Service) api.Service {
+		output.Id = id
+		output.Name = input.Name
+		output.Domain = input.Domain
+		output.Enabled = input.Enabled
+		if input.Targets != nil {
+			output.Targets = *input.Targets
+		}
+		return output
+	})
+
 	srv := httptest.NewServer(mux)
 	return netbird.New(srv.URL, "ABC")
 }

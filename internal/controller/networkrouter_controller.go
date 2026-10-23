@@ -307,6 +307,15 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 					).
 					WithStartupProbe(corev1ac.Probe().WithExec(corev1ac.ExecAction().WithCommand("netbird", "status", "--check", "startup"))).
 					WithReadinessProbe(corev1ac.Probe().WithExec(corev1ac.ExecAction().WithCommand("netbird", "status", "--check", "ready"))).
+					// Restart the container when the daemon stays logged out (NeedsLogin, LoginFailed or
+					// SessionExpired) for about a minute, for example after management deleted the ephemeral
+					// peer. The daemon never logs in again on its own; a restart enrolls it with the setup key.
+					WithLivenessProbe(corev1ac.Probe().
+						WithExec(corev1ac.ExecAction().WithCommand("netbird", "status", "--check", "ready")).
+						WithTimeoutSeconds(5).
+						WithPeriodSeconds(10).
+						WithFailureThreshold(6),
+					).
 					WithVolumeMounts(
 						corev1ac.VolumeMount().WithName("netbird-run").WithMountPath("/var/run/netbird"),
 						corev1ac.VolumeMount().WithName("netbird-lib").WithMountPath("/var/lib/netbird"),
@@ -438,8 +447,11 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	if dep.Status.ReadyReplicas != dep.Status.Replicas {
-		return ctrl.Result{}, nil
+	if !routingPeersReady(dep, replicas) {
+		conditions.MarkFalse(netRouter, nbv1alpha1.ReadyCondition, nbv1alpha1.ProgressingReason,
+			"%d of %d routing peers ready", dep.Status.ReadyReplicas, replicas)
+		err = sp.Patch(ctx, netRouter, patch.WithStatusObservedGeneration{})
+		return ctrl.Result{}, err
 	}
 
 	conditions.MarkTrue(netRouter, nbv1alpha1.ReadyCondition, nbv1alpha1.ReconciledReason, "")
@@ -448,6 +460,16 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{RequeueAfter: 15 * time.Minute}, nil
+}
+
+// routingPeersReady reports whether every desired routing peer of the current
+// pod template is ready. A Deployment's status lags the spec just applied, and
+// one the Deployment controller has not observed yet reads as zero of zero.
+func routingPeersReady(dep *appsv1.Deployment, desired int32) bool {
+	return dep.Status.ObservedGeneration >= dep.Generation &&
+		dep.Status.Replicas == desired &&
+		dep.Status.UpdatedReplicas == desired &&
+		dep.Status.ReadyReplicas == desired
 }
 
 func (r *NetworkRouterReconciler) reconcileDelete(ctx context.Context, sp *patch.SerialPatcher, netRouter *nbv1alpha1.NetworkRouter) (ctrl.Result, error) {

@@ -32,7 +32,7 @@ Unit tests use an in memory Kubernetes cluster to test controller functionality.
 make test-unit
 ```
 
-The e2e tests cover the installation and upgrade steps, along with testing certain functionality.
+The e2e tests run the operator in a Kind cluster against a NetBird deployment they start themselves, built from the NetBird revision pinned in `test/e2e/go.mod`. They need Docker and nothing else: no NetBird account or API key. The knobs they read are documented in `test/e2e/main_test.go`.
 
 ```bash
 make test-e2e

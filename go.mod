@@ -107,6 +107,8 @@ require (
 
 replace github.com/dexidp/dex => github.com/netbirdio/dex v0.244.1-0.20260512110716-8d70ad8647c1
 
+replace github.com/pion/ice/v4 => github.com/netbirdio/ice/v4 v4.0.0-20250908184934-6202be846b51
+
 tool (
 	github.com/elastic/crd-ref-docs
 	sigs.k8s.io/controller-tools/cmd/controller-gen

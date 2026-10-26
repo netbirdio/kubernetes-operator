@@ -146,7 +146,7 @@ func (e *environment) helmConfig() (*action.Configuration, error) {
 	return cfg, nil
 }
 
-// downloadPublishedChart fetches the newest published chart and returns its
+// downloadPublishedChart fetches the newest stable published chart and returns its
 // path and version.
 func (e *environment) downloadPublishedChart(cfg *action.Configuration) (string, string, error) {
 	tags, err := cfg.RegistryClient.Tags(strings.TrimPrefix(publishedChart, "oci://"))
@@ -156,6 +156,12 @@ func (e *environment) downloadPublishedChart(cfg *action.Configuration) (string,
 	if len(tags) == 0 {
 		return "", "", errors.New("no published chart versions found")
 	}
+	// Resolve the way helm install does without --version, so a pre-release
+	// never becomes the version users are assumed to upgrade from.
+	version, err := registry.GetTagMatchingVersionOrConstraint(tags, "")
+	if err != nil {
+		return "", "", fmt.Errorf("resolve the latest stable chart version: %w", err)
+	}
 	out := bytes.NewBuffer(nil)
 	dl := downloader.ChartDownloader{
 		Out:            out,
@@ -164,11 +170,11 @@ func (e *environment) downloadPublishedChart(cfg *action.Configuration) (string,
 		Getters:        getter.Getters(getter.WithRegistryClient(cfg.RegistryClient)),
 		RegistryClient: cfg.RegistryClient,
 	}
-	path, _, err := dl.DownloadTo(publishedChart, tags[0], e.workDir)
+	path, _, err := dl.DownloadTo(publishedChart, version, e.workDir)
 	if err != nil {
-		return "", "", fmt.Errorf("download chart %s: %w\n%s", tags[0], err, out.String())
+		return "", "", fmt.Errorf("download chart %s: %w\n%s", version, err, out.String())
 	}
-	return path, tags[0], nil
+	return path, version, nil
 }
 
 // helmInstallOrUpgrade installs the chart, or upgrades the release when it is

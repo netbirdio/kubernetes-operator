@@ -395,8 +395,8 @@ github.com/netbirdio/dex v0.244.1-0.20260512110716-8d70ad8647c1 h1:4TaYr9O4xX0D2
 github.com/netbirdio/dex v0.244.1-0.20260512110716-8d70ad8647c1/go.mod h1:IHH+H8vK2GfqtIt5u/5OdPh18yk0oDHuj2vz5+Goetg=
 github.com/netbirdio/management-integrations/integrations v0.0.0-20261006132740-6e6b0cb01f2e h1:SnDCreUnY+QDxKPueUoNrniMALCu2VFkXTCr/RIZjdg=
 github.com/netbirdio/management-integrations/integrations v0.0.0-20261006132740-6e6b0cb01f2e/go.mod h1:n47r67ZSPgwSmT/Z1o48JjZQW9YJ6m/6Bd/uAXkL3Pg=
-github.com/netbirdio/netbird v0.81.2-0.20261020122105-569b9aa169c0 h1:snZyN494imdswqKjMrhzLN9PYVkXBuU36F382iLDUG8=
-github.com/netbirdio/netbird v0.81.2-0.20261020122105-569b9aa169c0/go.mod h1:ILZWvl9Yq6WDqnZ3UnC0Y8NDstzx7ngNpC+3d8gOX6c=
+github.com/netbirdio/netbird v0.81.4 h1:sBhRxzR+j4/7/pqxmFakxohvpRtmWdZmEQBIdLI8vuM=
+github.com/netbirdio/netbird v0.81.4/go.mod h1:9vuxk/HkAbhE8xxAcuwnno2VrmPUrj94MVyNi4KJ9i4=
 github.com/netbirdio/wireguard-go v0.0.0-20260523085312-4b4a4e36017f h1:ff2D57RBjWtyQ2wVwJOxOgXAXOe/J2lJWtSX0Bz/BRk=
 github.com/oapi-codegen/runtime v1.1.2 h1:P2+CubHq8fO4Q6fV1tqDBZHCwpVpvPg7oKiYzQgXIyI=
 github.com/oapi-codegen/runtime v1.1.2/go.mod h1:SK9X900oXmPWilYR5/WKPzt3Kqxn/uS/+lbpREv+eCg=

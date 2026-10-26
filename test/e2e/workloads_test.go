@@ -29,8 +29,8 @@ const (
 	agnhostImage = "registry.k8s.io/e2e-test-images/agnhost:2.53"
 	backendPort  = 8080
 	// backendServicePort is the port a backend's Service exposes. It is the
-	// default HTTP port because the operator gives reverse-proxy targets no port
-	// of their own, whatever the HTTPRoute's backendRef says.
+	// default HTTP port so a request to a network resource needs no port of its
+	// own; TestHTTPRouteBackendPort covers a Service on another one.
 	backendServicePort = 80
 
 	readyTimeout = 5 * time.Minute
@@ -49,8 +49,19 @@ func (e *environment) waitReady(t *testing.T, obj conditionedObject) {
 	require.NoError(t, e.waitReadyCtx(t.Context(), obj))
 }
 
+// waitReadyWithin is waitReady with its own timeout, for a test that expects
+// the operator to act faster than readyTimeout allows.
+func (e *environment) waitReadyWithin(t *testing.T, obj conditionedObject, timeout time.Duration) {
+	t.Helper()
+	require.NoError(t, e.waitReadyFor(t.Context(), obj, timeout))
+}
+
 func (e *environment) waitReadyCtx(ctx context.Context, obj conditionedObject) error {
-	return eventually(ctx, readyTimeout, func(ctx context.Context) error {
+	return e.waitReadyFor(ctx, obj, readyTimeout)
+}
+
+func (e *environment) waitReadyFor(ctx context.Context, obj conditionedObject, timeout time.Duration) error {
+	return eventually(ctx, timeout, func(ctx context.Context) error {
 		if err := e.k8s.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
 			return err
 		}
@@ -68,11 +79,16 @@ func (e *environment) waitReadyCtx(ctx context.Context, obj conditionedObject) e
 
 // eventually polls fn until it succeeds and, when the timeout passes first,
 // returns the last error fn gave, which is the one that says what was missing.
+// An attempt the deadline cut short only says that time ran out, so its error
+// does not replace that one.
 func eventually(ctx context.Context, timeout time.Duration, fn func(context.Context) error) error {
 	var last error
 	err := wait.PollUntilContextTimeout(ctx, 2*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
-		last = fn(ctx)
-		return last == nil, nil
+		fnErr := fn(ctx)
+		if fnErr != nil && ctx.Err() == nil {
+			last = fnErr
+		}
+		return fnErr == nil, nil
 	})
 	if err != nil && last != nil {
 		return fmt.Errorf("%w: %w", err, last)
@@ -93,9 +109,7 @@ func (e *environment) waitGone(t *testing.T, obj client.Object) {
 }
 
 // createRouter creates a NetworkRouter in the fixture DNS zone and waits until
-// its routing peers are up. The operator names the router's NetBird network
-// after the object alone, so the name is random to keep the tests' networks
-// apart.
+// its routing peers are up.
 func (e *environment) createRouter(t *testing.T, namespace string, replicas int32) *nbv1alpha1.NetworkRouter {
 	t.Helper()
 	router, err := e.newRouter(t.Context(), namespace, replicas)
@@ -103,8 +117,28 @@ func (e *environment) createRouter(t *testing.T, namespace string, replicas int3
 	return router
 }
 
+// startRouter creates a NetworkRouter like createRouter but does not wait for
+// its routing peers.
+func (e *environment) startRouter(t *testing.T, namespace string, replicas int32) *nbv1alpha1.NetworkRouter {
+	t.Helper()
+	router := routerFor(namespace, replicas)
+	require.NoError(t, e.k8s.Create(t.Context(), router))
+	return router
+}
+
 func (e *environment) newRouter(ctx context.Context, namespace string, replicas int32) (*nbv1alpha1.NetworkRouter, error) {
-	router := &nbv1alpha1.NetworkRouter{
+	router := routerFor(namespace, replicas)
+	if err := e.k8s.Create(ctx, router); err != nil {
+		return nil, err
+	}
+	return router, e.waitReadyCtx(ctx, router)
+}
+
+// routerFor builds a NetworkRouter in the fixture DNS zone. The operator names
+// the router's NetBird network after the object alone, so the name is random to
+// keep the tests' networks apart.
+func routerFor(namespace string, replicas int32) *nbv1alpha1.NetworkRouter {
+	return &nbv1alpha1.NetworkRouter{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "router-" + rand.String(5),
 			Namespace: namespace,
@@ -116,10 +150,6 @@ func (e *environment) newRouter(ctx context.Context, namespace string, replicas 
 			},
 		},
 	}
-	if err := e.k8s.Create(ctx, router); err != nil {
-		return nil, err
-	}
-	return router, e.waitReadyCtx(ctx, router)
 }
 
 // createBackend deploys an HTTP server behind a ClusterIP Service of the same
@@ -132,16 +162,24 @@ func (e *environment) createBackend(t *testing.T, namespace, name string) *corev
 // createBackendOfType is createBackend with a Service of the given type.
 func (e *environment) createBackendOfType(t *testing.T, namespace, name string, serviceType corev1.ServiceType) *corev1.Service {
 	t.Helper()
-	svc, err := e.newBackendOfType(t.Context(), namespace, name, serviceType)
+	svc, err := e.newBackendWith(t.Context(), namespace, name, serviceType, backendServicePort)
+	require.NoError(t, err)
+	return svc
+}
+
+// createBackendOnPort is createBackend with the Service exposing port.
+func (e *environment) createBackendOnPort(t *testing.T, namespace, name string, port int32) *corev1.Service {
+	t.Helper()
+	svc, err := e.newBackendWith(t.Context(), namespace, name, corev1.ServiceTypeClusterIP, port)
 	require.NoError(t, err)
 	return svc
 }
 
 func (e *environment) newBackend(ctx context.Context, namespace, name string) (*corev1.Service, error) {
-	return e.newBackendOfType(ctx, namespace, name, corev1.ServiceTypeClusterIP)
+	return e.newBackendWith(ctx, namespace, name, corev1.ServiceTypeClusterIP, backendServicePort)
 }
 
-func (e *environment) newBackendOfType(ctx context.Context, namespace, name string, serviceType corev1.ServiceType) (*corev1.Service, error) {
+func (e *environment) newBackendWith(ctx context.Context, namespace, name string, serviceType corev1.ServiceType, port int32) (*corev1.Service, error) {
 	labels := map[string]string{"app": name}
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -184,7 +222,7 @@ func (e *environment) newBackendOfType(ctx context.Context, namespace, name stri
 			Ports: []corev1.ServicePort{
 				{
 					Name:       "http",
-					Port:       backendServicePort,
+					Port:       port,
 					TargetPort: intstr.FromInt32(backendPort),
 				},
 			},

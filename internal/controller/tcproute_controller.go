@@ -13,6 +13,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gwv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
@@ -169,9 +171,34 @@ func (r *TCPRouteReconciler) reconcileDelete(ctx context.Context, sp *patch.Seri
 	return ctrl.Result{}, nil
 }
 
-// SetupWithManager sets up the controller with the Manager.
+// SetupWithManager sets up the controller with the Manager. A route is skipped
+// while its Gateway is not programmed, so a change to a Gateway reconciles the
+// routes that reference it.
 func (r *TCPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gwv1alpha2.TCPRoute{}).
+		Watches(&gwv1.Gateway{}, handler.EnqueueRequestsFromMapFunc(r.routesForGateway)).
 		Complete(r)
+}
+
+// routesForGateway returns a request for every TCPRoute that references the
+// Gateway.
+func (r *TCPRouteReconciler) routesForGateway(ctx context.Context, obj client.Object) []reconcile.Request {
+	gw, ok := obj.(*gwv1.Gateway)
+	if !ok {
+		return nil
+	}
+	routes := &gwv1alpha2.TCPRouteList{}
+	if err := r.List(ctx, routes); err != nil {
+		ctrl.Log.WithName("TCPRoute").Error(err, "list routes for gateway", "namespace", gw.Namespace, "name", gw.Name)
+		return nil
+	}
+	var reqs []reconcile.Request
+	for i := range routes.Items {
+		route := &routes.Items[i]
+		if gatewayutil.ReferencesGateway(route.Spec.ParentRefs, route.Namespace, gw) {
+			reqs = append(reqs, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(route)})
+		}
+	}
+	return reqs
 }

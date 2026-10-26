@@ -73,7 +73,7 @@ var _ = Describe("HTTPRoute Controller", func() {
 			svc := &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: ns.Name},
 				Spec: corev1.ServiceSpec{
-					Ports: []corev1.ServicePort{{Name: "http", Port: 80}},
+					Ports: []corev1.ServicePort{{Name: "http", Port: 8080}},
 				},
 			}
 			Expect(k8sClient.Create(ctx, svc)).To(Succeed())
@@ -89,7 +89,7 @@ var _ = Describe("HTTPRoute Controller", func() {
 							BackendRefs: []gwv1.HTTPBackendRef{
 								{BackendRef: gwv1.BackendRef{BackendObjectReference: gwv1.BackendObjectReference{
 									Name: gwv1.ObjectName(svc.Name),
-									Port: new(gwv1.PortNumber(80)),
+									Port: new(gwv1.PortNumber(8080)),
 								}}},
 							},
 						},
@@ -145,6 +145,37 @@ var _ = Describe("HTTPRoute Controller", func() {
 			Expect(services).To(HaveLen(1))
 			Expect(services[0].Targets).To(HaveLen(1))
 			Expect(services[0].Targets[0].TargetId).To(Equal("resource-1"))
+		})
+
+		It("targets the Service port the backendRef names", func() {
+			_, err := rec.Reconcile(ctx, reconcile.Request{NamespacedName: route})
+			Expect(err).NotTo(HaveOccurred())
+
+			services := proxyServices()
+			Expect(services).To(HaveLen(1))
+			Expect(services[0].Targets).To(HaveLen(1))
+			Expect(services[0].Targets[0].Port).To(Equal(8080))
+		})
+
+		It("reconciles the routes that reference a changed Gateway", func() {
+			gw := &gwv1.Gateway{}
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: route.Namespace, Name: "gateway"}, gw)).To(Succeed())
+
+			// A route in another namespace that names a Gateway of the same name
+			// means the one in its own namespace, so it must not be reconciled.
+			otherNS := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "httproute-" + rand.String(5)}}
+			Expect(k8sClient.Create(ctx, otherNS)).To(Succeed())
+			other := &gwv1.HTTPRoute{
+				ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: otherNS.Name},
+				Spec: gwv1.HTTPRouteSpec{
+					CommonRouteSpec: gwv1.CommonRouteSpec{
+						ParentRefs: []gwv1.ParentReference{{Name: gwv1.ObjectName(gw.Name)}},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, other)).To(Succeed())
+
+			Expect(rec.routesForGateway(ctx, gw)).To(ConsistOf(reconcile.Request{NamespacedName: route}))
 		})
 	})
 })

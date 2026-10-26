@@ -4,6 +4,7 @@ package controller
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/fluxcd/pkg/runtime/conditions"
@@ -15,6 +16,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
@@ -29,6 +32,23 @@ import (
 const (
 	HTTPRouteFinalizer = "gateway.netbird.io/httproute"
 )
+
+// httpRouteBackend is a Service port an HTTPRoute sends requests to. The proxy
+// targets the Service's network resource on that port.
+type httpRouteBackend struct {
+	service string
+	port    int
+}
+
+// backendRefPort returns the Service port a backendRef names. Gateway API
+// requires one for a Service, so 0, which leaves the port to NetBird, only
+// stands for a reference to some other kind.
+func backendRefPort(port *gwv1.PortNumber) int {
+	if port == nil {
+		return 0
+	}
+	return int(*port)
+}
 
 type HTTPRouteReconciler struct {
 	client.Client
@@ -76,6 +96,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 		// Create network resources.
 		svcIdx := map[string]corev1.Service{}
+		var backends []httpRouteBackend
 		for _, rule := range hr.Spec.Rules {
 			for _, ref := range rule.BackendRefs {
 				key := client.ObjectKey{Namespace: hr.Namespace, Name: string(ref.Name)}
@@ -85,6 +106,10 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 					return ctrl.Result{}, err
 				}
 				svcIdx[svc.Name] = svc
+				backend := httpRouteBackend{service: svc.Name, port: backendRefPort(ref.Port)}
+				if !slices.Contains(backends, backend) {
+					backends = append(backends, backend)
+				}
 			}
 		}
 
@@ -112,11 +137,11 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 
 		targets := []api.ServiceTarget{}
-		for _, svc := range svcIdx {
+		for _, backend := range backends {
 			netResource := &nbv1alpha1.NetworkResource{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      svc.Name,
-					Namespace: svc.Namespace,
+					Name:      backend.service,
+					Namespace: hr.Namespace,
 				},
 			}
 			err := r.Client.Get(ctx, client.ObjectKeyFromObject(netResource), netResource)
@@ -131,6 +156,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				Enabled:    true,
 				Path:       nil,
 				TargetId:   netResource.Status.ResourceID,
+				Port:       backend.port,
 				Protocol:   api.ServiceTargetProtocolHttp,
 				TargetType: api.ServiceTargetTargetTypeHost,
 			}
@@ -275,9 +301,34 @@ func proxyServicesByDomain(services []api.Service) map[string][]string {
 	return idx
 }
 
-// SetupWithManager sets up the controller with the Manager.
+// SetupWithManager sets up the controller with the Manager. A route is skipped
+// while its Gateway is not programmed, so a change to a Gateway reconciles the
+// routes that reference it.
 func (r *HTTPRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gwv1.HTTPRoute{}).
+		Watches(&gwv1.Gateway{}, handler.EnqueueRequestsFromMapFunc(r.routesForGateway)).
 		Complete(r)
+}
+
+// routesForGateway returns a request for every HTTPRoute that references the
+// Gateway.
+func (r *HTTPRouteReconciler) routesForGateway(ctx context.Context, obj client.Object) []reconcile.Request {
+	gw, ok := obj.(*gwv1.Gateway)
+	if !ok {
+		return nil
+	}
+	routes := &gwv1.HTTPRouteList{}
+	if err := r.List(ctx, routes); err != nil {
+		ctrl.Log.WithName("HTTPRoute").Error(err, "list routes for gateway", "namespace", gw.Namespace, "name", gw.Name)
+		return nil
+	}
+	var reqs []reconcile.Request
+	for i := range routes.Items {
+		route := &routes.Items[i]
+		if gatewayutil.ReferencesGateway(route.Spec.ParentRefs, route.Namespace, gw) {
+			reqs = append(reqs, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(route)})
+		}
+	}
+	return reqs
 }

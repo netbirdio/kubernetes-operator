@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/types"
@@ -36,6 +37,24 @@ func GetParentGateway(ctx context.Context, k8sClient client.Client, parent gwv1.
 	// TODO (phillebaba): Enforce allowed routes in gateway.
 
 	return gw, nil
+}
+
+// ReferencesGateway reports whether any of a route's parent references names the
+// Gateway. A reference without a namespace points into the route's own.
+func ReferencesGateway(parents []gwv1.ParentReference, routeNamespace string, gw *gwv1.Gateway) bool {
+	return slices.ContainsFunc(parents, func(parent gwv1.ParentReference) bool {
+		if parent.Group != nil && *parent.Group != gwv1.GroupName {
+			return false
+		}
+		if parent.Kind != nil && *parent.Kind != "Gateway" {
+			return false
+		}
+		namespace := routeNamespace
+		if parent.Namespace != nil {
+			namespace = string(*parent.Namespace)
+		}
+		return namespace == gw.Namespace && string(parent.Name) == gw.Name
+	})
 }
 
 func GetGatewayNetworkRouter(ctx context.Context, k8sClient client.Client, gw *gwv1.Gateway) (*nbv1alpha1.NetworkRouter, error) {

@@ -174,7 +174,7 @@ func (r *NetworkResourceReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	recordID, err := func() (string, error) {
 		dnsReq := api.DNSRecordRequest{
 			Content: svc.Spec.ClusterIP,
-			Name:    strings.Join([]string{svc.Name, svc.Namespace, zone.Name}, "."),
+			Name:    strings.Join([]string{svc.Name, svc.Namespace, zone.Domain}, "."),
 			Ttl:     int(5 * time.Minute / time.Second),
 			Type:    api.DNSRecordTypeA,
 		}

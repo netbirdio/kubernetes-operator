@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"runtime/debug"
 	"slices"
 	"strings"
@@ -86,6 +87,9 @@ func TestMakefileSetsVersion(t *testing.T) {
 	require.NotNil(t, m, "the Makefile passes no -X ...=$(VERSION) to the operator build")
 
 	bin := filepath.Join(t.TempDir(), "printversion")
+	if runtime.GOOS == "windows" {
+		bin += ".exe"
+	}
 	build := exec.Command("go", "build", "-o", bin, "-ldflags", "-X "+string(m[1])+"=v9.9.9-test", "./testdata/printversion")
 	out, err := build.CombinedOutput()
 	require.NoError(t, err, "build: %s", out)

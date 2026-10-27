@@ -58,7 +58,16 @@ test-e2e: build-image
 .PHONY: build
 build: generate bin/linux-$(shell go env GOARCH)/netbird-operator
 
-bin/linux-%/netbird-operator: $(shell find api cmd internal pkg) go.mod go.sum
+# bin/version holds the VERSION the binaries were last built with and only
+# changes with it, so building again with another VERSION rebuilds them.
+bin/version: FORCE
+	@mkdir -p bin
+	@echo '$(VERSION)' | cmp -s - $@ || echo '$(VERSION)' > $@
+
+.PHONY: FORCE
+FORCE:
+
+bin/linux-%/netbird-operator: $(shell find api cmd internal pkg) go.mod go.sum bin/version
 	@CGO_ENABLED=0 GOOS=linux GOARCH=$* go build -ldflags="-w -s -X github.com/netbirdio/kubernetes-operator/pkg/version.version=$(VERSION)" -trimpath -o $@ cmd/main.go
 
 .PHONY: build-image

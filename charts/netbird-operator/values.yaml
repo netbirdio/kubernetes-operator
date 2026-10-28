@@ -158,6 +158,7 @@ netbirdAPI:
     key: "NB_API_KEY"
 
 #routingClientImage: "netbirdio/netbird:latest"
+#kubeAPIProxyImage: "ghcr.io/netbirdio/netbird-kubeapi-proxy:latest"
 
 gatewayAPI:
   enabled: false

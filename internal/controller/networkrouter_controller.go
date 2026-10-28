@@ -40,6 +40,10 @@ import (
 	"github.com/netbirdio/kubernetes-operator/pkg/version"
 )
 
+// SetupKeyGroupsAnnotation holds a hash of the routing peers' setup key groups. A change
+// to it restarts the peers, which then register with the new groups.
+const SetupKeyGroupsAnnotation = "netbird.io/setup-key-groups"
+
 type NetworkRouterReconciler struct {
 	client.Client
 
@@ -168,7 +172,9 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	if setupKey.Status.SetupKeyID == "" {
+	// Wait for the setup key to apply its current spec, so peers restarted for a group
+	// change register with the new groups.
+	if setupKey.Status.SetupKeyID == "" || setupKey.Status.ObservedGeneration != setupKey.Generation {
 		return ctrl.Result{}, nil
 	}
 
@@ -374,6 +380,17 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				corev1ac.Volume().WithName("resolv-conf").WithEmptyDir(corev1ac.EmptyDirVolumeSource()),
 			),
 		)
+
+	// Peers get their groups when they register, so restart them when the extra groups change.
+	if len(netRouter.Spec.Groups) > 0 {
+		var groupsJSON []byte
+		groupsJSON, err = json.Marshal(setupKey.Spec.AutoGroups)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		groupsSum := sha256.Sum256(groupsJSON)
+		podTemplateSpecAC.WithAnnotations(map[string]string{SetupKeyGroupsAnnotation: fmt.Sprintf("%x", groupsSum[:8])})
+	}
 
 	workloadLabels := map[string]string{}
 	workloadAnnotations := map[string]string{}

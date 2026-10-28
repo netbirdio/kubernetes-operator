@@ -13,6 +13,8 @@ IMG_REGISTRY ?= ghcr.io
 IMG_REPOSITORY ?= netbirdio/netbird-operator
 IMG_TAG ?= dev
 IMG_REF := $(IMG_REGISTRY)/$(IMG_REPOSITORY):$(IMG_TAG)
+# VERSION is the version the operator reports, in its User-Agent among others.
+VERSION ?= $(IMG_TAG)
 
 .PHONY: generate
 generate: api/v1/zz_generated.deepcopy.go api/v1alpha1/zz_generated.deepcopy.go pkg/applyconfigurations config/crd/bases charts/netbird-operator/crds docs/api-reference.md internal/controller/testdata/crd/gateway-api.yaml
@@ -56,8 +58,17 @@ test-e2e: build-image
 .PHONY: build
 build: generate bin/linux-$(shell go env GOARCH)/netbird-operator
 
-bin/linux-%/netbird-operator: $(shell find api cmd internal pkg) go.mod go.sum
-	@CGO_ENABLED=0 GOOS=linux GOARCH=$* go build -ldflags="-w -s" -trimpath -o $@ cmd/main.go
+# bin/version holds the VERSION the binaries were last built with and only
+# changes with it, so building again with another VERSION rebuilds them.
+bin/version: FORCE
+	@mkdir -p bin
+	@echo '$(VERSION)' | cmp -s - $@ || echo '$(VERSION)' > $@
+
+.PHONY: FORCE
+FORCE:
+
+bin/linux-%/netbird-operator: $(shell find api cmd internal pkg) go.mod go.sum bin/version
+	@CGO_ENABLED=0 GOOS=linux GOARCH=$* go build -ldflags="-w -s -X github.com/netbirdio/kubernetes-operator/pkg/version.version=$(VERSION)" -trimpath -o $@ cmd/main.go
 
 .PHONY: build-image
 build-image: build

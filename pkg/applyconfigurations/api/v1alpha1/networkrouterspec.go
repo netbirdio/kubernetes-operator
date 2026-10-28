@@ -17,6 +17,8 @@ type NetworkRouterSpecApplyConfiguration struct {
 	LogLevel *string `json:"logLevel,omitempty"`
 	// WorkloadOverride contains configuration that will override the default workload.
 	WorkloadOverride *WorkloadOverrideApplyConfiguration `json:"workloadOverride,omitempty"`
+	// Groups are references to additional groups that the routing peers will be a part of.
+	Groups []GroupReferenceApplyConfiguration `json:"groups,omitempty"`
 }
 
 // NetworkRouterSpecApplyConfiguration constructs a declarative configuration of the NetworkRouterSpec type for use with
@@ -54,5 +56,18 @@ func (b *NetworkRouterSpecApplyConfiguration) WithLogLevel(value string) *Networ
 // If called multiple times, the WorkloadOverride field is set to the value of the last call.
 func (b *NetworkRouterSpecApplyConfiguration) WithWorkloadOverride(value *WorkloadOverrideApplyConfiguration) *NetworkRouterSpecApplyConfiguration {
 	b.WorkloadOverride = value
+	return b
+}
+
+// WithGroups adds the given value to the Groups field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the Groups field.
+func (b *NetworkRouterSpecApplyConfiguration) WithGroups(values ...*GroupReferenceApplyConfiguration) *NetworkRouterSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithGroups")
+		}
+		b.Groups = append(b.Groups, *values[i])
+	}
 	return b
 }

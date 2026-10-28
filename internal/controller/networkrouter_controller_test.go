@@ -157,6 +157,79 @@ var _ = Describe("NetworkRouter Controller", func() {
 			Expect((*routingPeerResp.PeerGroups)[0]).To(Equal(group.Status.GroupID))
 		})
 
+		It("adds the configured groups to the routing peer setup key", func() {
+			zoneReq := api.ZoneRequest{
+				Name:   "cluster.local",
+				Domain: "cluster.local",
+			}
+			_, err := netRouterRec.Netbird.DNSZones.CreateZone(ctx, zoneReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			extraGroup := &nbv1alpha1.Group{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "routers",
+					Namespace: nn.Namespace,
+				},
+				Spec: nbv1alpha1.GroupSpec{
+					Name: "routers",
+				},
+			}
+			Expect(k8sClient.Create(ctx, extraGroup)).To(Succeed())
+
+			netRouter := &nbv1alpha1.NetworkRouter{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      nn.Name,
+					Namespace: nn.Namespace,
+				},
+				Spec: nbv1alpha1.NetworkRouterSpec{
+					DNSZoneRef: nbv1alpha1.DNSZoneReference{
+						Name: "cluster.local",
+					},
+					Groups: []nbv1alpha1.GroupReference{
+						{LocalRef: &corev1.LocalObjectReference{Name: extraGroup.Name}},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, netRouter)).To(Succeed())
+
+			group := &nbv1alpha1.Group{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      fmt.Sprintf("networkrouter-%s", netRouter.Name),
+					Namespace: nn.Namespace,
+				},
+			}
+			setupKey := &nbv1alpha1.SetupKey{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      fmt.Sprintf("networkrouter-%s", netRouter.Name),
+					Namespace: nn.Namespace,
+				},
+			}
+
+			for range 3 {
+				_, err := groupRec.Reconcile(ctx, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(extraGroup)})
+				Expect(err).NotTo(HaveOccurred())
+
+				_, err = netRouterRec.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+				Expect(err).NotTo(HaveOccurred())
+
+				_, err = groupRec.Reconcile(ctx, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(group)})
+				Expect(err).NotTo(HaveOccurred())
+
+				_, err = setupKeyRec.Reconcile(ctx, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(setupKey)})
+				Expect(err).NotTo(HaveOccurred())
+			}
+
+			err = k8sClient.Get(ctx, client.ObjectKeyFromObject(group), group)
+			Expect(err).NotTo(HaveOccurred())
+			err = k8sClient.Get(ctx, client.ObjectKeyFromObject(extraGroup), extraGroup)
+			Expect(err).NotTo(HaveOccurred())
+			err = k8sClient.Get(ctx, client.ObjectKeyFromObject(setupKey), setupKey)
+			Expect(err).NotTo(HaveOccurred())
+			nbSetupKey, err := netRouterRec.Netbird.SetupKeys.Get(ctx, setupKey.Status.SetupKeyID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(nbSetupKey.AutoGroups).To(ConsistOf(group.Status.GroupID, extraGroup.Status.GroupID))
+		})
+
 		It("is ready only while every routing peer is ready", func() {
 			zoneReq := api.ZoneRequest{
 				Name:   "cluster.local",

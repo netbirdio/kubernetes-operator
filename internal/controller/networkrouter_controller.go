@@ -144,6 +144,16 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				WithEphemeral(true).
 				WithAutoGroups(nbv1alpha1ac.GroupReference().WithID(group.Status.GroupID)),
 		)
+	for _, ref := range netRouter.Spec.Groups {
+		switch {
+		case ref.ID != nil:
+			setupKeyAC.Spec.AutoGroups = append(setupKeyAC.Spec.AutoGroups, *nbv1alpha1ac.GroupReference().WithID(*ref.ID))
+		case ref.Name != nil:
+			setupKeyAC.Spec.AutoGroups = append(setupKeyAC.Spec.AutoGroups, *nbv1alpha1ac.GroupReference().WithName(*ref.Name))
+		case ref.LocalRef != nil:
+			setupKeyAC.Spec.AutoGroups = append(setupKeyAC.Spec.AutoGroups, *nbv1alpha1ac.GroupReference().WithLocalRef(*ref.LocalRef))
+		}
+	}
 	err = r.Client.Apply(ctx, setupKeyAC, client.ForceOwnership)
 	if err != nil {
 		return ctrl.Result{}, err

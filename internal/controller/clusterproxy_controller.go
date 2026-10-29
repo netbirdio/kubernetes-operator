@@ -23,7 +23,6 @@ import (
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	"github.com/netbirdio/kubernetes-operator/internal/k8sutil"
 	nbv1alpha1ac "github.com/netbirdio/kubernetes-operator/pkg/applyconfigurations/api/v1alpha1"
-	"github.com/netbirdio/kubernetes-operator/pkg/version"
 )
 
 // ClusterProxyReconciler reconciles a ClusterProxy object
@@ -32,6 +31,7 @@ type ClusterProxyReconciler struct {
 
 	ApiKey        string
 	ManagementURL string
+	Image         string
 }
 
 // +kubebuilder:rbac:groups=netbird.io,resources=clusterproxies,verbs=get;list;watch;create;update;patch;delete
@@ -124,7 +124,7 @@ func (r *ClusterProxyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			WithServiceAccountName(clusterProxy.Spec.ServiceAccountName).
 			WithContainers(corev1ac.Container().
 				WithName("proxy").
-				WithImage(version.KubeApiProxyImage).
+				WithImage(r.Image).
 				WithArgs(
 					"--setup-key",
 					"$(SETUP_KEY)",

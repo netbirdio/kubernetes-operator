@@ -2,7 +2,7 @@ module github.com/netbirdio/kubernetes-operator/test/e2e
 
 go 1.26.0
 
-toolchain go1.26.5
+toolchain go1.26.10
 
 replace github.com/netbirdio/kubernetes-operator => ../../
 
@@ -11,7 +11,7 @@ require (
 	github.com/fluxcd/cli-utils v1.2.2
 	github.com/go-openapi/testify/v2 v2.6.0
 	github.com/netbirdio/kubernetes-operator v0.0.0-00010101000000-000000000000
-	github.com/netbirdio/netbird v0.81.2-0.20261020122105-569b9aa169c0
+	github.com/netbirdio/netbird v0.81.4
 	helm.sh/helm/v4 v4.2.3
 	k8s.io/api v0.36.2
 	k8s.io/apimachinery v0.36.2
@@ -176,3 +176,9 @@ replace github.com/cloudflare/circl => codeberg.org/cunicu/circl v0.0.0-20230801
 replace github.com/pion/ice/v4 => github.com/netbirdio/ice/v4 v4.0.0-20250908184934-6202be846b51
 
 replace golang.zx2c4.com/wireguard => github.com/netbirdio/wireguard-go v0.0.0-20260523085312-4b4a4e36017f
+
+// The e2e harness API this suite uses (NetworkName, Client.Exec, ClientImage,
+// netbirdio/netbird#8260) is on netbird main but in no release yet. A main
+// pseudo-version sorts below the release the operator module requires, so only
+// a replace keeps the suite on it. Drop it once a release includes #8260.
+replace github.com/netbirdio/netbird => github.com/netbirdio/netbird v0.81.2-0.20261026150333-2c68a84a976e

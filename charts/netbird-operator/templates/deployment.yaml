@@ -68,6 +68,9 @@ spec:
           {{- if .Values.routingClientImage }}
           - --netbird-client-image={{.Values.routingClientImage}}
           {{- end }}
+          {{- if .Values.kubeAPIProxyImage }}
+          - --kubeapi-proxy-image={{.Values.kubeAPIProxyImage}}
+          {{- end }}
           {{- if .Values.general.labels }}
           {{- $list := list }}
           {{- range $k, $v := .Values.general.labels }}

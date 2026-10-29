@@ -100,6 +100,9 @@ func TestPodInjectorSidecarProfile(t *testing.T) {
 				require.Len(t, pod.Spec.Containers, 1)
 				require.EqualT(t, "app", pod.Spec.Containers[0].Name)
 			}
+
+			require.EqualT(t, "resolv-conf", pod.Spec.InitContainers[len(pod.Spec.InitContainers)-1].VolumeMounts[0].Name)
+			require.EqualT(t, "resolv-conf", pod.Spec.Containers[len(pod.Spec.Containers)-1].VolumeMounts[0].Name)
 		})
 	}
 }

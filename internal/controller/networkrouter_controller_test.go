@@ -78,7 +78,7 @@ var _ = Describe("NetworkRouter Controller", func() {
 			Expect(k8sClient.Delete(ctx, ns)).To(Succeed())
 		})
 
-		It("creates a routing peer along with a deployment", func() {
+		DescribeTable("creates a routing peer along with a deployment", func(override *nbv1alpha1.WorkloadOverride) {
 			zoneReq := api.ZoneRequest{
 				Name:   "cluster.local",
 				Domain: "cluster.local",
@@ -92,6 +92,7 @@ var _ = Describe("NetworkRouter Controller", func() {
 					Namespace: nn.Namespace,
 				},
 				Spec: nbv1alpha1.NetworkRouterSpec{
+					WorkloadOverride: override,
 					DNSZoneRef: nbv1alpha1.DNSZoneReference{
 						Name: "cluster.local",
 					},
@@ -146,6 +147,22 @@ var _ = Describe("NetworkRouter Controller", func() {
 			err = k8sClient.Get(ctx, client.ObjectKeyFromObject(dep), dep)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(dep.OwnerReferences[0].UID).To(Equal(netRouter.UID))
+			for _, env := range dep.Spec.Template.Spec.Containers[0].Env {
+				if env.ValueFrom != nil {
+					Expect(env.Value).To(BeEmpty())
+				}
+			}
+			if override != nil {
+				Expect(dep.Spec.Template.Spec.Containers[0].Env).To(ContainElement(And(
+					HaveField("Name", "NB_SETUP_KEY"),
+					HaveField("Value", BeEmpty()),
+					HaveField("ValueFrom.SecretKeyRef.Name", setupKey.SecretName()),
+					HaveField("ValueFrom.SecretKeyRef.Key", SetupKeySecretKey),
+				)))
+				Expect(dep.Spec.Template.Spec.Containers[0].Env).To(ContainElement(corev1.EnvVar{
+					Name: "EXAMPLE_ENV", Value: "example",
+				}))
+			}
 			nbContainer := dep.Spec.Template.Spec.Containers[0]
 			Expect(nbContainer.Name).To(Equal("netbird"))
 			Expect(nbContainer.LivenessProbe).NotTo(BeNil())
@@ -155,7 +172,19 @@ var _ = Describe("NetworkRouter Controller", func() {
 			routingPeerResp, err := netRouterRec.Netbird.Networks.Routers(netRouter.Status.NetworkID).Get(ctx, netRouter.Status.RoutingPeerID)
 			Expect(err).NotTo(HaveOccurred())
 			Expect((*routingPeerResp.PeerGroups)[0]).To(Equal(group.Status.GroupID))
-		})
+		},
+			Entry("without a pod template override", (*nbv1alpha1.WorkloadOverride)(nil)),
+			Entry("with an environment variable override", &nbv1alpha1.WorkloadOverride{
+				PodTemplate: &corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{{
+							Name: "netbird",
+							Env:  []corev1.EnvVar{{Name: "EXAMPLE_ENV", Value: "example"}},
+						}},
+					},
+				},
+			}),
+		)
 
 		It("is ready only while every routing peer is ready", func() {
 			zoneReq := api.ZoneRequest{

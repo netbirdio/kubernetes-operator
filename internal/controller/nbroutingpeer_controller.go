@@ -297,46 +297,77 @@ func (r *NBRoutingPeerReconciler) handleRouter(ctx context.Context, nbrp *nbv1.N
 		return err
 	}
 
-	if nbrp.Status.RouterID == nil || len(routers) == 0 {
-		if len(routers) > 0 {
-			// Router exists but isn't saved to status
-			nbrp.Status.RouterID = &routers[0].Id
-		} else {
-			// Create network router
-			router, err := r.Netbird.Networks.Routers(*nbrp.Status.NetworkID).Create(ctx, api.NetworkRouterRequest{
-				Enabled:    true,
-				Masquerade: true,
-				Metric:     9999,
-				PeerGroups: &[]string{*nbGroup.Status.GroupID},
-			})
-
-			if err != nil {
-				logger.Error(errNetBirdAPI, "error creating network router", "err", err)
-				nbrp.Status.Conditions = nbv1.NBConditionFalse("APIError", fmt.Sprintf("error creating network router: %v", err))
-				return err
-			}
-
-			nbrp.Status.RouterID = &router.Id
+	router := selectRouter(routers, nbrp.Status.RouterID)
+	if router == nil {
+		created, err := r.Netbird.Networks.Routers(*nbrp.Status.NetworkID).Create(ctx, api.NetworkRouterRequest{
+			Enabled:    true,
+			Masquerade: true,
+			Metric:     9999,
+			PeerGroups: &[]string{*nbGroup.Status.GroupID},
+		})
+		if err != nil {
+			logger.Error(errNetBirdAPI, "error creating network router", "err", err)
+			nbrp.Status.Conditions = nbv1.NBConditionFalse("APIError", fmt.Sprintf("error creating network router: %v", err))
+			return err
 		}
-	} else {
-		// Ensure network router settings are correct
-		if !routers[0].Enabled || !routers[0].Masquerade || routers[0].Metric != 9999 || len(*routers[0].PeerGroups) != 1 || (*routers[0].PeerGroups)[0] != *nbGroup.Status.GroupID {
-			_, err = r.Netbird.Networks.Routers(*nbrp.Status.NetworkID).Update(ctx, routers[0].Id, api.NetworkRouterRequest{
-				Enabled:    true,
-				Masquerade: true,
-				Metric:     9999,
-				PeerGroups: &[]string{*nbGroup.Status.GroupID},
-			})
 
-			if err != nil {
-				logger.Error(errNetBirdAPI, "error updating network router", "err", err)
-				nbrp.Status.Conditions = nbv1.NBConditionFalse("APIError", fmt.Sprintf("error updating network router: %v", err))
-				return err
-			}
-		}
+		nbrp.Status.RouterID = &created.Id
+		return nil
+	}
+
+	if nbrp.Status.RouterID == nil || *nbrp.Status.RouterID != router.Id {
+		// Router exists but isn't saved to status
+		nbrp.Status.RouterID = &router.Id
+		return nil
+	}
+
+	if routerUpToDate(router, *nbGroup.Status.GroupID) {
+		return nil
+	}
+
+	_, err = r.Netbird.Networks.Routers(*nbrp.Status.NetworkID).Update(ctx, router.Id, api.NetworkRouterRequest{
+		Enabled:    true,
+		Masquerade: true,
+		Metric:     9999,
+		PeerGroups: &[]string{*nbGroup.Status.GroupID},
+	})
+	if err != nil {
+		logger.Error(errNetBirdAPI, "error updating network router", "err", err)
+		nbrp.Status.Conditions = nbv1.NBConditionFalse("APIError", fmt.Sprintf("error updating network router: %v", err))
+		return err
 	}
 
 	return nil
+}
+
+// selectRouter returns the router whose ID is recorded in status. The NetBird API
+// does not guarantee list order, so when no recorded router is found it falls back
+// to the router with the lowest ID to keep the choice stable across reconciles.
+func selectRouter(routers []api.NetworkRouter, routerID *string) *api.NetworkRouter {
+	if len(routers) == 0 {
+		return nil
+	}
+	if routerID != nil {
+		if idx := slices.IndexFunc(routers, func(r api.NetworkRouter) bool { return r.Id == *routerID }); idx >= 0 {
+			return &routers[idx]
+		}
+	}
+	lowest := 0
+	for i := range routers {
+		if routers[i].Id < routers[lowest].Id {
+			lowest = i
+		}
+	}
+	return &routers[lowest]
+}
+
+// routerUpToDate reports whether the router matches the settings managed by the operator.
+func routerUpToDate(router *api.NetworkRouter, groupID string) bool {
+	return router.Enabled &&
+		router.Masquerade &&
+		router.Metric == 9999 &&
+		router.PeerGroups != nil &&
+		slices.Equal(*router.PeerGroups, []string{groupID})
 }
 
 // handleSetupKey reconcile setup key and regenerate if invalid

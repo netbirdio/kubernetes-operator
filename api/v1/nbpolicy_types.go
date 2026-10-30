@@ -49,11 +49,11 @@ type NBPolicyStatus struct {
 
 // Equal returns if NBPolicyStatus is equal to this one
 func (a NBPolicyStatus) Equal(b NBPolicyStatus) bool {
-	return a.TCPPolicyID == b.TCPPolicyID &&
-		a.UDPPolicyID == b.UDPPolicyID &&
-		a.LastUpdatedAt == b.LastUpdatedAt &&
+	return util.PtrEqual(a.TCPPolicyID, b.TCPPolicyID) &&
+		util.PtrEqual(a.UDPPolicyID, b.UDPPolicyID) &&
+		a.LastUpdatedAt.Equal(b.LastUpdatedAt) &&
 		util.Equivalent(a.ManagedServiceList, b.ManagedServiceList) &&
-		util.Equivalent(a.Conditions, b.Conditions)
+		ConditionsEqual(a.Conditions, b.Conditions)
 }
 
 // +kubebuilder:object:root=true

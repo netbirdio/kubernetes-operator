@@ -112,7 +112,8 @@ func (r *NBPolicyReconciler) mapResources(ctx context.Context, nbPolicy *nbv1.NB
 		slices.Sort(ports[k])
 	}
 
-	return ports, groups, nil
+	slices.Sort(groups)
+	return ports, slices.Compact(groups), nil
 }
 
 // createPolicy helper for creating policy with settings
@@ -314,11 +315,10 @@ func (r *NBPolicyReconciler) syncPolicy(ctx context.Context, nbPolicy *nbv1.NBPo
 			}
 			policyID = nil
 		} else {
+			allPorts := slices.Concat(ports, nbPolicy.Spec.Ports)
+			slices.Sort(allPorts)
 			var stringPorts []string
-			for _, v := range ports {
-				stringPorts = append(stringPorts, strconv.FormatInt(int64(v), 10))
-			}
-			for _, v := range nbPolicy.Spec.Ports {
+			for _, v := range slices.Compact(allPorts) {
 				stringPorts = append(stringPorts, strconv.FormatInt(int64(v), 10))
 			}
 

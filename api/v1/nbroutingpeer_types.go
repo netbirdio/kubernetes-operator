@@ -45,10 +45,10 @@ type NBRoutingPeerStatus struct {
 
 // Equal returns if NBRoutingPeerStatus is equal to this one
 func (a NBRoutingPeerStatus) Equal(b NBRoutingPeerStatus) bool {
-	return a.NetworkID == b.NetworkID &&
-		a.SetupKeyID == b.SetupKeyID &&
-		a.RouterID == b.RouterID &&
-		util.Equivalent(a.Conditions, b.Conditions)
+	return util.PtrEqual(a.NetworkID, b.NetworkID) &&
+		util.PtrEqual(a.SetupKeyID, b.SetupKeyID) &&
+		util.PtrEqual(a.RouterID, b.RouterID) &&
+		ConditionsEqual(a.Conditions, b.Conditions)
 }
 
 // +kubebuilder:object:root=true

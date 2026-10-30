@@ -15,23 +15,33 @@ func Without[T comparable](x []T, y T) []T {
 	return ret
 }
 
-// Equivalent return true if x and y are equal when sorted
+// Equivalent returns true if x and y contain the same elements with the same
+// multiplicity, regardless of order.
 func Equivalent[T comparable](x, y []T) bool {
 	if len(x) != len(y) {
 		return false
 	}
 
-	mp := make(map[T]any)
+	counts := make(map[T]int, len(x))
 	for _, v := range x {
-		mp[v] = nil
+		counts[v]++
 	}
 	for _, v := range y {
-		if _, ok := mp[v]; !ok {
+		if counts[v] == 0 {
 			return false
 		}
+		counts[v]--
 	}
 
 	return true
+}
+
+// PtrEqual returns true if both pointers are nil or point to equal values.
+func PtrEqual[T comparable](x, y *T) bool {
+	if x == nil || y == nil {
+		return x == y
+	}
+	return *x == *y
 }
 
 // SplitTrim split string and trim whitespace

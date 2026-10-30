@@ -88,12 +88,7 @@ func (r *NBGroupReconciler) syncNetBirdGroup(ctx context.Context, nbGroup *nbv1.
 		logger.Error(errNetBirdAPI, "error listing groups", "err", err)
 		return ctrl.Result{}, err
 	}
-	var group *api.Group
-	for _, g := range groups {
-		if g.Name == nbGroup.Spec.Name {
-			group = &g
-		}
-	}
+	group := findGroupByName(groups, nbGroup.Spec.Name, nbGroup.Status.GroupID)
 
 	// Create group if not exists, and update status.groupId
 	if nbGroup.Status.GroupID == nil && group == nil {
@@ -130,6 +125,25 @@ func (r *NBGroupReconciler) syncNetBirdGroup(ctx context.Context, nbGroup *nbv1.
 		nbGroup.Status.Conditions = nbv1.NBConditionTrue()
 	}
 	return ctrl.Result{}, nil
+}
+
+// findGroupByName returns the group with the given name. When several groups share
+// the name, the one recorded in status wins, otherwise the lowest ID is used so the
+// choice does not depend on the order the NetBird API returns groups in.
+func findGroupByName(groups []api.Group, name string, groupID *string) *api.Group {
+	var found *api.Group
+	for i := range groups {
+		if groups[i].Name != name {
+			continue
+		}
+		if groupID != nil && groups[i].Id == *groupID {
+			return &groups[i]
+		}
+		if found == nil || groups[i].Id < found.Id {
+			found = &groups[i]
+		}
+	}
+	return found
 }
 
 func (r *NBGroupReconciler) handleDelete(ctx context.Context, nbGroup nbv1.NBGroup, logger logr.Logger) error {

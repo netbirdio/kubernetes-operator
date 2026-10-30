@@ -157,6 +157,9 @@ netbirdAPI:
     name: "netbird-mgmt-api-key"
     key: "NB_API_KEY"
 
+# NetBird management URL. Defaults to NetBird Cloud
+# managementURL: "https://api.netbird.io"
+
 #routingClientImage: "netbirdio/netbird:latest"
 #kubeAPIProxyImage: "ghcr.io/netbirdio/netbird-kubeapi-proxy:latest"
 

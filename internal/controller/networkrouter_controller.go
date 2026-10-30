@@ -26,6 +26,7 @@ import (
 	metav1ac "k8s.io/client-go/applyconfigurations/meta/v1"
 	policyv1ac "k8s.io/client-go/applyconfigurations/policy/v1"
 	rbacv1ac "k8s.io/client-go/applyconfigurations/rbac/v1"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -36,6 +37,7 @@ import (
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
 	"github.com/netbirdio/kubernetes-operator/internal/k8sutil"
 	"github.com/netbirdio/kubernetes-operator/internal/netbirdutil"
+	"github.com/netbirdio/kubernetes-operator/internal/util"
 	nbv1alpha1ac "github.com/netbirdio/kubernetes-operator/pkg/applyconfigurations/api/v1alpha1"
 	"github.com/netbirdio/kubernetes-operator/pkg/version"
 )
@@ -83,12 +85,21 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			Name: netRouter.Name,
 		}
 		if netRouter.Status.NetworkID != "" {
-			networkResp, err := r.Netbird.Networks.Update(ctx, netRouter.Status.NetworkID, networkReq)
+			networkResp, err := r.Netbird.Networks.Get(ctx, netRouter.Status.NetworkID)
 			if err != nil && !netbird.IsNotFound(err) {
 				return "", err
 			}
 			if err == nil {
-				return networkResp.Id, nil
+				if networkMatches(networkResp, networkReq) {
+					return networkResp.Id, nil
+				}
+				networkResp, err = r.Netbird.Networks.Update(ctx, netRouter.Status.NetworkID, networkReq)
+				if err != nil && !netbird.IsNotFound(err) {
+					return "", err
+				}
+				if err == nil {
+					return networkResp.Id, nil
+				}
 			}
 		}
 		networkResp, err := r.Netbird.Networks.Create(ctx, networkReq)
@@ -171,12 +182,21 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			PeerGroups: new([]string{group.Status.GroupID}),
 		}
 		if netRouter.Status.RoutingPeerID != "" {
-			resp, err := r.Netbird.Networks.Routers(networkID).Update(ctx, netRouter.Status.RoutingPeerID, routerReq)
+			resp, err := r.Netbird.Networks.Routers(networkID).Get(ctx, netRouter.Status.RoutingPeerID)
 			if err != nil && !netbird.IsNotFound(err) {
 				return "", err
 			}
 			if err == nil {
-				return resp.Id, nil
+				if networkRouterMatches(resp, routerReq) {
+					return resp.Id, nil
+				}
+				resp, err = r.Netbird.Networks.Routers(networkID).Update(ctx, netRouter.Status.RoutingPeerID, routerReq)
+				if err != nil && !netbird.IsNotFound(err) {
+					return "", err
+				}
+				if err == nil {
+					return resp.Id, nil
+				}
 			}
 		}
 		resp, err := r.Netbird.Networks.Routers(networkID).Create(ctx, routerReq)
@@ -470,6 +490,21 @@ func routingPeersReady(dep *appsv1.Deployment, desired int32) bool {
 		dep.Status.Replicas == desired &&
 		dep.Status.UpdatedReplicas == desired &&
 		dep.Status.ReadyReplicas == desired
+}
+
+// networkMatches reports whether the network already has the requested settings, so
+// unchanged networks are not written to the management API and its activity log.
+func networkMatches(network *api.Network, req api.NetworkRequest) bool {
+	return network.Name == req.Name && ptr.Deref(network.Description, "") == ptr.Deref(req.Description, "")
+}
+
+// networkRouterMatches reports whether the router already has the requested settings.
+func networkRouterMatches(router *api.NetworkRouter, req api.NetworkRouterRequest) bool {
+	return router.Enabled == req.Enabled &&
+		router.Masquerade == req.Masquerade &&
+		router.Metric == req.Metric &&
+		ptr.Deref(router.Peer, "") == ptr.Deref(req.Peer, "") &&
+		util.Equivalent(ptr.Deref(router.PeerGroups, nil), ptr.Deref(req.PeerGroups, nil))
 }
 
 func (r *NetworkRouterReconciler) reconcileDelete(ctx context.Context, sp *patch.SerialPatcher, netRouter *nbv1alpha1.NetworkRouter) (ctrl.Result, error) {

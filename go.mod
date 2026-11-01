@@ -10,7 +10,7 @@ require (
 	github.com/go-openapi/testify/v2 v2.6.0
 	github.com/google/uuid v1.6.0
 	github.com/netbirdio/kube-egress-forwarder v0.0.3
-	github.com/netbirdio/netbird v0.81.4
+	github.com/netbirdio/netbird v0.82.0
 	github.com/onsi/ginkgo/v2 v2.32.0
 	github.com/onsi/gomega v1.42.1
 	golang.org/x/mod v0.39.0

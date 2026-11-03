@@ -163,6 +163,7 @@ Group is the Schema for the groups API.
 _Appears in:_
 - [ClusterProxySpec](#clusterproxyspec)
 - [NetworkResourceSpec](#networkresourcespec)
+- [NetworkRouterSpec](#networkrouterspec)
 - [SetupKeySpec](#setupkeyspec)
 
 | Field | Description | Default | Validation |
@@ -445,6 +446,7 @@ _Appears in:_
 | `image` _string_ | Netbird client image. |  | Optional: \{\} <br /> |
 | `logLevel` _string_ | Log level for Netbird client. |  | Optional: \{\} <br /> |
 | `workloadOverride` _[WorkloadOverride](#workloadoverride)_ | WorkloadOverride contains configuration that will override the default workload. |  | Optional: \{\} <br /> |
+| `groups` _[GroupReference](#groupreference) array_ | Groups are references to additional groups that the routing peers will be a part of. |  | Optional: \{\} <br /> |
 
 
 #### NetworkRouterStatus

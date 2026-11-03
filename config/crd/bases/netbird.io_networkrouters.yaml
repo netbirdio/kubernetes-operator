@@ -57,6 +57,37 @@ spec:
                 required:
                 - name
                 type: object
+              groups:
+                description: Groups are references to additional groups that the routing
+                  peers will be a part of.
+                items:
+                  properties:
+                    id:
+                      description: ID is the id of the group.
+                      type: string
+                    localRef:
+                      description: LocalReference is a reference to a group in the
+                        same namespace.
+                      properties:
+                        name:
+                          default: ""
+                          description: |-
+                            Name of the referent.
+                            This field is effectively required, but due to backwards compatibility is
+                            allowed to be empty. Instances of this type with an empty value here are
+                            almost certainly wrong.
+                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          type: string
+                      type: object
+                      x-kubernetes-map-type: atomic
+                    name:
+                      description: Name is the name of the group.
+                      type: string
+                  type: object
+                  x-kubernetes-validations:
+                  - message: Exactly one of id, name, or localRef must be set
+                    rule: (has(self.id)?1:0)+(has(self.name)?1:0)+(has(self.localRef)?1:0)==1
+                type: array
               image:
                 description: Netbird client image.
                 type: string

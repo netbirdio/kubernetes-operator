@@ -5,6 +5,8 @@ package v1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/netbirdio/kubernetes-operator/internal/util"
 )
 
 // NBConditionType is a valid value for PodCondition.Type
@@ -56,6 +58,28 @@ type NBCondition struct {
 	// Human-readable message indicating details about last transition.
 	// +optional
 	Message string `json:"message,omitempty"`
+}
+
+// ConditionsEqual returns true if both condition lists carry the same type,
+// status, reason and message, ignoring probe and transition timestamps.
+func ConditionsEqual(a, b []NBCondition) bool {
+	return util.Equivalent(conditionKeys(a), conditionKeys(b))
+}
+
+// +kubebuilder:object:generate=false
+type conditionKey struct {
+	Type    NBConditionType
+	Status  corev1.ConditionStatus
+	Reason  string
+	Message string
+}
+
+func conditionKeys(conditions []NBCondition) []conditionKey {
+	keys := make([]conditionKey, 0, len(conditions))
+	for _, c := range conditions {
+		keys = append(keys, conditionKey{Type: c.Type, Status: c.Status, Reason: c.Reason, Message: c.Message})
+	}
+	return keys
 }
 
 // NBConditionTrue returns default true condition

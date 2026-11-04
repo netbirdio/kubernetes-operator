@@ -56,17 +56,7 @@ func (a NBPolicyStatus) Equal(b NBPolicyStatus) bool {
 		ptr.Equal(a.UDPPolicyID, b.UDPPolicyID) &&
 		a.LastUpdatedAt.Equal(b.LastUpdatedAt) &&
 		util.Equivalent(a.ManagedServiceList, b.ManagedServiceList) &&
-		util.Equivalent(withoutConditionTimes(a.Conditions), withoutConditionTimes(b.Conditions))
-}
-
-func withoutConditionTimes(conditions []NBCondition) []NBCondition {
-	ret := make([]NBCondition, len(conditions))
-	for i, c := range conditions {
-		c.LastProbeTime = metav1.Time{}
-		c.LastTransitionTime = metav1.Time{}
-		ret[i] = c
-	}
-	return ret
+		ConditionsEqual(a.Conditions, b.Conditions)
 }
 
 // +kubebuilder:object:root=true

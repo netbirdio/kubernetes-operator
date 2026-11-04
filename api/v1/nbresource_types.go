@@ -6,6 +6,7 @@ import (
 	"maps"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	"github.com/netbirdio/kubernetes-operator/internal/util"
 )
@@ -68,8 +69,8 @@ type NBResourceStatus struct {
 
 // Equal returns if NBResourceStatus is equal to this one
 func (a NBResourceStatus) Equal(b NBResourceStatus) bool {
-	return util.PtrEqual(a.NetworkResourceID, b.NetworkResourceID) &&
-		util.PtrEqual(a.PolicyName, b.PolicyName) &&
+	return ptr.Equal(a.NetworkResourceID, b.NetworkResourceID) &&
+		ptr.Equal(a.PolicyName, b.PolicyName) &&
 		util.Equivalent(a.TCPPorts, b.TCPPorts) &&
 		util.Equivalent(a.UDPPorts, b.UDPPorts) &&
 		util.Equivalent(a.Groups, b.Groups) &&

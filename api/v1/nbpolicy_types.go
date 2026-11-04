@@ -4,6 +4,7 @@ package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	"github.com/netbirdio/kubernetes-operator/internal/util"
 )
@@ -47,10 +48,12 @@ type NBPolicyStatus struct {
 	Conditions []NBCondition `json:"conditions,omitempty"`
 }
 
-// Equal returns if NBPolicyStatus is equal to this one
+// Equal returns if NBPolicyStatus is equal to this one. Condition timestamps are
+// ignored, since they are restamped on every reconcile and writing them alone would
+// trigger the next reconcile.
 func (a NBPolicyStatus) Equal(b NBPolicyStatus) bool {
-	return util.PtrEqual(a.TCPPolicyID, b.TCPPolicyID) &&
-		util.PtrEqual(a.UDPPolicyID, b.UDPPolicyID) &&
+	return ptr.Equal(a.TCPPolicyID, b.TCPPolicyID) &&
+		ptr.Equal(a.UDPPolicyID, b.UDPPolicyID) &&
 		a.LastUpdatedAt.Equal(b.LastUpdatedAt) &&
 		util.Equivalent(a.ManagedServiceList, b.ManagedServiceList) &&
 		ConditionsEqual(a.Conditions, b.Conditions)

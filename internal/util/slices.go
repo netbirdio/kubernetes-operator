@@ -36,14 +36,6 @@ func Equivalent[T comparable](x, y []T) bool {
 	return true
 }
 
-// PtrEqual returns true if both pointers are nil or point to equal values.
-func PtrEqual[T comparable](x, y *T) bool {
-	if x == nil || y == nil {
-		return x == y
-	}
-	return *x == *y
-}
-
 // SplitTrim split string and trim whitespace
 func SplitTrim(str, sep string) []string {
 	if len(str) == 0 {

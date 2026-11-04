@@ -8,14 +8,21 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync"
+	"time"
 
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/config"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
@@ -111,6 +118,51 @@ var _ = Describe("NBPolicy Controller", func() {
 					NamespacedName: typeNamespacedName,
 				})
 				Expect(err).NotTo(HaveOccurred())
+			})
+		})
+
+		When("Nothing changed since the last reconcile", func() {
+			It("should keep the status and its condition timestamps", func() {
+				controllerReconciler := &NBPolicyReconciler{
+					Client:  k8sClient,
+					Netbird: netbirdClient,
+				}
+
+				mux.HandleFunc("/api/groups", func(w http.ResponseWriter, r *http.Request) {
+					bs, err := json.Marshal([]api.Group{{Id: "meow", Name: "All"}})
+					Expect(err).NotTo(HaveOccurred())
+					_, err = w.Write(bs)
+					Expect(err).NotTo(HaveOccurred())
+				})
+
+				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(k8sClient.Get(ctx, typeNamespacedName, nbpolicy)).To(Succeed())
+				Expect(nbpolicy.Status.Conditions).To(HaveLen(1))
+				Expect(nbpolicy.Status.Conditions[0].Status).To(Equal(corev1.ConditionTrue))
+				resourceVersion := nbpolicy.ResourceVersion
+				first := nbpolicy.Status.Conditions[0]
+
+				// Condition times have second precision, so a rewrite only changes the
+				// object, and triggers the next reconcile, once a second has passed.
+				time.Sleep(1100 * time.Millisecond)
+
+				_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(k8sClient.Get(ctx, typeNamespacedName, nbpolicy)).To(Succeed())
+				Expect(nbpolicy.ResourceVersion).To(Equal(resourceVersion), "unchanged status should not be written")
+				Expect(nbpolicy.Status.Conditions[0].LastProbeTime).To(Equal(first.LastProbeTime), "probe time should not be restamped")
+				Expect(nbpolicy.Status.Conditions[0].LastTransitionTime).To(Equal(first.LastTransitionTime), "transition time should not be restamped")
+
+				By("writing the status again once the condition changes")
+				nbpolicy.Status.Conditions = nbv1.NBConditionFalse("APIError", "boom")
+				Expect(k8sClient.Status().Update(ctx, nbpolicy)).To(Succeed())
+
+				_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(k8sClient.Get(ctx, typeNamespacedName, nbpolicy)).To(Succeed())
+				Expect(nbpolicy.Status.Conditions[0].Status).To(Equal(corev1.ConditionTrue))
+				Expect(nbpolicy.Status.Conditions[0].LastTransitionTime.After(first.LastTransitionTime.Time)).To(BeTrue(), "transition time should be restamped")
 			})
 		})
 
@@ -628,5 +680,117 @@ var _ = Describe("NBPolicy Controller", func() {
 				Expect(errors.IsNotFound(err)).To(BeTrue())
 			})
 		})
+	})
+})
+
+var _ = Describe("NBPolicy Controller under a manager", func() {
+	It("stops reconciling an unchanged policy when the management API is slow", func() {
+		var mx sync.Mutex
+		puts := 0
+		putCount := func() int {
+			mx.Lock()
+			defer mx.Unlock()
+			return puts
+		}
+
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/groups", func(w http.ResponseWriter, r *http.Request) {
+			_ = json.NewEncoder(w).Encode([]api.Group{{Id: "g-all", Name: "All"}})
+		})
+		policy := api.Policy{Id: new("pol-1"), Name: "Slow TCP", Enabled: true}
+		mux.HandleFunc("/api/policies", func(w http.ResponseWriter, r *http.Request) {
+			_ = json.NewEncoder(w).Encode(policy)
+		})
+		mux.HandleFunc("/api/policies/pol-1", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodPut {
+				mx.Lock()
+				puts++
+				mx.Unlock()
+			}
+			_ = json.NewEncoder(w).Encode(policy)
+		})
+		// About 1.2s per reconcile, so every status write lands in a new second and
+		// changes the object, which is what kept the controller looping.
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(400 * time.Millisecond)
+			mux.ServeHTTP(w, r)
+		}))
+		DeferCleanup(srv.Close)
+
+		ctx := context.Background()
+		suffix := rand.String(5)
+		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "nbpolicy-" + suffix}}
+		Expect(k8sClient.Create(ctx, ns)).To(Succeed())
+		DeferCleanup(k8sClient.Delete, ctx, ns)
+		policyName := "slow-api-" + suffix
+
+		nbResource := &nbv1.NBResource{
+			ObjectMeta: metav1.ObjectMeta{Name: "res", Namespace: ns.Name},
+			Spec: nbv1.NBResourceSpec{
+				Name:      "res",
+				NetworkID: "net-1",
+				Address:   "10.0.0.1",
+				Groups:    []string{"dest"},
+				TCPPorts:  []int32{80},
+			},
+		}
+		Expect(k8sClient.Create(ctx, nbResource)).To(Succeed())
+		DeferCleanup(k8sClient.Delete, ctx, nbResource)
+		nbResource.Status.PolicyName = &policyName
+		nbResource.Status.Groups = []string{"g-dest"}
+		nbResource.Status.PolicyNameMapping = map[string]string{}
+		Expect(k8sClient.Status().Update(ctx, nbResource)).To(Succeed())
+
+		nbPolicy := &nbv1.NBPolicy{
+			ObjectMeta: metav1.ObjectMeta{Name: policyName},
+			Spec: nbv1.NBPolicySpec{
+				Name:          "Slow",
+				SourceGroups:  []string{"All"},
+				Bidirectional: true,
+			},
+		}
+		Expect(k8sClient.Create(ctx, nbPolicy)).To(Succeed())
+		DeferCleanup(k8sClient.Delete, ctx, nbPolicy)
+		nbPolicy.Status.ManagedServiceList = []string{ns.Name + "/res"}
+		Expect(k8sClient.Status().Update(ctx, nbPolicy)).To(Succeed())
+
+		mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+			Scheme:                 scheme.Scheme,
+			Metrics:                metricsserver.Options{BindAddress: "0"},
+			HealthProbeBindAddress: "0",
+			Controller:             config.Controller{SkipNameValidation: new(true)},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect((&NBPolicyReconciler{Client: mgr.GetClient(), Netbird: netbird.New(srv.URL, "ABC")}).SetupWithManager(mgr)).To(Succeed())
+
+		mgrCtx, cancel := context.WithCancel(ctx)
+		done := make(chan struct{})
+		go func() {
+			defer GinkgoRecover()
+			defer close(done)
+			Expect(mgr.Start(mgrCtx)).To(Succeed())
+		}()
+		DeferCleanup(func() {
+			cancel()
+			<-done
+		})
+
+		key := types.NamespacedName{Name: policyName}
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(ctx, key, nbPolicy)).To(Succeed())
+			g.Expect(nbPolicy.Status.TCPPolicyID).To(HaveValue(Equal("pol-1")))
+		}, 10*time.Second, 100*time.Millisecond).Should(Succeed())
+
+		// Let the reconcile triggered by that status write finish.
+		time.Sleep(2500 * time.Millisecond)
+		putsBefore := putCount()
+		Expect(k8sClient.Get(ctx, key, nbPolicy)).To(Succeed())
+		probeBefore := nbPolicy.Status.Conditions[0].LastProbeTime
+
+		time.Sleep(3 * time.Second)
+		Expect(putCount()).To(Equal(putsBefore), "unchanged policy should not be updated again")
+		Expect(k8sClient.Get(ctx, key, nbPolicy)).To(Succeed())
+		Expect(nbPolicy.Status.Conditions[0].LastProbeTime).To(Equal(probeBefore), "unchanged condition should not be restamped")
+		Expect(putsBefore).To(BeNumerically("<=", 2), "controller should settle after the policy is created")
 	})
 })

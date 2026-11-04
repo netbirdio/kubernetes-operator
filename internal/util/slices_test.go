@@ -17,14 +17,3 @@ func TestEquivalent(t *testing.T) {
 	assert.False(t, Equivalent([]string{"a"}, []string{"a", "a"}), "different lengths should not be equivalent")
 	assert.False(t, Equivalent([]string{"a", "b"}, []string{"a", "c"}), "different elements should not be equivalent")
 }
-
-func TestPtrEqual(t *testing.T) {
-	t.Parallel()
-
-	a, b, c := "id", "id", "other"
-	assert.True(t, PtrEqual[string](nil, nil), "two nil pointers should be equal")
-	assert.True(t, PtrEqual(&a, &b), "distinct pointers to equal values should be equal")
-	assert.False(t, PtrEqual(&a, &c), "pointers to different values should not be equal")
-	assert.False(t, PtrEqual(&a, nil), "nil and non-nil should not be equal")
-	assert.False(t, PtrEqual(nil, &a), "nil and non-nil should not be equal")
-}

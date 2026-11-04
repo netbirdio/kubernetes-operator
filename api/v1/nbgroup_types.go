@@ -4,8 +4,7 @@ package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/netbirdio/kubernetes-operator/internal/util"
+	"k8s.io/utils/ptr"
 )
 
 // NBGroupSpec defines the desired state of NBGroup.
@@ -25,7 +24,7 @@ type NBGroupStatus struct {
 
 // Equal returns if NBGroupStatus is equal to this one
 func (a NBGroupStatus) Equal(b NBGroupStatus) bool {
-	return util.PtrEqual(a.GroupID, b.GroupID) && ConditionsEqual(a.Conditions, b.Conditions)
+	return ptr.Equal(a.GroupID, b.GroupID) && ConditionsEqual(a.Conditions, b.Conditions)
 }
 
 // +kubebuilder:object:root=true

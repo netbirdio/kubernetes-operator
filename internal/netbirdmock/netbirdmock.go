@@ -17,6 +17,34 @@ import (
 )
 
 func Client() *netbird.Client {
+	client, _ := RecordingClient()
+	return client
+}
+
+// Recorder counts the requests the mock server has handled, keyed by route pattern
+// such as "PUT /api/networks/{id}".
+type Recorder struct {
+	mx     sync.Mutex
+	counts map[string]int
+}
+
+// Count returns how many requests matched the given route pattern.
+func (r *Recorder) Count(pattern string) int {
+	r.mx.Lock()
+	defer r.mx.Unlock()
+	return r.counts[pattern]
+}
+
+// Reset clears all recorded counts.
+func (r *Recorder) Reset() {
+	r.mx.Lock()
+	defer r.mx.Unlock()
+	clear(r.counts)
+}
+
+// RecordingClient returns a client for a new mock server along with a Recorder
+// of the requests that server handles.
+func RecordingClient() (*netbird.Client, *Recorder) {
 	mux := &http.ServeMux{}
 
 	addHandler(mux, "groups", func(id string, input api.GroupRequest, output api.Group) api.Group {
@@ -85,8 +113,15 @@ func Client() *netbird.Client {
 		return output
 	})
 
-	srv := httptest.NewServer(mux)
-	return netbird.New(srv.URL, "ABC")
+	rec := &Recorder{counts: map[string]int{}}
+	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		_, pattern := mux.Handler(req)
+		rec.mx.Lock()
+		rec.counts[pattern]++
+		rec.mx.Unlock()
+		mux.ServeHTTP(rw, req)
+	}))
+	return netbird.New(srv.URL, "ABC"), rec
 }
 
 func addHandler[T, U any](mux *http.ServeMux, resource string, convertFn func(string, U, T) T) {

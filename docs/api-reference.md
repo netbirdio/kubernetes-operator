@@ -466,6 +466,23 @@ _Appears in:_
 | `networkID` _string_ | NetworkID is the id of the network the routing peer was created in. |  | Optional: \{\} <br /> |
 
 
+#### PreviousSetupKey
+
+
+
+PreviousSetupKey is a setup key that a renewal replaced.
+
+
+
+_Appears in:_
+- [SetupKeyStatus](#setupkeystatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `setupKeyID` _string_ | SetupKeyID is the id of the setup key. |  |  |
+| `expiresAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#time-v1-meta)_ | ExpiresAt is when the setup key expires. |  |  |
+
+
 #### SetupKey
 
 
@@ -503,7 +520,8 @@ _Appears in:_
 | `name` _string_ | Name of the setup key. |  | MinLength: 1 <br /> |
 | `ephemeral` _boolean_ | Ephemeral decides if peers added with the key are ephemeral or not. |  |  |
 | `allowExtraDnsLabels` _boolean_ | AllowExtraDnsLabels decides if peers added with the key can have extra DNS labels. | false |  |
-| `duration` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#duration-v1-meta)_ | Duration sets how long the setup key is valid for. |  | Pattern: `^([0-9]+(\.[0-9]+)?(m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
+| `duration` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#duration-v1-meta)_ | Duration sets how long the setup key is valid for. |  | Pattern: `^([0-9]+(\.[0-9]+)?(s\|m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
+| `renewBefore` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#duration-v1-meta)_ | RenewBefore is how long before the setup key expires a new key replaces it.<br />The Secret then holds the new key, while the replaced key stays valid until<br />it expires, so whatever still holds it has that long to pick up the new one.<br />Without it, a key is only replaced once it has expired. Requires duration<br />and must be at least a minute and a tenth of duration shorter than it, so<br />that a new key is not due for renewal as soon as it is created and no more<br />than ten replaced keys are kept at once. |  | Pattern: `^([0-9]+(\.[0-9]+)?(s\|m\|h))+$` <br />Type: string <br />Optional: \{\} <br /> |
 | `autoGroups` _[GroupReference](#groupreference) array_ | AutoGroups are groups that will be automatically assigned to peers using setup key. |  | Optional: \{\} <br /> |
 
 
@@ -523,6 +541,8 @@ _Appears in:_
 | `observedGeneration` _integer_ | ObservedGeneration is the last reconciled generation. |  | Optional: \{\} <br /> |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#condition-v1-meta) array_ | Conditions holds the conditions for the SetupKey. |  | Optional: \{\} <br /> |
 | `setupKeyID` _string_ | SetupKeyID is the id of the created setup key. |  |  |
+| `expiresAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.35/#time-v1-meta)_ | ExpiresAt is when the setup key expires. It is empty for a key that does<br />not expire. |  | Optional: \{\} <br /> |
+| `previousSetupKeys` _[PreviousSetupKey](#previoussetupkey) array_ | PreviousSetupKeys are setup keys replaced by a renewal. They keep<br />receiving the auto groups and are deleted once NetBird reports them<br />expired or revoked. |  | Optional: \{\} <br /> |
 
 
 #### SidecarProfile

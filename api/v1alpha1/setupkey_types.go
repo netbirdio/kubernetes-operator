@@ -7,6 +7,9 @@ import (
 )
 
 // SetupKeySpec defines the desired state of SetupKey.
+// +kubebuilder:validation:XValidation:rule="!has(self.renewBefore) || has(self.duration)",message="renewBefore requires duration"
+// +kubebuilder:validation:XValidation:rule="!has(self.renewBefore) || !has(self.duration) || duration(self.duration) - duration(self.renewBefore) >= duration('1m')",message="renewBefore must be at least 1m shorter than duration"
+// +kubebuilder:validation:XValidation:rule="!has(self.renewBefore) || !has(self.duration) || duration(self.renewBefore).getMilliseconds() * 10 <= duration(self.duration).getMilliseconds() * 9",message="renewBefore must be at most nine tenths of duration"
 type SetupKeySpec struct {
 	// Name of the setup key.
 	// +kubebuilder:validation:MinLength=1
@@ -24,9 +27,21 @@ type SetupKeySpec struct {
 	// Duration sets how long the setup key is valid for.
 	// +optional
 	// +kubebuilder:validation:Type=string
-	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(m|h))+$"
+	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(s|m|h))+$"
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="duration is immutable"
 	Duration *metav1.Duration `json:"duration,omitempty"`
+
+	// RenewBefore is how long before the setup key expires a new key replaces it.
+	// The Secret then holds the new key, while the replaced key stays valid until
+	// it expires, so whatever still holds it has that long to pick up the new one.
+	// Without it, a key is only replaced once it has expired. Requires duration
+	// and must be at least a minute and a tenth of duration shorter than it, so
+	// that a new key is not due for renewal as soon as it is created and no more
+	// than ten replaced keys are kept at once.
+	// +optional
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(s|m|h))+$"
+	RenewBefore *metav1.Duration `json:"renewBefore,omitempty"`
 
 	// AutoGroups are groups that will be automatically assigned to peers using setup key.
 	// +optional
@@ -47,6 +62,27 @@ type SetupKeyStatus struct {
 
 	// SetupKeyID is the id of the created setup key.
 	SetupKeyID string `json:"setupKeyID,omitempty"`
+
+	// ExpiresAt is when the setup key expires. It is empty for a key that does
+	// not expire.
+	// +optional
+	ExpiresAt *metav1.Time `json:"expiresAt,omitempty"`
+
+	// PreviousSetupKeys are setup keys replaced by a renewal. They keep
+	// receiving the auto groups and are deleted once NetBird reports them
+	// expired or revoked.
+	// +listType=atomic
+	// +optional
+	PreviousSetupKeys []PreviousSetupKey `json:"previousSetupKeys,omitempty"`
+}
+
+// PreviousSetupKey is a setup key that a renewal replaced.
+type PreviousSetupKey struct {
+	// SetupKeyID is the id of the setup key.
+	SetupKeyID string `json:"setupKeyID"`
+
+	// ExpiresAt is when the setup key expires.
+	ExpiresAt metav1.Time `json:"expiresAt"`
 }
 
 // +kubebuilder:object:root=true

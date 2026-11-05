@@ -34,6 +34,8 @@ type NetworkResourceReconciler struct {
 	client.Client
 
 	Netbird *netbird.Client
+	// ClusterName prefixes NetBird resource names, which are unique per account.
+	ClusterName string
 }
 
 // +kubebuilder:rbac:groups=netbird.io,resources=networkresources,verbs=get;list;watch;create;update;patch;delete
@@ -124,7 +126,7 @@ func (r *NetworkResourceReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	resourceID, err := func() (string, error) {
 		netReq := api.NetworkResourceRequest{
-			Name:        string(netResource.UID),
+			Name:        fmt.Sprintf("%s-%s-%s", r.ClusterName, svc.Namespace, svc.Name),
 			Description: new(svc.Name + "/" + svc.Namespace),
 			Address:     svc.Spec.ClusterIP,
 			Enabled:     true,

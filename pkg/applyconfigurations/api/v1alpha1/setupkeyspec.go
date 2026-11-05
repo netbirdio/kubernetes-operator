@@ -21,6 +21,14 @@ type SetupKeySpecApplyConfiguration struct {
 	AllowExtraDnsLabels *bool `json:"allowExtraDnsLabels,omitempty"`
 	// Duration sets how long the setup key is valid for.
 	Duration *v1.Duration `json:"duration,omitempty"`
+	// RenewBefore is how long before the setup key expires a new key replaces it.
+	// The Secret then holds the new key, while the replaced key stays valid until
+	// it expires, so whatever still holds it has that long to pick up the new one.
+	// Without it, a key is only replaced once it has expired. Requires duration
+	// and must be at least a minute and a tenth of duration shorter than it, so
+	// that a new key is not due for renewal as soon as it is created and no more
+	// than ten replaced keys are kept at once.
+	RenewBefore *v1.Duration `json:"renewBefore,omitempty"`
 	// AutoGroups are groups that will be automatically assigned to peers using setup key.
 	AutoGroups []GroupReferenceApplyConfiguration `json:"autoGroups,omitempty"`
 }
@@ -60,6 +68,14 @@ func (b *SetupKeySpecApplyConfiguration) WithAllowExtraDnsLabels(value bool) *Se
 // If called multiple times, the Duration field is set to the value of the last call.
 func (b *SetupKeySpecApplyConfiguration) WithDuration(value v1.Duration) *SetupKeySpecApplyConfiguration {
 	b.Duration = &value
+	return b
+}
+
+// WithRenewBefore sets the RenewBefore field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the RenewBefore field is set to the value of the last call.
+func (b *SetupKeySpecApplyConfiguration) WithRenewBefore(value v1.Duration) *SetupKeySpecApplyConfiguration {
+	b.RenewBefore = &value
 	return b
 }
 

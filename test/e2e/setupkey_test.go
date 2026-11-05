@@ -128,6 +128,80 @@ func TestSetupKey(t *testing.T) {
 	requireGone(t, "setup key", keyID, e.nb.SetupKeys.Get)
 }
 
+// TestSetupKeyRenewal checks that a SetupKey with spec.renewBefore gets a new
+// key before the current one expires, that the replaced key still enrolls peers
+// until it expires, and that it is deleted once it has. With renewBefore half
+// the duration the second key is due for renewal just as the first one expires,
+// so the test follows the first key by its ID rather than counting keys.
+func TestSetupKeyRenewal(t *testing.T) {
+	t.Parallel()
+	e := requireEnv(t)
+	ns := e.createNamespace(t, "setupkey-renewal")
+
+	doc := fmt.Sprintf(`{kind: SetupKey, spec: {name: e2e-renewing-%s, ephemeral: true, duration: 6m, renewBefore: 3m}}`, rand.String(6))
+	require.NoError(t, e.k8s.Create(t.Context(), manifest(t, ns, "renewing", doc)))
+	setupKey := &nbv1alpha1.SetupKey{ObjectMeta: metav1.ObjectMeta{Name: "renewing", Namespace: ns}}
+	e.waitReady(t, setupKey)
+	firstID := setupKey.Status.SetupKeyID
+	firstValue := e.setupKeySecret(t, setupKey)
+	first, err := e.nb.SetupKeys.Get(t.Context(), firstID)
+	require.NoError(t, err)
+	require.NotNil(t, setupKey.Status.ExpiresAt, "status.expiresAt")
+	assert.WithinDuration(t, first.Expires, setupKey.Status.ExpiresAt.Time, time.Second, "status.expiresAt follows the key")
+
+	// The key is renewed 3m after it was created, and the replaced key expires
+	// 3m after that, which leaves that long to enroll a peer with it.
+	require.Eventually(t, func(ctx context.Context) error {
+		if err := e.k8s.Get(ctx, client.ObjectKeyFromObject(setupKey), setupKey); err != nil {
+			return err
+		}
+		if setupKey.Status.SetupKeyID == firstID {
+			return fmt.Errorf("setup key %s was not renewed", firstID)
+		}
+		if !slices.ContainsFunc(setupKey.Status.PreviousSetupKeys, func(p nbv1alpha1.PreviousSetupKey) bool { return p.SetupKeyID == firstID }) {
+			return fmt.Errorf("the replaced setup key %s is not in status.previousSetupKeys", firstID)
+		}
+		return nil
+	}, readyTimeout, 2*time.Second)
+	require.Eventually(t, func(ctx context.Context) error {
+		secret := &corev1.Secret{}
+		if err := e.k8s.Get(ctx, client.ObjectKey{Namespace: ns, Name: setupKey.SecretName()}, secret); err != nil {
+			return err
+		}
+		if string(secret.Data[setupKeySecretKey]) == firstValue {
+			return fmt.Errorf("Secret %s still holds the replaced key", setupKey.SecretName())
+		}
+		return nil
+	}, readyTimeout, 2*time.Second)
+
+	replaced, err := e.nb.SetupKeys.Get(t.Context(), firstID)
+	require.NoError(t, err)
+	assert.TrueT(t, replaced.Valid, "the replaced key stays valid until it expires")
+	e.enroll(t, firstValue)
+
+	require.Eventually(t, func(ctx context.Context) error {
+		if err := e.k8s.Get(ctx, client.ObjectKeyFromObject(setupKey), setupKey); err != nil {
+			return err
+		}
+		if slices.ContainsFunc(setupKey.Status.PreviousSetupKeys, func(p nbv1alpha1.PreviousSetupKey) bool { return p.SetupKeyID == firstID }) {
+			return fmt.Errorf("the replaced setup key %s is still in status.previousSetupKeys", firstID)
+		}
+		return nil
+	}, readyTimeout, 2*time.Second)
+	requireGone(t, "replaced setup key", firstID, e.nb.SetupKeys.Get)
+
+	keyIDs := make([]string, 0, 1+len(setupKey.Status.PreviousSetupKeys))
+	keyIDs = append(keyIDs, setupKey.Status.SetupKeyID)
+	for _, previous := range setupKey.Status.PreviousSetupKeys {
+		keyIDs = append(keyIDs, previous.SetupKeyID)
+	}
+	require.NoError(t, e.k8s.Delete(t.Context(), setupKey))
+	e.waitGone(t, setupKey)
+	for _, id := range keyIDs {
+		requireGone(t, "setup key", id, e.nb.SetupKeys.Get)
+	}
+}
+
 // setupKeySecret returns the key the operator stored in the SetupKey's Secret.
 func (e *environment) setupKeySecret(t *testing.T, setupKey *nbv1alpha1.SetupKey) string {
 	t.Helper()

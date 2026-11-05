@@ -19,6 +19,12 @@ Once your secret is configured, install the operator with Helm.
 helm upgrade --install --create-namespace -n netbird netbird-operator oci://ghcr.io/netbirdio/helm-charts/netbird-operator
 ```
 
+Helm installs the CRDs along with the chart but does not update them on upgrade. Apply the ones shipped with the new version before upgrading:
+
+```shell
+helm show crds oci://ghcr.io/netbirdio/helm-charts/netbird-operator | kubectl apply --server-side --force-conflicts -f -
+```
+
 ## API
 
 | Kind | API Version |

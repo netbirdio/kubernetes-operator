@@ -10,14 +10,31 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"time"
+
+	"k8s.io/utils/clock"
 
 	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
 	"github.com/netbirdio/netbird/shared/management/http/api"
 	"github.com/netbirdio/netbird/shared/management/http/util"
 )
 
-func Client() *netbird.Client {
-	client, _ := RecordingClient()
+// Option configures the mock server.
+type Option func(*options)
+
+type options struct {
+	clock clock.PassiveClock
+}
+
+// WithClock sets the clock the mock server dates setup key expiry from.
+func WithClock(c clock.PassiveClock) Option {
+	return func(o *options) {
+		o.clock = c
+	}
+}
+
+func Client(opts ...Option) *netbird.Client {
+	client, _ := RecordingClient(opts...)
 	return client
 }
 
@@ -44,7 +61,11 @@ func (r *Recorder) Reset() {
 
 // RecordingClient returns a client for a new mock server along with a Recorder
 // of the requests that server handles.
-func RecordingClient() (*netbird.Client, *Recorder) {
+func RecordingClient(opts ...Option) (*netbird.Client, *Recorder) {
+	o := options{clock: clock.RealClock{}}
+	for _, opt := range opts {
+		opt(&o)
+	}
 	mux := &http.ServeMux{}
 
 	addHandler(mux, "groups", func(id string, input api.GroupRequest, output api.Group) api.Group {
@@ -52,14 +73,29 @@ func RecordingClient() (*netbird.Client, *Recorder) {
 		output.Name = input.Name
 		return output
 	})
-	addHandler(mux, "setup-keys", func(id string, input api.SetupKeyRequest, output api.SetupKeyClear) api.SetupKeyClear {
+	addViewedHandler(mux, "setup-keys", func(id string, input setupKeyRequest, output setupKey) setupKey {
 		output.Id = id
 		output.AutoGroups = input.AutoGroups
 		output.Revoked = input.Revoked
 		if output.Key == "" {
 			output.Key = fmt.Sprintf("%d", rand.Int64())
+			if input.ExpiresIn > 0 {
+				output.Expires = o.clock.Now().Add(time.Duration(input.ExpiresIn) * time.Second)
+			}
 		}
 		return output
+	}, func(key setupKey) setupKey {
+		// The state is worked out as of the request, as the server does.
+		switch {
+		case !key.Expires.IsZero() && o.clock.Now().After(key.Expires):
+			key.State = "expired"
+		case key.Revoked:
+			key.State = "revoked"
+		default:
+			key.State = "valid"
+		}
+		key.Valid = key.State == "valid"
+		return key
 	})
 	addHandler(mux, "networks", func(id string, input api.NetworkRequest, output api.Network) api.Network {
 		output.Id = id
@@ -124,7 +160,26 @@ func RecordingClient() (*netbird.Client, *Recorder) {
 	return netbird.New(srv.URL, "ABC"), rec
 }
 
+// setupKeyRequest is the body of both creating and updating a setup key.
+type setupKeyRequest struct {
+	api.SetupKeyRequest
+	ExpiresIn int `json:"expires_in"`
+}
+
+// setupKey is a stored setup key. api.SetupKeyClear lacks the valid flag the
+// server reports along with the state.
+type setupKey struct {
+	api.SetupKeyClear
+	Valid bool `json:"valid"`
+}
+
 func addHandler[T, U any](mux *http.ServeMux, resource string, convertFn func(string, U, T) T) {
+	addViewedHandler(mux, resource, convertFn, func(item T) T { return item })
+}
+
+// addViewedHandler is addHandler with viewFn applied to every item the server
+// returns, for what it works out as of the request rather than stores.
+func addViewedHandler[T, U any](mux *http.ServeMux, resource string, convertFn func(string, U, T) T, viewFn func(T) T) {
 	var itemMx sync.RWMutex
 	store := map[string]T{}
 
@@ -134,7 +189,7 @@ func addHandler[T, U any](mux *http.ServeMux, resource string, convertFn func(st
 
 		items := make([]T, 0, len(store))
 		for _, v := range store {
-			items = append(items, v)
+			items = append(items, viewFn(v))
 		}
 		b, err := json.Marshal(items)
 		if err != nil {
@@ -157,7 +212,7 @@ func addHandler[T, U any](mux *http.ServeMux, resource string, convertFn func(st
 			util.WriteErrorResponse("Not Found", http.StatusNotFound, rw)
 			return
 		}
-		b, err := json.Marshal(respData)
+		b, err := json.Marshal(viewFn(respData))
 		if err != nil {
 			util.WriteErrorResponse("Marshal Error", http.StatusInternalServerError, rw)
 			return
@@ -187,7 +242,7 @@ func addHandler[T, U any](mux *http.ServeMux, resource string, convertFn func(st
 		var zero T
 		respData := convertFn(id, reqData, zero)
 		store[id] = respData
-		b, err = json.Marshal(respData)
+		b, err = json.Marshal(viewFn(respData))
 		if err != nil {
 			util.WriteErrorResponse("Marshal Error", http.StatusInternalServerError, rw)
 			return
@@ -222,7 +277,7 @@ func addHandler[T, U any](mux *http.ServeMux, resource string, convertFn func(st
 		}
 		respData = convertFn(id, reqData, respData)
 		store[id] = respData
-		b, err = json.Marshal(respData)
+		b, err = json.Marshal(viewFn(respData))
 		if err != nil {
 			util.WriteErrorResponse("Marshal Error", http.StatusInternalServerError, rw)
 			return

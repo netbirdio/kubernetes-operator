@@ -53,6 +53,20 @@ func TestValidation(t *testing.T) {
 				wantErr:  "spec.duration",
 			},
 			{
+				name:     "valid renewing setup key",
+				manifest: `{kind: SetupKey, spec: {name: e2e-renewing, ephemeral: true, duration: 24h, renewBefore: 8h}}`,
+			},
+			{
+				name:     "setup key renewBefore without duration",
+				manifest: `{kind: SetupKey, spec: {name: e2e-renew-forever, ephemeral: true, renewBefore: 8h}}`,
+				wantErr:  "renewBefore requires duration",
+			},
+			{
+				name:     "setup key renewBefore as long as duration",
+				manifest: `{kind: SetupKey, spec: {name: e2e-renew-always, ephemeral: true, duration: 24h, renewBefore: 1440m}}`,
+				wantErr:  "renewBefore must be at least 1m shorter than duration",
+			},
+			{
 				name:     "group reference by name and id at once",
 				manifest: `{kind: SetupKey, spec: {name: e2e-ref, ephemeral: true, autoGroups: [{name: All, id: abc}]}}`,
 				wantErr:  "Exactly one of id, name, or localRef",

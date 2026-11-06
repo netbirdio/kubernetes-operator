@@ -399,22 +399,11 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			replicas = *netRouter.Spec.WorkloadOverride.Replicas
 		}
 		if netRouter.Spec.WorkloadOverride.PodTemplate != nil {
-			baseJSON, err := json.Marshal(&podTemplateSpecAC)
+			mergedPT, err := mergePodTemplate(podTemplateSpecAC, netRouter.Spec.WorkloadOverride.PodTemplate)
 			if err != nil {
 				return ctrl.Result{}, err
 			}
-			overrideJSON, err := json.Marshal(netRouter.Spec.WorkloadOverride.PodTemplate)
-			if err != nil {
-				return ctrl.Result{}, err
-			}
-			mergedJSON, err := strategicpatch.StrategicMergePatch(baseJSON, overrideJSON, corev1.PodTemplateSpec{})
-			if err != nil {
-				return ctrl.Result{}, err
-			}
-			err = json.Unmarshal(mergedJSON, &podTemplateSpecAC)
-			if err != nil {
-				return ctrl.Result{}, err
-			}
+			podTemplateSpecAC = mergedPT
 		}
 	}
 	maps.Copy(workloadLabels, selectorLabels)
@@ -480,6 +469,62 @@ func (r *NetworkRouterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{RequeueAfter: 15 * time.Minute}, nil
+}
+
+// mergePodTemplate strategic-merges a workloadOverride pod template onto the
+// router base pod template.
+func mergePodTemplate(base *corev1ac.PodTemplateSpecApplyConfiguration, override *corev1.PodTemplateSpec) (*corev1ac.PodTemplateSpecApplyConfiguration, error) {
+	baseJSON, err := json.Marshal(base)
+	if err != nil {
+		return nil, err
+	}
+	overrideJSON, err := json.Marshal(override)
+	if err != nil {
+		return nil, err
+	}
+	// Round-trip the override through the apply-configuration type: the CRD
+	// type serializes omitted slices as null, and strategic merge treats
+	// null as "remove", dropping the base containers for a metadata-only
+	// override. The AC type omits nil fields.
+	overrideAC := &corev1ac.PodTemplateSpecApplyConfiguration{}
+	if err = json.Unmarshal(overrideJSON, overrideAC); err != nil {
+		return nil, err
+	}
+	overrideJSON, err = json.Marshal(overrideAC)
+	if err != nil {
+		return nil, err
+	}
+	mergedJSON, err := strategicpatch.StrategicMergePatch(baseJSON, overrideJSON, corev1.PodTemplateSpec{})
+	if err != nil {
+		return nil, err
+	}
+	// Unmarshal into a fresh builder, not base: Go merges a JSON array into a
+	// non-empty slice by index, leaving stale value/valueFrom fields.
+	mergedPT := &corev1ac.PodTemplateSpecApplyConfiguration{}
+	if err = json.Unmarshal(mergedJSON, mergedPT); err != nil {
+		return nil, err
+	}
+
+	// Env vars merge by name without clearing omitted fields, so an override that
+	// retypes a base var (value <-> valueFrom) ends up with both set.
+	// Keyed by container as well: an added sidecar must not retype vars of
+	// another container.
+	type envKey struct{ container, name string }
+	overrideEnv := map[envKey]*corev1ac.EnvVarApplyConfiguration{}
+	for _, c := range overrideAC.Spec.Containers {
+		for i := range c.Env {
+			overrideEnv[envKey{*c.Name, *c.Env[i].Name}] = &c.Env[i]
+		}
+	}
+	for i := range mergedPT.Spec.Containers {
+		for j := range mergedPT.Spec.Containers[i].Env {
+			k := envKey{*mergedPT.Spec.Containers[i].Name, *mergedPT.Spec.Containers[i].Env[j].Name}
+			if ov, ok := overrideEnv[k]; ok {
+				mergedPT.Spec.Containers[i].Env[j] = *ov
+			}
+		}
+	}
+	return mergedPT, nil
 }
 
 // routingPeersReady reports whether every desired routing peer of the current

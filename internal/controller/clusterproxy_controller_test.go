@@ -100,5 +100,71 @@ var _ = Describe("ClusterProxy Controller", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(proxyDeployment().Spec.Template.Spec.Containers[0].Image).To(Equal(newImage))
 		})
+
+		It("applies the workload override to the Deployment", func() {
+			// The proxy has to schedule on tainted nodes, such as control plane nodes
+			// when every worker is down, or AKS node pools that are all tainted.
+			toleration := corev1.Toleration{
+				Key:      "node-role.kubernetes.io/control-plane",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}
+			proxy := &nbv1alpha1.ClusterProxy{}
+			Expect(k8sClient.Get(ctx, nn, proxy)).To(Succeed())
+			proxy.Spec.WorkloadOverride = &nbv1alpha1.WorkloadOverride{
+				Labels:      map[string]string{"team": "platform"},
+				Annotations: map[string]string{"example.com/owner": "platform"},
+				Replicas:    new(int32(1)),
+				PodTemplate: &corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						NodeSelector: map[string]string{"kubernetes.io/os": "linux"},
+						Tolerations:  []corev1.Toleration{toleration},
+						// An added env var lands ahead of the operator's own entries in the
+						// merged list, which used to leak their valueFrom into it.
+						Containers: []corev1.Container{{
+							Name: "proxy",
+							Env:  []corev1.EnvVar{{Name: "EXAMPLE_ENV", Value: "example"}},
+						}},
+					},
+				},
+			}
+			Expect(k8sClient.Update(ctx, proxy)).To(Succeed())
+
+			reconcileProxy()
+
+			dep := proxyDeployment()
+			Expect(dep.Labels).To(HaveKeyWithValue("team", "platform"), "override labels should be on the Deployment")
+			Expect(dep.Labels).To(HaveKeyWithValue("app.kubernetes.io/name", "clusterproxy"), "selector labels must be kept")
+			Expect(dep.Annotations).To(HaveKeyWithValue("example.com/owner", "platform"), "override annotations should be on the Deployment")
+			Expect(*dep.Spec.Replicas).To(Equal(int32(1)), "override replicas should replace the default")
+
+			podSpec := dep.Spec.Template.Spec
+			Expect(podSpec.Tolerations).To(ContainElement(toleration), "override tolerations should be on the pod")
+			Expect(podSpec.NodeSelector).To(HaveKeyWithValue("kubernetes.io/os", "linux"), "override node selector should be on the pod")
+			Expect(podSpec.TopologySpreadConstraints).To(HaveLen(1), "default spread constraint must be kept")
+
+			Expect(podSpec.Containers).To(HaveLen(1))
+			container := podSpec.Containers[0]
+			Expect(container.Image).To(Equal(proxyImage), "default image must be kept")
+			Expect(container.Env).To(ContainElement(corev1.EnvVar{Name: "EXAMPLE_ENV", Value: "example"}))
+			Expect(container.Env).To(ContainElement(And(
+				HaveField("Name", "SETUP_KEY"),
+				HaveField("Value", BeEmpty()),
+				HaveField("ValueFrom.SecretKeyRef.Key", SetupKeySecretKey),
+			)), "operator env vars must keep their secret references")
+			for _, env := range container.Env {
+				if env.ValueFrom != nil {
+					Expect(env.Value).To(BeEmpty(), "env var %s must not set both value and valueFrom", env.Name)
+				}
+			}
+		})
+
+		It("defaults to three replicas without a workload override", func() {
+			reconcileProxy()
+
+			dep := proxyDeployment()
+			Expect(*dep.Spec.Replicas).To(Equal(int32(3)), "default replica count")
+			Expect(dep.Spec.Template.Spec.Tolerations).To(BeEmpty(), "no tolerations without an override")
+		})
 	})
 })

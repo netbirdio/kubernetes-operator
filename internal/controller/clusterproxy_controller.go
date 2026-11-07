@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"maps"
 
 	"github.com/fluxcd/pkg/runtime/conditions"
 	"github.com/fluxcd/pkg/runtime/patch"
@@ -180,10 +181,33 @@ func (r *ClusterProxyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			),
 		)
 
+	workloadLabels := map[string]string{}
+	workloadAnnotations := map[string]string{}
+	replicas := int32(3)
+	if override := clusterProxy.Spec.WorkloadOverride; override != nil {
+		if override.Labels != nil {
+			maps.Copy(workloadLabels, override.Labels)
+		}
+		if override.Annotations != nil {
+			maps.Copy(workloadAnnotations, override.Annotations)
+		}
+		if override.Replicas != nil {
+			replicas = *override.Replicas
+		}
+		if override.PodTemplate != nil {
+			podTemplateSpecAC, err = mergePodTemplateOverride(podTemplateSpecAC, override.PodTemplate)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+	}
+	maps.Copy(workloadLabels, selectorLabels)
+
 	depAC := appsv1ac.Deployment(fmt.Sprintf("clusterproxy-%s", req.Name), req.Namespace).
 		WithOwnerReferences(ownerRef).
-		WithLabels(selectorLabels).
-		WithSpec(appsv1ac.DeploymentSpec().WithReplicas(3).WithSelector(metav1ac.LabelSelector().WithMatchLabels(selectorLabels)).WithTemplate(podTemplateSpecAC))
+		WithLabels(workloadLabels).
+		WithAnnotations(workloadAnnotations).
+		WithSpec(appsv1ac.DeploymentSpec().WithReplicas(replicas).WithSelector(metav1ac.LabelSelector().WithMatchLabels(selectorLabels)).WithTemplate(podTemplateSpecAC))
 	err = r.Client.Apply(ctx, depAC, client.ForceOwnership)
 	if err != nil {
 		return ctrl.Result{}, err

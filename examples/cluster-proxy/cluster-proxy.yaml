@@ -6,6 +6,15 @@ metadata:
 spec:
   clusterName: prod
   serviceAccountName: clusterproxy-prod
+  # Let the proxy also schedule on control plane nodes, so the cluster stays
+  # reachable through NetBird when every worker node is down.
+  # workloadOverride:
+  #   podTemplate:
+  #     spec:
+  #       tolerations:
+  #         - key: node-role.kubernetes.io/control-plane
+  #           operator: Exists
+  #           effect: NoSchedule
 ---
 apiVersion: v1
 kind: ServiceAccount

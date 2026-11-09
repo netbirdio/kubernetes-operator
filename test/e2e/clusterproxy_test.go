@@ -123,9 +123,6 @@ func TestClusterProxyTolerations(t *testing.T) {
 	e := requireEnv(t)
 	ns := e.createNamespace(t, "clusterproxy-tolerations")
 
-	controlPlaneTaint := corev1.Taint{Key: "node-role.kubernetes.io/control-plane", Effect: corev1.TaintEffectNoSchedule}
-	e.taintNodes(t, controlPlaneTaint)
-
 	// A pod without the toleration has to stay unscheduled, or the taint proves
 	// nothing about the proxy's toleration.
 	untolerated := &corev1.Pod{
@@ -134,6 +131,16 @@ func TestClusterProxyTolerations(t *testing.T) {
 			Containers: []corev1.Container{{Name: "pause", Image: "registry.k8s.io/pause:3.10"}},
 		},
 	}
+	// This is the first test to run, right after the chart install, and every pod
+	// passes the operator's pod webhook. Wait until the webhook admits pods before
+	// tainting, so the taint never lands while the operator itself is starting.
+	require.Eventually(t, func(ctx context.Context) error {
+		return e.k8s.Create(ctx, untolerated.DeepCopy(), client.DryRunAll)
+	}, 2*time.Minute, 2*time.Second)
+
+	controlPlaneTaint := corev1.Taint{Key: "node-role.kubernetes.io/control-plane", Effect: corev1.TaintEffectNoSchedule}
+	e.taintNodes(t, controlPlaneTaint)
+
 	require.NoError(t, e.k8s.Create(t.Context(), untolerated))
 	require.Eventually(t, func(ctx context.Context) error {
 		return podUnschedulable(ctx, e.k8s, client.ObjectKeyFromObject(untolerated))

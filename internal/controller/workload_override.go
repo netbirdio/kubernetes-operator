@@ -18,7 +18,7 @@ func mergePodTemplateOverride(base *corev1ac.PodTemplateSpecApplyConfiguration, 
 	if err != nil {
 		return nil, fmt.Errorf("marshal pod template: %w", err)
 	}
-	overrideJSON, err := json.Marshal(override)
+	overrideJSON, err := marshalWithoutNulls(override)
 	if err != nil {
 		return nil, fmt.Errorf("marshal pod template override: %w", err)
 	}
@@ -33,4 +33,37 @@ func mergePodTemplateOverride(base *corev1ac.PodTemplateSpecApplyConfiguration, 
 		return nil, fmt.Errorf("unmarshal merged pod template: %w", err)
 	}
 	return merged, nil
+}
+
+// marshalWithoutNulls marshals v and drops every null value. Fields without omitempty, such
+// as a pod's containers, marshal unset as null, which a strategic merge patch reads as a
+// request to delete that field from the base.
+func marshalWithoutNulls(v any) ([]byte, error) {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	var doc any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return nil, err
+	}
+	return json.Marshal(dropNulls(doc))
+}
+
+func dropNulls(v any) any {
+	switch v := v.(type) {
+	case map[string]any:
+		for key, value := range v {
+			if value == nil {
+				delete(v, key)
+				continue
+			}
+			v[key] = dropNulls(value)
+		}
+	case []any:
+		for i, item := range v {
+			v[i] = dropNulls(item)
+		}
+	}
+	return v
 }

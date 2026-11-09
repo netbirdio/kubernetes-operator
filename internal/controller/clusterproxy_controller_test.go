@@ -159,6 +159,33 @@ var _ = Describe("ClusterProxy Controller", func() {
 			}
 		})
 
+		It("keeps the generated containers when the override only sets tolerations", func() {
+			// An override without containers is the common case for scheduling. Its
+			// containers field marshals to null, which a strategic merge reads as a
+			// delete, so it must not reach the merge.
+			toleration := corev1.Toleration{
+				Key:      "node-role.kubernetes.io/control-plane",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}
+			proxy := &nbv1alpha1.ClusterProxy{}
+			Expect(k8sClient.Get(ctx, nn, proxy)).To(Succeed())
+			proxy.Spec.WorkloadOverride = &nbv1alpha1.WorkloadOverride{
+				PodTemplate: &corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{Tolerations: []corev1.Toleration{toleration}},
+				},
+			}
+			Expect(k8sClient.Update(ctx, proxy)).To(Succeed())
+
+			reconcileProxy()
+
+			podSpec := proxyDeployment().Spec.Template.Spec
+			Expect(podSpec.Tolerations).To(ContainElement(toleration), "override tolerations should be on the pod")
+			Expect(podSpec.Containers).To(HaveLen(1), "the generated proxy container must be kept")
+			Expect(podSpec.Containers[0].Image).To(Equal(proxyImage), "the generated proxy container must be kept")
+			Expect(podSpec.ServiceAccountName).To(Equal("proxy"), "generated pod fields must be kept")
+		})
+
 		It("defaults to three replicas without a workload override", func() {
 			reconcileProxy()
 

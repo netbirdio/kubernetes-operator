@@ -76,6 +76,31 @@ func TestGroup(t *testing.T) {
 	requireGone(t, "group", id, e.nb.Groups.Get)
 }
 
+// TestGroupAdopt covers a Group whose name is already taken on the server, as
+// after restoring NetBird's database into a new cluster: the server refuses a
+// second group with that name, so the operator has to take over the one there is.
+func TestGroupAdopt(t *testing.T) {
+	t.Parallel()
+	e := requireEnv(t)
+	ns := e.createNamespace(t, "group-adopt")
+
+	name := "e2e-group-adopt-" + rand.String(6)
+	existing, err := e.nb.Groups.Create(t.Context(), api.PostApiGroupsJSONRequestBody{Name: name})
+	require.NoError(t, err)
+
+	group := &nbv1alpha1.Group{
+		ObjectMeta: metav1.ObjectMeta{Name: "group", Namespace: ns},
+		Spec:       nbv1alpha1.GroupSpec{Name: name},
+	}
+	require.NoError(t, e.k8s.Create(t.Context(), group))
+	e.waitReady(t, group)
+	assert.EqualT(t, existing.Id, group.Status.GroupID, "the existing group was not adopted")
+
+	require.NoError(t, e.k8s.Delete(t.Context(), group))
+	e.waitGone(t, group)
+	requireGone(t, "group", existing.Id, e.nb.Groups.Get)
+}
+
 // requireGroupName waits until the server holds the group under the name.
 func requireGroupName(t *testing.T, e *environment, id, name string) {
 	t.Helper()

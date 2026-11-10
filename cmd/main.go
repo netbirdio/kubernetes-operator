@@ -292,8 +292,9 @@ func main() {
 			os.Exit(1)
 		}
 		if err := (&controller.GroupReconciler{
-			Client:  mgr.GetClient(),
-			Netbird: nbClient,
+			Client:    mgr.GetClient(),
+			APIReader: mgr.GetAPIReader(),
+			Netbird:   nbClient,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "Failed to create controller", "controller", "Group")
 			os.Exit(1)

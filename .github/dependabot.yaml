@@ -11,9 +11,12 @@ updates:
       github-actions:
         patterns:
           - "*"
+  # The e2e module replaces the root module with ../../, so a root bump must
+  # update test/e2e in the same PR or its go mod tidy check fails.
   - package-ecosystem: "gomod"
     directories:
       - "/"
+      - "/test/e2e"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 15
@@ -23,17 +26,7 @@ updates:
       k8s:
         patterns:
           - "k8s.io/*"
-  - package-ecosystem: "gomod"
-    directories:
-      - "/test/e2e"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 15
-    labels:
-      - "changelog/ignore"
-    ignore:
-      - dependency-name: "github.com/netbirdio/netbird"
-    groups:
-      gomod-e2e:
+      go-modules:
+        group-by: dependency-name
         patterns:
           - "*"

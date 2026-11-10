@@ -9,7 +9,7 @@ replace github.com/netbirdio/kubernetes-operator => ../../
 require (
 	github.com/distribution/reference v0.6.0
 	github.com/fluxcd/cli-utils v1.2.2
-	github.com/go-openapi/testify/v2 v2.6.0
+	github.com/go-openapi/testify/v2 v2.8.0
 	github.com/netbirdio/kubernetes-operator v0.0.0-00010101000000-000000000000
 	github.com/netbirdio/netbird v0.81.4
 	helm.sh/helm/v4 v4.2.3

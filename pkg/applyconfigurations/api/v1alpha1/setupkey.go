@@ -15,7 +15,7 @@ import (
 //
 // SetupKey is the Schema for the setupkeys API.
 type SetupKeyApplyConfiguration struct {
-	v1.TypeMetaApplyConfiguration    `json:",inline"`
+	v1.TypeMetaApplyConfiguration    `json:""`
 	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
 	Spec                             *SetupKeySpecApplyConfiguration   `json:"spec,omitempty"`
 	Status                           *SetupKeyStatusApplyConfiguration `json:"status,omitempty"`

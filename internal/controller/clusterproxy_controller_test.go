@@ -186,6 +186,29 @@ var _ = Describe("ClusterProxy Controller", func() {
 			Expect(podSpec.ServiceAccountName).To(Equal("proxy"), "generated pod fields must be kept")
 		})
 
+		It("keeps the selector labels when the override sets pod labels", func() {
+			// The Deployment selector and the spread constraint match on these
+			// labels, so an override must not be able to change them.
+			proxy := &nbv1alpha1.ClusterProxy{}
+			Expect(k8sClient.Get(ctx, nn, proxy)).To(Succeed())
+			proxy.Spec.WorkloadOverride = &nbv1alpha1.WorkloadOverride{
+				PodTemplate: &corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{
+						"app.kubernetes.io/instance": "other",
+						"team":                       "platform",
+					}},
+				},
+			}
+			Expect(k8sClient.Update(ctx, proxy)).To(Succeed())
+
+			reconcileProxy()
+
+			labels := proxyDeployment().Spec.Template.Labels
+			Expect(labels).To(HaveKeyWithValue("app.kubernetes.io/instance", nn.Name), "selector label must win over the override")
+			Expect(labels).To(HaveKeyWithValue("app.kubernetes.io/name", "clusterproxy"), "selector label must be kept")
+			Expect(labels).To(HaveKeyWithValue("team", "platform"), "other override labels should be kept")
+		})
+
 		It("defaults to three replicas without a workload override", func() {
 			reconcileProxy()
 

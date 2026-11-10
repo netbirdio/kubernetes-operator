@@ -199,6 +199,8 @@ func (r *ClusterProxyReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			if err != nil {
 				return ctrl.Result{}, err
 			}
+			// The Deployment selector and the spread constraint match on these.
+			podTemplateSpecAC.WithLabels(selectorLabels)
 		}
 	}
 	maps.Copy(workloadLabels, selectorLabels)

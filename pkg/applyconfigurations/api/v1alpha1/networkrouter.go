@@ -15,7 +15,7 @@ import (
 //
 // NetworkRouter is the Schema for the networkrouters API.
 type NetworkRouterApplyConfiguration struct {
-	v1.TypeMetaApplyConfiguration    `json:",inline"`
+	v1.TypeMetaApplyConfiguration    `json:""`
 	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
 	Spec                             *NetworkRouterSpecApplyConfiguration   `json:"spec,omitempty"`
 	Status                           *NetworkRouterStatusApplyConfiguration `json:"status,omitempty"`

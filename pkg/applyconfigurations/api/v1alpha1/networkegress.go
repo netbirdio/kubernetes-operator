@@ -15,7 +15,7 @@ import (
 //
 // NetworkEgress is the Schema for the networkegresses API.
 type NetworkEgressApplyConfiguration struct {
-	v1.TypeMetaApplyConfiguration    `json:",inline"`
+	v1.TypeMetaApplyConfiguration    `json:""`
 	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
 	Spec                             *NetworkEgressSpecApplyConfiguration   `json:"spec,omitempty"`
 	Status                           *NetworkEgressStatusApplyConfiguration `json:"status,omitempty"`

@@ -15,7 +15,7 @@ import (
 //
 // ClusterProxy is the Schema for the clusterproxies API
 type ClusterProxyApplyConfiguration struct {
-	v1.TypeMetaApplyConfiguration    `json:",inline"`
+	v1.TypeMetaApplyConfiguration    `json:""`
 	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
 	Spec                             *ClusterProxySpecApplyConfiguration   `json:"spec,omitempty"`
 	Status                           *ClusterProxyStatusApplyConfiguration `json:"status,omitempty"`

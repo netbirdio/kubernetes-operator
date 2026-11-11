@@ -25,6 +25,7 @@ helm upgrade --install --create-namespace -n netbird netbird-operator oci://ghcr
 |------|-------------|
 | [SetupKey](docs/api-reference.md#setupkey) | `netbird.io/v1alpha1` |
 | [Group](docs/api-reference.md#group) | `netbird.io/v1alpha1` |
+| [Policy](docs/api-reference.md#policy) | `netbird.io/v1alpha1` |
 | [NetworkRouter](docs/api-reference.md#networkrouter) | `netbird.io/v1alpha1` |
 | [NetworkResource](docs/api-reference.md#networkresource) | `netbird.io/v1alpha1` |
 | [NetworkEgress](docs/api-reference.md#networkegress) | `netbird.io/v1alpha1` |

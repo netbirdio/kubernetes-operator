@@ -1,0 +1,16 @@
+# Lets the peers of the developers group reach, over HTTPS, the peers and the
+# network resources of the services group.
+apiVersion: netbird.io/v1alpha1
+kind: Policy
+metadata:
+  name: developers-to-services
+  namespace: netbird
+spec:
+  name: developers-to-services
+  sourceGroups:
+    - name: developers
+  destinationGroups:
+    - name: services
+  protocol: tcp
+  ports:
+    - 443

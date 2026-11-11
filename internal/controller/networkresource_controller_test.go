@@ -80,10 +80,10 @@ var _ = Describe("NetworkResource Controller", func() {
 			Expect(k8sClient.Delete(ctx, ns)).To(Succeed())
 		})
 
-		createNetworkRouter := func() *nbv1alpha1.NetworkRouter {
+		createNetworkRouterWithZone := func(zoneName, zoneDomain string) *nbv1alpha1.NetworkRouter {
 			zoneReq := api.ZoneRequest{
-				Name:   "cluster.local",
-				Domain: "cluster.local",
+				Name:   zoneName,
+				Domain: zoneDomain,
 			}
 			_, err := netRouterRec.Netbird.DNSZones.CreateZone(ctx, zoneReq)
 			Expect(err).ToNot(HaveOccurred())
@@ -95,7 +95,7 @@ var _ = Describe("NetworkResource Controller", func() {
 				},
 				Spec: nbv1alpha1.NetworkRouterSpec{
 					DNSZoneRef: nbv1alpha1.DNSZoneReference{
-						Name: "cluster.local",
+						Name: zoneName,
 					},
 				},
 			}
@@ -110,6 +110,10 @@ var _ = Describe("NetworkResource Controller", func() {
 				Expect(err).NotTo(HaveOccurred())
 			}
 			return netRouter
+		}
+
+		createNetworkRouter := func() *nbv1alpha1.NetworkRouter {
+			return createNetworkRouterWithZone("cluster.local", "cluster.local")
 		}
 
 		createService := func(spec corev1.ServiceSpec) *corev1.Service {
@@ -184,6 +188,26 @@ var _ = Describe("NetworkResource Controller", func() {
 
 			netResource := reconcileNetworkResource(netRouter, svc)
 			expectExposed(netResource, svc)
+		})
+
+		It("names the DNS record after the zone domain, not the zone name", func() {
+			// The API allows a zone whose name differs from its domain, and records must
+			// live under the domain or the management server rejects them.
+			netRouter := createNetworkRouterWithZone("internal-services", "svc.example.com")
+			svc := createService(corev1.ServiceSpec{
+				Ports: []corev1.ServicePort{
+					{
+						Port: 8080,
+					},
+				},
+			})
+
+			netResource := reconcileNetworkResource(netRouter, svc)
+			expectExposed(netResource, svc)
+
+			record, err := netResourceRec.Netbird.DNSZones.GetRecord(ctx, netResource.Status.DNSZoneID, netResource.Status.DNSRecordID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(record.Name).To(Equal(fmt.Sprintf("%s.%s.svc.example.com", svc.Name, svc.Namespace)), "record should be named under the zone domain")
 		})
 
 		It("creates a network resource for a LoadBalancer Service", func() {

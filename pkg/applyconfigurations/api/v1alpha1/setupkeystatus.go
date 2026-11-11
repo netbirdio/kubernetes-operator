@@ -5,6 +5,7 @@
 package v1alpha1
 
 import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
 )
 
@@ -19,6 +20,13 @@ type SetupKeyStatusApplyConfiguration struct {
 	Conditions []v1.ConditionApplyConfiguration `json:"conditions,omitempty"`
 	// SetupKeyID is the id of the created setup key.
 	SetupKeyID *string `json:"setupKeyID,omitempty"`
+	// ExpiresAt is when the setup key expires. It is empty for a key that does
+	// not expire.
+	ExpiresAt *metav1.Time `json:"expiresAt,omitempty"`
+	// PreviousSetupKeys are setup keys replaced by a renewal. They keep
+	// receiving the auto groups and are deleted once NetBird reports them
+	// expired or revoked.
+	PreviousSetupKeys []PreviousSetupKeyApplyConfiguration `json:"previousSetupKeys,omitempty"`
 }
 
 // SetupKeyStatusApplyConfiguration constructs a declarative configuration of the SetupKeyStatus type for use with
@@ -53,5 +61,26 @@ func (b *SetupKeyStatusApplyConfiguration) WithConditions(values ...*v1.Conditio
 // If called multiple times, the SetupKeyID field is set to the value of the last call.
 func (b *SetupKeyStatusApplyConfiguration) WithSetupKeyID(value string) *SetupKeyStatusApplyConfiguration {
 	b.SetupKeyID = &value
+	return b
+}
+
+// WithExpiresAt sets the ExpiresAt field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ExpiresAt field is set to the value of the last call.
+func (b *SetupKeyStatusApplyConfiguration) WithExpiresAt(value metav1.Time) *SetupKeyStatusApplyConfiguration {
+	b.ExpiresAt = &value
+	return b
+}
+
+// WithPreviousSetupKeys adds the given value to the PreviousSetupKeys field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the PreviousSetupKeys field.
+func (b *SetupKeyStatusApplyConfiguration) WithPreviousSetupKeys(values ...*PreviousSetupKeyApplyConfiguration) *SetupKeyStatusApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithPreviousSetupKeys")
+		}
+		b.PreviousSetupKeys = append(b.PreviousSetupKeys, *values[i])
+	}
 	return b
 }

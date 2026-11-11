@@ -87,7 +87,7 @@ spec:
                 type: array
               duration:
                 description: Duration sets how long the setup key is valid for.
-                pattern: ^([0-9]+(\.[0-9]+)?(m|h))+$
+                pattern: ^([0-9]+(\.[0-9]+)?(s|m|h))+$
                 type: string
                 x-kubernetes-validations:
                 - message: duration is immutable
@@ -103,11 +103,31 @@ spec:
                 description: Name of the setup key.
                 minLength: 1
                 type: string
+              renewBefore:
+                description: |-
+                  RenewBefore is how long before the setup key expires a new key replaces it.
+                  The Secret then holds the new key, while the replaced key stays valid until
+                  it expires, so whatever still holds it has that long to pick up the new one.
+                  Without it, a key is only replaced once it has expired. Requires duration
+                  and must be at least a minute and a tenth of duration shorter than it, so
+                  that a new key is not due for renewal as soon as it is created and no more
+                  than ten replaced keys are kept at once.
+                pattern: ^([0-9]+(\.[0-9]+)?(s|m|h))+$
+                type: string
             required:
             - allowExtraDnsLabels
             - ephemeral
             - name
             type: object
+            x-kubernetes-validations:
+            - message: renewBefore requires duration
+              rule: '!has(self.renewBefore) || has(self.duration)'
+            - message: renewBefore must be at least 1m shorter than duration
+              rule: '!has(self.renewBefore) || !has(self.duration) || duration(self.duration)
+                - duration(self.renewBefore) >= duration(''1m'')'
+            - message: renewBefore must be at most nine tenths of duration
+              rule: '!has(self.renewBefore) || !has(self.duration) || duration(self.renewBefore).getMilliseconds()
+                * 10 <= duration(self.duration).getMilliseconds() * 9'
           status:
             default:
               observedGeneration: -1
@@ -173,10 +193,37 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              expiresAt:
+                description: |-
+                  ExpiresAt is when the setup key expires. It is empty for a key that does
+                  not expire.
+                format: date-time
+                type: string
               observedGeneration:
                 description: ObservedGeneration is the last reconciled generation.
                 format: int64
                 type: integer
+              previousSetupKeys:
+                description: |-
+                  PreviousSetupKeys are setup keys replaced by a renewal. They keep
+                  receiving the auto groups and are deleted once NetBird reports them
+                  expired or revoked.
+                items:
+                  description: PreviousSetupKey is a setup key that a renewal replaced.
+                  properties:
+                    expiresAt:
+                      description: ExpiresAt is when the setup key expires.
+                      format: date-time
+                      type: string
+                    setupKeyID:
+                      description: SetupKeyID is the id of the setup key.
+                      type: string
+                  required:
+                  - expiresAt
+                  - setupKeyID
+                  type: object
+                type: array
+                x-kubernetes-list-type: atomic
               setupKeyID:
                 description: SetupKeyID is the id of the created setup key.
                 type: string

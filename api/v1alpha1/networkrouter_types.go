@@ -24,6 +24,10 @@ type NetworkRouterSpec struct {
 	// WorkloadOverride contains configuration that will override the default workload.
 	// +optional
 	WorkloadOverride *WorkloadOverride `json:"workloadOverride,omitempty"`
+
+	// Groups are references to additional groups that the routing peers will be a part of.
+	// +optional
+	Groups []GroupReference `json:"groups,omitempty"`
 }
 
 // DNSZoneReference references a Netbird DNS zone by domain name.

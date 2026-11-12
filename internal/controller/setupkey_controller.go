@@ -114,6 +114,11 @@ func (r *SetupKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, err
 	}
 	if ok {
+		conditions.MarkTrue(setupKey, nbv1alpha1.ReadyCondition, nbv1alpha1.ReconciledReason, "")
+		err = sp.Patch(ctx, setupKey, patch.WithStatusObservedGeneration{})
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 		return ctrl.Result{RequeueAfter: 15 * time.Minute}, nil
 	}
 	oldSetupKeyID := setupKey.Status.SetupKeyID

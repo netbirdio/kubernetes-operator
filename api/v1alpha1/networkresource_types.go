@@ -45,9 +45,9 @@ type NetworkResourceStatus struct {
 	// +optional
 	DNSZoneID string `json:"dnsZoneID,omitempty"`
 
-	// DNSRecordID is the id of the created DNS record.
+	// DNSRecordIDs is the ids of the created DNS records.
 	// +optional
-	DNSRecordID string `json:"dnsRecordID,omitempty"`
+	DNSRecordIDs []string `json:"dnsRecordIDs,omitempty"`
 }
 
 // +kubebuilder:object:root=true

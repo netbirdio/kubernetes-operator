@@ -66,7 +66,7 @@ func TestNetworkResource(t *testing.T) {
 	assert.EqualT(t, svc.Spec.ClusterIP, resourceAddr(nbRes.Address), "the resource is the Service's ClusterIP")
 	assert.Equal(t, []string{fx.resourcesGroupID}, groupIDs(nbRes.Groups), "resource groups")
 
-	record, err := e.nb.DNSZones.GetRecord(t.Context(), res.Status.DNSZoneID, res.Status.DNSRecordID)
+	record, err := e.nb.DNSZones.GetRecord(t.Context(), res.Status.DNSZoneID, res.Status.DNSRecordIDs[0])
 	require.NoError(t, err)
 	fqdn := fmt.Sprintf("%s.%s.%s", svc.Name, ns, dnsZone)
 	assert.EqualT(t, fqdn, record.Name, "record name")
@@ -89,7 +89,7 @@ func TestNetworkResource(t *testing.T) {
 	require.NoError(t, e.k8s.Delete(t.Context(), res))
 	e.waitGone(t, res)
 	requireGone(t, "network resource", resourceID, resources.Get)
-	requireGone(t, "DNS record", res.Status.DNSRecordID, func(ctx context.Context, id string) (*api.DNSRecord, error) {
+	requireGone(t, "DNS record", res.Status.DNSRecordIDs[0], func(ctx context.Context, id string) (*api.DNSRecord, error) {
 		return e.nb.DNSZones.GetRecord(ctx, res.Status.DNSZoneID, id)
 	})
 	requireUnreachable(t, fx.laptop, url)
@@ -193,7 +193,7 @@ func TestNetworkResourceServiceTypes(t *testing.T) {
 			require.NoError(t, err)
 			assert.EqualT(t, svc.Spec.ClusterIP, resourceAddr(nbRes.Address), "the resource is the Service's ClusterIP")
 
-			record, err := e.nb.DNSZones.GetRecord(t.Context(), res.Status.DNSZoneID, res.Status.DNSRecordID)
+			record, err := e.nb.DNSZones.GetRecord(t.Context(), res.Status.DNSZoneID, res.Status.DNSRecordIDs[0])
 			require.NoError(t, err)
 			assert.EqualT(t, svc.Spec.ClusterIP, record.Content, "the record points at the ClusterIP")
 

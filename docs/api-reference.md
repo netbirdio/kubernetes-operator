@@ -405,7 +405,7 @@ _Appears in:_
 | `networkID` _string_ | NetworkID is the id of the network the resource is created in. |  | Optional: \{\} <br /> |
 | `resourceID` _string_ | ResourceID is the id of the created resource. |  | Optional: \{\} <br /> |
 | `dnsZoneID` _string_ | DNSZoneID is the id of the zone the DNS record is created in. |  | Optional: \{\} <br /> |
-| `dnsRecordID` _string_ | DNSRecordID is the id of the created DNS record. |  | Optional: \{\} <br /> |
+| `dnsRecordIDs` _string array_ | DNSRecordIDs is the ids of the created DNS records. |  | Optional: \{\} <br /> |
 
 
 #### NetworkRouter

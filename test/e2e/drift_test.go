@@ -60,11 +60,11 @@ func TestNetworkDrift(t *testing.T) {
 	})
 
 	t.Run("DNS record deleted", func(t *testing.T) {
-		old := res.Status.DNSRecordID
+		old := res.Status.DNSRecordIDs[0]
 		require.NoError(t, e.nb.DNSZones.DeleteRecord(t.Context(), res.Status.DNSZoneID, old))
 		requireUnreachable(t, fx.laptop, url)
 		e.touch(t, res)
-		e.waitStatusChange(t, res, func() string { return res.Status.DNSRecordID }, old)
+		e.waitStatusChange(t, res, func() string { return res.Status.DNSRecordIDs[0] }, old)
 		requireReachable(t, fx.laptop, url, svc.Name+"-")
 	})
 

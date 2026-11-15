@@ -68,6 +68,7 @@ var _ = BeforeSuite(func() {
 		},
 		ErrorIfCRDPathMissing: true,
 	}
+	testEnv.ControlPlane.GetAPIServer().Configure().Set("service-cluster-ip-range", "10.96.0.0/16,fd00:10:96::/108")
 
 	// Retrieve the first found binary directory to allow running tests from IDEs
 	if getFirstFoundEnvTestBinaryDir() != "" {

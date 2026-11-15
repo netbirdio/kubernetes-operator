@@ -365,8 +365,8 @@ github.com/netbirdio/kube-egress-forwarder v0.0.3 h1:6lkQ0opW+kef0w1HJNd7YDYvh1+
 github.com/netbirdio/kube-egress-forwarder v0.0.3/go.mod h1:Lyt9k/93DTWaeOiGQWM63WtQNj/9NnMTR/PivDgWXXE=
 github.com/netbirdio/management-integrations/integrations v0.0.0-20261021190039-6c1585eb11de h1:aCmxkLAjH3pF/88eUAXp9yMOwGtcvNTC5Mqszm9xuo0=
 github.com/netbirdio/management-integrations/integrations v0.0.0-20261021190039-6c1585eb11de/go.mod h1:LLvpw/iWbXX9+7HF7ueqkyE7SoFaeqoCmbskOQL9gbs=
-github.com/netbirdio/netbird v0.82.0 h1:ovBtNrLRDLHTTGxl8yczdvDnmU18buTSL+0jP9ca1jw=
-github.com/netbirdio/netbird v0.82.0/go.mod h1:GcEvL+pyn6vAhwJew6K6O0tKGNMe/7/q4di5FsJIvbE=
+github.com/netbirdio/netbird v0.83.0 h1:hI9vES1A4o1DIZPCwStuHWuz9yRkQ9OEnyoI/2iOiHk=
+github.com/netbirdio/netbird v0.83.0/go.mod h1:FiIbzr/UoItZ+jXp3A4EVJkGKhrodSj7C7JhqrzbxWM=
 github.com/nxadm/tail v1.4.11 h1:8feyoE3OzPrcshW5/MJ4sGESc5cqmGkGCWlco4l0bqY=
 github.com/nxadm/tail v1.4.11/go.mod h1:OTaG3NK980DZzxbRq6lEuzgU+mug70nY11sMd4JXXHc=
 github.com/oapi-codegen/runtime v1.1.2 h1:P2+CubHq8fO4Q6fV1tqDBZHCwpVpvPg7oKiYzQgXIyI=

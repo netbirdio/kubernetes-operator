@@ -16,6 +16,9 @@ webhook:
   # Use cert-manager to provision webhook certificates (recommended)
   enableCertManager: true
 
+  # Private key settings for the cert-manager Certificate, e.g. {algorithm: ECDSA, size: 256}
+  certManagerPrivateKey: {}
+
   # Narrow down validation and mutation webhooks namespaces
   namespaceSelectors: []
     # - key: foo

@@ -122,6 +122,10 @@ spec:
     kind: Issuer
     name: {{ template "netbird-operator.fullname" . }}-selfsigned-issuer
   secretName: {{ template "netbird-operator.webhookCertSecret" . }}
+  {{- with .Values.webhook.certManagerPrivateKey }}
+  privateKey:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 ---
 apiVersion: cert-manager.io/v1
 kind: Issuer

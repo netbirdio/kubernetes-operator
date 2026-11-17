@@ -5,6 +5,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -12,6 +13,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -152,15 +154,27 @@ var _ = Describe("NetworkResource Controller", func() {
 			Expect(netResource.Status.NetworkID).NotTo(BeEmpty())
 			Expect(netResource.Status.ResourceID).NotTo(BeEmpty())
 			Expect(netResource.Status.DNSZoneID).NotTo(BeEmpty())
-			Expect(netResource.Status.DNSRecordID).NotTo(BeEmpty())
+			Expect(netResource.Status.DNSRecordIDs).NotTo(BeEmpty())
 
 			resource, err := netResourceRec.Netbird.Networks.Resources(netResource.Status.NetworkID).Get(ctx, netResource.Status.ResourceID)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(resource.Address).To(Equal(svc.Spec.ClusterIP))
 
-			record, err := netResourceRec.Netbird.DNSZones.GetRecord(ctx, netResource.Status.DNSZoneID, netResource.Status.DNSRecordID)
+			records, err := netResourceRec.Netbird.DNSZones.ListRecords(ctx, netResource.Status.DNSZoneID)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(record.Content).To(Equal(svc.Spec.ClusterIP))
+			Expect(records).To(HaveLen(len(svc.Spec.ClusterIPs)))
+
+			recordTypeToIPFamily := map[api.DNSRecordType]corev1.IPFamily{
+				api.DNSRecordTypeA:    corev1.IPv4Protocol,
+				api.DNSRecordTypeAAAA: corev1.IPv6Protocol,
+			}
+
+			for _, record := range records {
+				Expect(recordTypeToIPFamily[record.Type]).To(BeElementOf(svc.Spec.IPFamilies))
+				Expect(record.Content).To(Equal(
+					svc.Spec.ClusterIPs[slices.Index(svc.Spec.IPFamilies, recordTypeToIPFamily[record.Type])],
+				))
+			}
 		}
 
 		expectRejected := func(netResource *nbv1alpha1.NetworkResource, message string) {
@@ -169,7 +183,7 @@ var _ = Describe("NetworkResource Controller", func() {
 			Expect(cond.Status).To(Equal(metav1.ConditionFalse))
 			Expect(cond.Message).To(Equal(message))
 			Expect(netResource.Status.ResourceID).To(BeEmpty())
-			Expect(netResource.Status.DNSRecordID).To(BeEmpty())
+			Expect(netResource.Status.DNSRecordIDs).To(BeEmpty())
 		}
 
 		It("creates a network resource and DNS record", func() {
@@ -186,9 +200,61 @@ var _ = Describe("NetworkResource Controller", func() {
 			expectExposed(netResource, svc)
 		})
 
+		It("creates a network resource and IPV6 DNS record", func() {
+			netRouter := createNetworkRouter()
+			svc := createService(corev1.ServiceSpec{
+				ClusterIP: "fd00:10:96::2",
+				Ports: []corev1.ServicePort{
+					{
+						Port: 8080,
+					},
+				},
+			})
+
+			netResource := reconcileNetworkResource(netRouter, svc)
+			expectExposed(netResource, svc)
+
+			record, err := netResourceRec.Netbird.DNSZones.GetRecord(ctx, netResource.Status.DNSZoneID, netResource.Status.DNSRecordIDs[0])
+			Expect(err).NotTo(HaveOccurred())
+			Expect(record.Type).To(Equal(api.DNSRecordTypeAAAA))
+		})
+
+		It("creates a network resource and both IPv4 and IPv6 DNS record if PreferDualStack", func() {
+			clusterIPs := []string{"fd00:10:96::3", "10.96.0.10"}
+
+			expectedRecords := map[string]api.DNSRecordType{
+				clusterIPs[0]: api.DNSRecordTypeAAAA,
+				clusterIPs[1]: api.DNSRecordTypeA,
+			}
+
+			netRouter := createNetworkRouter()
+			svc := createService(corev1.ServiceSpec{
+				ClusterIP:      clusterIPs[0],
+				ClusterIPs:     clusterIPs,
+				IPFamilyPolicy: ptr.To(corev1.IPFamilyPolicyPreferDualStack),
+				Ports: []corev1.ServicePort{
+					{
+						Port: 8080,
+					},
+				},
+			})
+
+			netResource := reconcileNetworkResource(netRouter, svc)
+			expectExposed(netResource, svc)
+
+			records, err := netResourceRec.Netbird.DNSZones.ListRecords(ctx, netResource.Status.DNSZoneID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(records).To(HaveLen(len(expectedRecords)))
+
+			for _, record := range records {
+				expectedType, exists := expectedRecords[record.Content]
+				Expect(exists).To(BeTrue())
+				Expect(record.Type).To(Equal(expectedType))
+			}
+		})
+
 		It("creates a network resource for a LoadBalancer Service", func() {
 			netRouter := createNetworkRouter()
-			// The API server allocates the ClusterIP even without a cloud provider.
 			svc := createService(corev1.ServiceSpec{
 				Type: corev1.ServiceTypeLoadBalancer,
 				Ports: []corev1.ServicePort{
@@ -197,8 +263,8 @@ var _ = Describe("NetworkResource Controller", func() {
 					},
 				},
 			})
-			Expect(svc.Spec.ClusterIP).NotTo(BeEmpty())
 
+			Expect(svc.Spec.ClusterIP).NotTo(BeEmpty())
 			netResource := reconcileNetworkResource(netRouter, svc)
 			expectExposed(netResource, svc)
 		})

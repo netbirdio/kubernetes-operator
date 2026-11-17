@@ -23,8 +23,8 @@ type NetworkResourceStatusApplyConfiguration struct {
 	ResourceID *string `json:"resourceID,omitempty"`
 	// DNSZoneID is the id of the zone the DNS record is created in.
 	DNSZoneID *string `json:"dnsZoneID,omitempty"`
-	// DNSRecordID is the id of the created DNS record.
-	DNSRecordID *string `json:"dnsRecordID,omitempty"`
+	// DNSRecordIDs is the ids of the created DNS records.
+	DNSRecordIDs []string `json:"dnsRecordIDs,omitempty"`
 }
 
 // NetworkResourceStatusApplyConfiguration constructs a declarative configuration of the NetworkResourceStatus type for use with
@@ -78,10 +78,12 @@ func (b *NetworkResourceStatusApplyConfiguration) WithDNSZoneID(value string) *N
 	return b
 }
 
-// WithDNSRecordID sets the DNSRecordID field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the DNSRecordID field is set to the value of the last call.
-func (b *NetworkResourceStatusApplyConfiguration) WithDNSRecordID(value string) *NetworkResourceStatusApplyConfiguration {
-	b.DNSRecordID = &value
+// WithDNSRecordIDs adds the given value to the DNSRecordIDs field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the DNSRecordIDs field.
+func (b *NetworkResourceStatusApplyConfiguration) WithDNSRecordIDs(values ...string) *NetworkResourceStatusApplyConfiguration {
+	for i := range values {
+		b.DNSRecordIDs = append(b.DNSRecordIDs, values[i])
+	}
 	return b
 }

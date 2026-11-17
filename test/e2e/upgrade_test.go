@@ -33,7 +33,7 @@ type upgradeFixtures struct {
 	networkID     string
 	routingPeerID string
 	resourceID    string
-	dnsRecordID   string
+	dnsRecordIDs  []string
 
 	url, want string
 }
@@ -121,7 +121,7 @@ func (e *environment) createUpgradeFixtures(ctx context.Context) (_ *upgradeFixt
 	fx.networkID = router.Status.NetworkID
 	fx.routingPeerID = router.Status.RoutingPeerID
 	fx.resourceID = res.Status.ResourceID
-	fx.dnsRecordID = res.Status.DNSRecordID
+	fx.dnsRecordIDs = res.Status.DNSRecordIDs
 	return fx, nil
 }
 
@@ -154,7 +154,7 @@ func TestUpgrade(t *testing.T) {
 	res := &nbv1alpha1.NetworkResource{ObjectMeta: metav1.ObjectMeta{Name: u.resource.Name, Namespace: u.resource.Namespace}}
 	e.waitReady(t, res)
 	assert.EqualT(t, u.resourceID, res.Status.ResourceID, "the upgrade recreated the network resource")
-	assert.EqualT(t, u.dnsRecordID, res.Status.DNSRecordID, "the upgrade recreated the DNS record")
+	assert.TrueT(t, slices.Equal(u.dnsRecordIDs, res.Status.DNSRecordIDs), "the upgrade recreated the DNS record")
 
 	requireReachable(t, fx.laptop, u.url, u.want)
 }

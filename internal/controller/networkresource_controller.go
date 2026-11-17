@@ -163,41 +163,58 @@ func (r *NetworkResourceReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	// If zone has changed we need to delete the old records.
 	if netResource.Status.DNSZoneID != "" && netResource.Status.DNSZoneID != zone.Id {
-		err = r.Netbird.DNSZones.DeleteRecord(ctx, netResource.Status.DNSZoneID, netResource.Status.DNSRecordID)
-		if err != nil && !netbird.IsNotFound(err) {
-			return ctrl.Result{}, err
+
+		for _, recordID := range netResource.Status.DNSRecordIDs {
+			err = r.Netbird.DNSZones.DeleteRecord(ctx, netResource.Status.DNSZoneID, recordID)
+			if err != nil && !netbird.IsNotFound(err) {
+				return ctrl.Result{}, err
+			}
 		}
 		netResource.Status.DNSZoneID = ""
-		netResource.Status.DNSRecordID = ""
+		netResource.Status.DNSRecordIDs = []string{}
 	}
 
-	recordID, err := func() (string, error) {
-		dnsReq := api.DNSRecordRequest{
-			Content: svc.Spec.ClusterIP,
-			Name:    strings.Join([]string{svc.Name, svc.Namespace, zone.Name}, "."),
-			Ttl:     int(5 * time.Minute / time.Second),
-			Type:    api.DNSRecordTypeA,
+	recordIDs, err := func() ([]string, error) {
+		records := []string{}
+
+		ipFamilyToRecordType := map[corev1.IPFamily]api.DNSRecordType{
+			corev1.IPv4Protocol: api.DNSRecordTypeA,
+			corev1.IPv6Protocol: api.DNSRecordTypeAAAA,
 		}
-		if netResource.Status.DNSZoneID != "" && netResource.Status.DNSRecordID != "" {
-			recordResp, err := r.Netbird.DNSZones.UpdateRecord(ctx, netResource.Status.DNSZoneID, netResource.Status.DNSRecordID, dnsReq)
-			if err != nil && !netbird.IsNotFound(err) {
-				return "", err
+
+		for i, family := range svc.Spec.IPFamilies {
+			dnsReq := api.DNSRecordRequest{
+				Content: svc.Spec.ClusterIPs[i],
+				Name:    strings.Join([]string{svc.Name, svc.Namespace, zone.Name}, "."),
+				Ttl:     int(5 * time.Minute / time.Second),
+				Type:    ipFamilyToRecordType[family],
 			}
-			if err == nil {
-				return recordResp.Id, nil
+
+			if netResource.Status.DNSZoneID != "" && len(netResource.Status.DNSRecordIDs) > 0 {
+				recordResp, err := r.Netbird.DNSZones.UpdateRecord(ctx, netResource.Status.DNSZoneID, netResource.Status.DNSRecordIDs[i], dnsReq)
+				if err != nil && !netbird.IsNotFound(err) {
+					return []string{}, err
+				}
+				if err == nil {
+					records = append(records, recordResp.Id)
+				}
+			} else {
+				recordResp, err := r.Netbird.DNSZones.CreateRecord(ctx, zone.Id, dnsReq)
+				if err != nil {
+					return []string{}, err
+				}
+				records = append(records, recordResp.Id)
 			}
 		}
-		recordResp, err := r.Netbird.DNSZones.CreateRecord(ctx, zone.Id, dnsReq)
-		if err != nil {
-			return "", err
-		}
-		return recordResp.Id, nil
+
+		return records, nil
 	}()
 	if err != nil {
 		return ctrl.Result{}, err
 	}
+
 	netResource.Status.DNSZoneID = zone.Id
-	netResource.Status.DNSRecordID = recordID
+	netResource.Status.DNSRecordIDs = recordIDs
 
 	conditions.MarkTrue(netResource, nbv1alpha1.ReadyCondition, nbv1alpha1.ReconciledReason, "")
 	err = sp.Patch(ctx, netResource, patch.WithStatusObservedGeneration{})
@@ -214,10 +231,12 @@ func (r *NetworkResourceReconciler) reconcileDelete(ctx context.Context, sp *pat
 			return ctrl.Result{}, err
 		}
 	}
-	if netResource.Status.DNSZoneID != "" && netResource.Status.DNSRecordID != "" {
-		err := r.Netbird.DNSZones.DeleteRecord(ctx, netResource.Status.DNSZoneID, netResource.Status.DNSRecordID)
-		if err != nil && !netbird.IsNotFound(err) {
-			return ctrl.Result{}, err
+	if netResource.Status.DNSZoneID != "" && len(netResource.Status.DNSRecordIDs) > 0 {
+		for _, recordID := range netResource.Status.DNSRecordIDs {
+			err := r.Netbird.DNSZones.DeleteRecord(ctx, netResource.Status.DNSZoneID, recordID)
+			if err != nil && !netbird.IsNotFound(err) {
+				return ctrl.Result{}, err
+			}
 		}
 	}
 

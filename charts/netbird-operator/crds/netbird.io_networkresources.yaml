@@ -178,9 +178,11 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
-              dnsRecordID:
-                description: DNSRecordID is the id of the created DNS record.
-                type: string
+              dnsRecordIDs:
+                description: DNSRecordIDs is the ids of the created DNS records.
+                items:
+                  type: string
+                type: array
               dnsZoneID:
                 description: DNSZoneID is the id of the zone the DNS record is created
                   in.

@@ -15,7 +15,7 @@ import (
 //
 // Group is the Schema for the groups API.
 type GroupApplyConfiguration struct {
-	v1.TypeMetaApplyConfiguration    `json:",inline"`
+	v1.TypeMetaApplyConfiguration    `json:""`
 	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
 	Spec                             *GroupSpecApplyConfiguration   `json:"spec,omitempty"`
 	Status                           *GroupStatusApplyConfiguration `json:"status,omitempty"`

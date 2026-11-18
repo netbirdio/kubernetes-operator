@@ -17,6 +17,8 @@ type ClusterProxySpecApplyConfiguration struct {
 	ServiceAccountName *string `json:"serviceAccountName,omitempty"`
 	// Groups are references to groups that the peer will be a part of.
 	Groups []GroupReferenceApplyConfiguration `json:"groups,omitempty"`
+	// WorkloadOverride contains configuration that will override the default workload.
+	WorkloadOverride *WorkloadOverrideApplyConfiguration `json:"workloadOverride,omitempty"`
 }
 
 // ClusterProxySpecApplyConfiguration constructs a declarative configuration of the ClusterProxySpec type for use with
@@ -59,5 +61,13 @@ func (b *ClusterProxySpecApplyConfiguration) WithGroups(values ...*GroupReferenc
 		}
 		b.Groups = append(b.Groups, *values[i])
 	}
+	return b
+}
+
+// WithWorkloadOverride sets the WorkloadOverride field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the WorkloadOverride field is set to the value of the last call.
+func (b *ClusterProxySpecApplyConfiguration) WithWorkloadOverride(value *WorkloadOverrideApplyConfiguration) *ClusterProxySpecApplyConfiguration {
+	b.WorkloadOverride = value
 	return b
 }

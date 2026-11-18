@@ -15,7 +15,7 @@ import (
 //
 // NetworkResource is the Schema for the networkresources API.
 type NetworkResourceApplyConfiguration struct {
-	v1.TypeMetaApplyConfiguration    `json:",inline"`
+	v1.TypeMetaApplyConfiguration    `json:""`
 	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
 	Spec                             *NetworkResourceSpecApplyConfiguration   `json:"spec,omitempty"`
 	Status                           *NetworkResourceStatusApplyConfiguration `json:"status,omitempty"`

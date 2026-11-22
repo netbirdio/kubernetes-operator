@@ -5,6 +5,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -172,11 +173,21 @@ func (r *NetworkResourceReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	}
 
 	recordID, err := func() (string, error) {
+		ip := net.ParseIP(svc.Spec.ClusterIP)
+		if ip == nil {
+			return "", fmt.Errorf("invalid ClusterIP: %s", svc.Spec.ClusterIP)
+		}
+
+		recordType := api.DNSRecordTypeA
+		if ip.To4() == nil {
+			recordType = api.DNSRecordTypeAAAA
+		}
+
 		dnsReq := api.DNSRecordRequest{
 			Content: svc.Spec.ClusterIP,
 			Name:    strings.Join([]string{svc.Name, svc.Namespace, zone.Name}, "."),
 			Ttl:     int(5 * time.Minute / time.Second),
-			Type:    api.DNSRecordTypeA,
+			Type:    recordType,
 		}
 		if netResource.Status.DNSZoneID != "" && netResource.Status.DNSRecordID != "" {
 			recordResp, err := r.Netbird.DNSZones.UpdateRecord(ctx, netResource.Status.DNSZoneID, netResource.Status.DNSRecordID, dnsReq)

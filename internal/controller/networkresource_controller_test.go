@@ -186,6 +186,27 @@ var _ = Describe("NetworkResource Controller", func() {
 			expectExposed(netResource, svc)
 		})
 
+		It("creates a network resource and IPV6 DNS record ", func() {
+			netRouter := createNetworkRouter()
+			svc := createService(corev1.ServiceSpec{
+				ClusterIP: "fd00:10:96::2",
+				Ports: []corev1.ServicePort{
+					{
+						Port: 8080,
+					},
+				},
+			})
+
+			netResource := reconcileNetworkResource(netRouter, svc)
+			expectExposed(netResource, svc)
+
+			// Add verification that the DNS record was created with the correct IPv6 type
+			record, err := netResourceRec.Netbird.DNSZones.GetRecord(ctx, netResource.Status.DNSZoneID, netResource.Status.DNSRecordID)
+			Expect(err).NotTo(HaveOccurred())
+			// Verify record type property depending on the NetBird API definition (e.g., "A", "AAAA", or TypeIPv6)
+			Expect(record.Type).To(Equal(api.DNSRecordTypeAAAA)) // Adjust to match the exact constant/string used in your API types
+		})
+
 		It("creates a network resource for a LoadBalancer Service", func() {
 			netRouter := createNetworkRouter()
 			// The API server allocates the ClusterIP even without a cloud provider.

@@ -3,7 +3,7 @@ module github.com/netbirdio/kubernetes-operator
 go 1.27.0
 
 require (
-	github.com/fluxcd/pkg/runtime v0.122.0
+	github.com/fluxcd/pkg/runtime v0.123.0
 	github.com/go-logr/logr v1.4.4
 	github.com/go-openapi/testify/v2 v2.8.0
 	github.com/google/uuid v1.6.0
@@ -34,7 +34,7 @@ require (
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/fatih/color v1.19.0 // indirect
-	github.com/fluxcd/pkg/apis/meta v1.38.0 // indirect
+	github.com/fluxcd/pkg/apis/meta v1.39.0 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.3 // indirect
 	github.com/go-logr/zapr v1.3.0 // indirect

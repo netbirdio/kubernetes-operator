@@ -894,8 +894,16 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 
 								secret := &corev1.Secret{
 									ObjectMeta: metav1.ObjectMeta{
-										Namespace:   typeNamespacedName.Namespace,
-										Name:        typeNamespacedName.Name,
+										Namespace: typeNamespacedName.Namespace,
+										Name:      typeNamespacedName.Name,
+										OwnerReferences: []metav1.OwnerReference{
+											{
+												APIVersion: nbv1.GroupVersion.Identifier(),
+												Kind:       "NBRoutingPeer",
+												Name:       nbroutingpeer.Name,
+												UID:        nbroutingpeer.UID,
+											},
+										},
 										Annotations: map[string]string{"netbird.io/setup-key-id": "skid"},
 									},
 									StringData: map[string]string{
@@ -924,6 +932,41 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								secret = &corev1.Secret{}
 								Expect(k8sClient.Get(ctx, typeNamespacedName, secret)).To(Succeed())
 								Expect(secret.Data).To(HaveKeyWithValue("setupKey", []byte("OriginalKey")))
+							})
+						})
+						When("Secret is deleted before status is reconciled again", func() {
+							It("should delete the owned Secret setup key when NBRoutingPeer is deleted", func() {
+								activeKeys := map[string]api.SetupKeyClear{
+									"skid": {Id: "skid", Key: "OriginalKey", Valid: true},
+								}
+								serveSetupKeysByID(mux, activeKeys)
+
+								secret := &corev1.Secret{
+									ObjectMeta: metav1.ObjectMeta{
+										Namespace: typeNamespacedName.Namespace,
+										Name:      typeNamespacedName.Name,
+										OwnerReferences: []metav1.OwnerReference{
+											{
+												APIVersion: nbv1.GroupVersion.Identifier(),
+												Kind:       "NBRoutingPeer",
+												Name:       nbroutingpeer.Name,
+												UID:        nbroutingpeer.UID,
+											},
+										},
+										Annotations: map[string]string{"netbird.io/setup-key-id": "skid"},
+									},
+									StringData: map[string]string{
+										"setupKey": "OriginalKey",
+									},
+								}
+								Expect(k8sClient.Create(ctx, secret)).To(Succeed())
+								Expect(k8sClient.Delete(ctx, nbroutingpeer)).To(Succeed())
+
+								_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+									NamespacedName: typeNamespacedName,
+								})
+								Expect(err).NotTo(HaveOccurred())
+								Expect(activeKeys).NotTo(HaveKey("skid"))
 							})
 						})
 					})
@@ -1332,7 +1375,7 @@ func serveSetupKeysByID(mux *http.ServeMux, activeKeys map[string]api.SetupKeyCl
 		}
 		switch r.Method {
 		case http.MethodGet:
-			bs, err := json.Marshal(api.SetupKey{Id: key.Id, Revoked: key.Revoked})
+			bs, err := json.Marshal(api.SetupKey{Id: key.Id, Revoked: key.Revoked, Valid: key.Valid})
 			Expect(err).NotTo(HaveOccurred())
 			_, err = w.Write(bs)
 			Expect(err).NotTo(HaveOccurred())

@@ -5,9 +5,11 @@ package controller
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
@@ -810,6 +812,163 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 								Expect(secret.Data["setupKey"]).To(BeEquivalentTo([]byte("OriginalKey")))
 							})
 						})
+						When("NBRoutingPeer changes while creating a setup key", func() {
+							It("should not leave an unrecorded setup key behind", func() {
+								activeKeys := map[string]api.SetupKeyClear{}
+								created := 0
+								mux.HandleFunc("/api/setup-keys", func(w http.ResponseWriter, r *http.Request) {
+									defer GinkgoRecover()
+									if r.Method == http.MethodPost {
+										created++
+										var req api.PostApiSetupKeysJSONRequestBody
+										bs, err := io.ReadAll(r.Body)
+										Expect(err).NotTo(HaveOccurred())
+										Expect(json.Unmarshal(bs, &req)).To(Succeed())
+
+										id := fmt.Sprintf("key-%d", created)
+										resp := api.SetupKeyClear{
+											AutoGroups: req.AutoGroups,
+											Ephemeral:  *req.Ephemeral,
+											Id:         id,
+											Key:        fmt.Sprintf("SuperSecretKey-%d", created),
+											Name:       req.Name,
+											Valid:      true,
+										}
+										activeKeys[id] = resp
+
+										if created == 1 {
+											latest := &nbv1.NBRoutingPeer{}
+											Expect(k8sClient.Get(ctx, typeNamespacedName, latest)).To(Succeed())
+											latest.Annotations = map[string]string{"test.netbird.io/bump": "1"}
+											Expect(k8sClient.Update(ctx, latest)).To(Succeed())
+										}
+
+										bs, err = json.Marshal(resp)
+										Expect(err).NotTo(HaveOccurred())
+										_, err = w.Write(bs)
+										Expect(err).NotTo(HaveOccurred())
+									}
+								})
+								serveSetupKeysByID(mux, activeKeys)
+
+								_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+									NamespacedName: typeNamespacedName,
+								})
+								Expect(err).To(HaveOccurred())
+
+								for range 2 {
+									_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
+										NamespacedName: typeNamespacedName,
+									})
+									Expect(err).NotTo(HaveOccurred())
+								}
+
+								Expect(k8sClient.Get(ctx, typeNamespacedName, nbroutingpeer)).To(Succeed())
+								Expect(nbroutingpeer.Status.SetupKeyID).NotTo(BeNil())
+								Expect(activeKeys).To(HaveLen(1))
+								Expect(activeKeys).To(HaveKey(*nbroutingpeer.Status.SetupKeyID))
+
+								secret := &corev1.Secret{}
+								Expect(k8sClient.Get(ctx, typeNamespacedName, secret)).To(Succeed())
+								Expect(secret.Annotations).To(HaveKeyWithValue("netbird.io/setup-key-id", *nbroutingpeer.Status.SetupKeyID))
+								Expect(secret.Data).To(HaveKeyWithValue("setupKey", []byte(activeKeys[*nbroutingpeer.Status.SetupKeyID].Key)))
+							})
+						})
+						When("Status and Secret disagree on the setup key ID", func() {
+							It("should delete the unreceived status key and reuse the valid Secret key", func() {
+								activeKeys := map[string]api.SetupKeyClear{
+									"stale-id": {Id: "stale-id", Valid: true},
+									"skid":     {Id: "skid", Valid: true},
+								}
+								setupKeyCreated := false
+								mux.HandleFunc("/api/setup-keys", func(w http.ResponseWriter, r *http.Request) {
+									defer GinkgoRecover()
+									if r.Method == http.MethodPost {
+										setupKeyCreated = true
+									}
+								})
+								serveSetupKeysByID(mux, activeKeys)
+
+								nbroutingpeer.Status.SetupKeyID = new("stale-id")
+								Expect(k8sClient.Status().Update(ctx, nbroutingpeer)).To(Succeed())
+
+								secret := &corev1.Secret{
+									ObjectMeta: metav1.ObjectMeta{
+										Namespace: typeNamespacedName.Namespace,
+										Name:      typeNamespacedName.Name,
+										OwnerReferences: []metav1.OwnerReference{
+											{
+												APIVersion: nbv1.GroupVersion.Identifier(),
+												Kind:       "NBRoutingPeer",
+												Name:       nbroutingpeer.Name,
+												UID:        nbroutingpeer.UID,
+											},
+										},
+										Annotations: map[string]string{"netbird.io/setup-key-id": "skid"},
+									},
+									StringData: map[string]string{
+										"setupKey": "OriginalKey",
+									},
+								}
+								Expect(k8sClient.Create(ctx, secret)).To(Succeed())
+
+								res, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+									NamespacedName: typeNamespacedName,
+								})
+								Expect(err).NotTo(HaveOccurred())
+								Expect(res.Requeue).To(BeTrue())
+								Expect(activeKeys).NotTo(HaveKey("stale-id"))
+								Expect(activeKeys).To(HaveKey("skid"))
+
+								_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
+									NamespacedName: typeNamespacedName,
+								})
+								Expect(err).NotTo(HaveOccurred())
+								Expect(setupKeyCreated).To(BeFalse())
+
+								Expect(k8sClient.Get(ctx, typeNamespacedName, nbroutingpeer)).To(Succeed())
+								Expect(nbroutingpeer.Status.SetupKeyID).To(HaveValue(Equal("skid")))
+
+								secret = &corev1.Secret{}
+								Expect(k8sClient.Get(ctx, typeNamespacedName, secret)).To(Succeed())
+								Expect(secret.Data).To(HaveKeyWithValue("setupKey", []byte("OriginalKey")))
+							})
+						})
+						When("Secret is deleted before status is reconciled again", func() {
+							It("should delete the owned Secret setup key when NBRoutingPeer is deleted", func() {
+								activeKeys := map[string]api.SetupKeyClear{
+									"skid": {Id: "skid", Key: "OriginalKey", Valid: true},
+								}
+								serveSetupKeysByID(mux, activeKeys)
+
+								secret := &corev1.Secret{
+									ObjectMeta: metav1.ObjectMeta{
+										Namespace: typeNamespacedName.Namespace,
+										Name:      typeNamespacedName.Name,
+										OwnerReferences: []metav1.OwnerReference{
+											{
+												APIVersion: nbv1.GroupVersion.Identifier(),
+												Kind:       "NBRoutingPeer",
+												Name:       nbroutingpeer.Name,
+												UID:        nbroutingpeer.UID,
+											},
+										},
+										Annotations: map[string]string{"netbird.io/setup-key-id": "skid"},
+									},
+									StringData: map[string]string{
+										"setupKey": "OriginalKey",
+									},
+								}
+								Expect(k8sClient.Create(ctx, secret)).To(Succeed())
+								Expect(k8sClient.Delete(ctx, nbroutingpeer)).To(Succeed())
+
+								_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+									NamespacedName: typeNamespacedName,
+								})
+								Expect(err).NotTo(HaveOccurred())
+								Expect(activeKeys).NotTo(HaveKey("skid"))
+							})
+						})
 					})
 					Describe("Deployment Behavior", func() {
 						BeforeEach(func() {
@@ -1202,3 +1361,28 @@ var _ = Describe("NBRoutingPeer Controller", func() {
 		})
 	})
 })
+
+func serveSetupKeysByID(mux *http.ServeMux, activeKeys map[string]api.SetupKeyClear) {
+	mux.HandleFunc("/api/setup-keys/", func(w http.ResponseWriter, r *http.Request) {
+		defer GinkgoRecover()
+		id := strings.TrimPrefix(r.URL.Path, "/api/setup-keys/")
+		key, ok := activeKeys[id]
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			_, err := w.Write([]byte(`{"message": "setup-key not found", "code": 404}`))
+			Expect(err).NotTo(HaveOccurred())
+			return
+		}
+		switch r.Method {
+		case http.MethodGet:
+			bs, err := json.Marshal(api.SetupKey{Id: key.Id, Revoked: key.Revoked, Valid: key.Valid})
+			Expect(err).NotTo(HaveOccurred())
+			_, err = w.Write(bs)
+			Expect(err).NotTo(HaveOccurred())
+		case http.MethodDelete:
+			delete(activeKeys, id)
+			_, err := w.Write([]byte(`{}`))
+			Expect(err).NotTo(HaveOccurred())
+		}
+	})
+}

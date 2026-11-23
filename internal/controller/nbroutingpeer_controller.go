@@ -339,6 +339,8 @@ func (r *NBRoutingPeerReconciler) handleRouter(ctx context.Context, nbrp *nbv1.N
 	return nil
 }
 
+const setupKeyIDAnnotation = "netbird.io/setup-key-id"
+
 // handleSetupKey reconcile setup key and regenerate if invalid
 func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.Request, nbrp *nbv1.NBRoutingPeer, nbGroup nbv1.NBGroup, logger logr.Logger) (*ctrl.Result, error) {
 	networkName := r.ClusterName
@@ -346,115 +348,205 @@ func (r *NBRoutingPeerReconciler) handleSetupKey(ctx context.Context, req ctrl.R
 		networkName += "-" + req.Namespace
 	}
 
-	// Check if setup key exists
 	if nbrp.Status.SetupKeyID == nil {
-		// Create new setup key with group Status.GroupID
-		setupKey, err := r.Netbird.SetupKeys.Create(ctx, api.CreateSetupKeyRequest{
-			AutoGroups: []string{*nbGroup.Status.GroupID},
-			Ephemeral:  new(true),
-			Name:       networkName,
-			Type:       "reusable",
-		})
-
-		if err != nil {
-			logger.Error(errNetBirdAPI, "error creating setup key", "err", err)
-			nbrp.Status.Conditions = nbv1.NBConditionFalse("APIError", fmt.Sprintf("error creating setup key: %v", err))
+		if err := r.createOrAdoptSetupKey(ctx, req, nbrp, nbGroup, networkName, logger); err != nil {
 			return &ctrl.Result{}, err
 		}
+		return nil, nil
+	}
 
-		nbrp.Status.SetupKeyID = &setupKey.Id
+	// Check SetupKey is not revoked
+	setupKey, err := r.Netbird.SetupKeys.Get(ctx, *nbrp.Status.SetupKeyID)
+	if err != nil && !isSetupKeyNotFound(err) {
+		logger.Error(errNetBirdAPI, "error getting setup key", "err", err)
+		nbrp.Status.Conditions = nbv1.NBConditionFalse("APIError", fmt.Sprintf("error getting setup key: %v", err))
+		return &ctrl.Result{}, err
+	}
 
-		skSecret := corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      nbrp.Name,
-				Namespace: nbrp.Namespace,
-				OwnerReferences: []metav1.OwnerReference{
-					{
-						APIVersion:         nbv1.GroupVersion.Identifier(),
-						Kind:               "NBRoutingPeer",
-						Name:               nbrp.Name,
-						UID:                nbrp.UID,
-						BlockOwnerDeletion: new(true),
-					},
-				},
-				Labels: r.DefaultLabels,
-			},
-			StringData: map[string]string{
-				"setupKey": setupKey.Key,
-			},
-		}
-		err = r.Client.Create(ctx, &skSecret)
-		if errors.IsAlreadyExists(err) {
-			err = r.Client.Get(ctx, req.NamespacedName, &skSecret)
-			if err != nil {
-				logger.Error(errNetBirdAPI, "error getting secret", "err", err)
-				return &ctrl.Result{}, err
-			}
-			skSecret.Data = map[string][]byte{
-				"setupKey": []byte(setupKey.Key),
-			}
-			err = r.Client.Update(ctx, &skSecret)
-		}
-
-		if err != nil {
-			logger.Error(errKubernetesAPI, "error creating Secret", "err", err)
-			nbrp.Status.Conditions = nbv1.NBConditionFalse("internalError", fmt.Sprintf("error creating secret: %v", err))
-			return &ctrl.Result{}, err
-		}
-	} else {
-		// Check SetupKey is not revoked
-		setupKey, err := r.Netbird.SetupKeys.Get(ctx, *nbrp.Status.SetupKeyID)
-		if err != nil && !strings.Contains(err.Error(), "not found") {
-			logger.Error(errNetBirdAPI, "error getting setup key", "err", err)
-			nbrp.Status.Conditions = nbv1.NBConditionFalse("APIError", fmt.Sprintf("error getting setup key: %v", err))
-			return &ctrl.Result{}, err
-		}
-
-		if (err != nil && strings.Contains(err.Error(), "not found")) || setupKey == nil || setupKey.Revoked {
-			if setupKey != nil && setupKey.Revoked {
-				err = r.Netbird.SetupKeys.Delete(ctx, *nbrp.Status.SetupKeyID)
-
-				if err != nil {
-					logger.Error(errNetBirdAPI, "error deleting setup key", "err", err)
-					nbrp.Status.Conditions = nbv1.NBConditionFalse("APIError", fmt.Sprintf("error deleting setup key: %v", err))
-					return &ctrl.Result{}, err
-				}
-			}
-
-			nbrp.Status.SetupKeyID = nil
-			// Requeue to avoid repeating code
-			return &ctrl.Result{Requeue: true}, nil
-		}
-
-		// Check if secret is valid
-		skSecret := corev1.Secret{}
-		err = r.Client.Get(ctx, req.NamespacedName, &skSecret)
-		if err != nil && !errors.IsNotFound(err) {
-			logger.Error(errKubernetesAPI, "error getting Secret", "err", err)
-			nbrp.Status.Conditions = nbv1.NBConditionFalse("internalError", fmt.Sprintf("error getting secret: %v", err))
-			return &ctrl.Result{}, err
-		}
-
-		if _, ok := skSecret.Data["setupKey"]; errors.IsNotFound(err) || !ok {
-			// Someone deleted setup key secret
-			// Revoke SK from NetBird and re-generate
-			err = r.Netbird.SetupKeys.Delete(ctx, *nbrp.Status.SetupKeyID)
-
-			if err != nil {
+	if isSetupKeyNotFound(err) || setupKey == nil || setupKey.Revoked {
+		if setupKey != nil && setupKey.Revoked {
+			if err = r.deleteSetupKey(ctx, *nbrp.Status.SetupKeyID); err != nil {
 				logger.Error(errNetBirdAPI, "error deleting setup key", "err", err)
 				nbrp.Status.Conditions = nbv1.NBConditionFalse("APIError", fmt.Sprintf("error deleting setup key: %v", err))
 				return &ctrl.Result{}, err
 			}
-
-			nbrp.Status.SetupKeyID = nil
-
-			nbrp.Status.Conditions = nbv1.NBConditionFalse("Gone", "generated secret was deleted")
-			// Requeue to avoid repeating code
-			return &ctrl.Result{Requeue: true}, nil
 		}
+
+		nbrp.Status.SetupKeyID = nil
+		// Requeue to avoid repeating code
+		return &ctrl.Result{Requeue: true}, nil
+	}
+
+	// Check if secret is valid
+	skSecret := corev1.Secret{}
+	err = r.Client.Get(ctx, req.NamespacedName, &skSecret)
+	if err != nil && !errors.IsNotFound(err) {
+		logger.Error(errKubernetesAPI, "error getting Secret", "err", err)
+		nbrp.Status.Conditions = nbv1.NBConditionFalse("internalError", fmt.Sprintf("error getting secret: %v", err))
+		return &ctrl.Result{}, err
+	}
+
+	_, hasKey := skSecret.Data["setupKey"]
+	secretKeyID := skSecret.Annotations[setupKeyIDAnnotation]
+	if errors.IsNotFound(err) || !hasKey || (secretKeyID != "" && secretKeyID != *nbrp.Status.SetupKeyID) {
+		if err = r.deleteSetupKey(ctx, *nbrp.Status.SetupKeyID); err != nil {
+			logger.Error(errNetBirdAPI, "error deleting setup key", "err", err)
+			nbrp.Status.Conditions = nbv1.NBConditionFalse("APIError", fmt.Sprintf("error deleting setup key: %v", err))
+			return &ctrl.Result{}, err
+		}
+
+		nbrp.Status.SetupKeyID = nil
+		if errors.IsNotFound(err) || !hasKey {
+			nbrp.Status.Conditions = nbv1.NBConditionFalse("Gone", "generated secret was deleted")
+		}
+		// Requeue to avoid repeating code
+		return &ctrl.Result{Requeue: true}, nil
 	}
 
 	return nil, nil
+}
+
+func (r *NBRoutingPeerReconciler) createOrAdoptSetupKey(ctx context.Context, req ctrl.Request, nbrp *nbv1.NBRoutingPeer, nbGroup nbv1.NBGroup, networkName string, logger logr.Logger) error {
+	adopted, err := r.adoptOrCleanupSecretKey(ctx, req, nbrp, logger)
+	if err != nil || adopted {
+		return err
+	}
+
+	setupKey, err := r.Netbird.SetupKeys.Create(ctx, api.CreateSetupKeyRequest{
+		AutoGroups: []string{*nbGroup.Status.GroupID},
+		Ephemeral:  new(true),
+		Name:       networkName,
+		Type:       "reusable",
+	})
+	if err != nil {
+		logger.Error(errNetBirdAPI, "error creating setup key", "err", err)
+		nbrp.Status.Conditions = nbv1.NBConditionFalse("APIError", fmt.Sprintf("error creating setup key: %v", err))
+		return err
+	}
+
+	nbrp.Status.SetupKeyID = &setupKey.Id
+	if err = r.Client.Status().Update(ctx, nbrp); err != nil {
+		if delErr := r.deleteSetupKey(ctx, setupKey.Id); delErr != nil {
+			logger.Error(errNetBirdAPI, "error deleting setup key", "err", delErr)
+		}
+		nbrp.Status.SetupKeyID = nil
+		logger.Error(errKubernetesAPI, "error updating NBRoutingPeer Status", "err", err)
+		nbrp.Status.Conditions = nbv1.NBConditionFalse("internalError", fmt.Sprintf("error updating NBRoutingPeer Status: %v", err))
+		return err
+	}
+
+	if err = r.upsertSetupKeySecret(ctx, req, nbrp, *setupKey); err != nil {
+		logger.Error(errKubernetesAPI, "error creating Secret", "err", err)
+		nbrp.Status.Conditions = nbv1.NBConditionFalse("internalError", fmt.Sprintf("error creating secret: %v", err))
+		return err
+	}
+
+	return nil
+}
+
+func (r *NBRoutingPeerReconciler) adoptOrCleanupSecretKey(ctx context.Context, req ctrl.Request, nbrp *nbv1.NBRoutingPeer, logger logr.Logger) (bool, error) {
+	var existingSecret corev1.Secret
+	err := r.Client.Get(ctx, req.NamespacedName, &existingSecret)
+	if errors.IsNotFound(err) {
+		return false, nil
+	}
+	if err != nil {
+		logger.Error(errKubernetesAPI, "error getting Secret", "err", err)
+		nbrp.Status.Conditions = nbv1.NBConditionFalse("internalError", fmt.Sprintf("error getting secret: %v", err))
+		return false, err
+	}
+
+	secretKeyID := existingSecret.Annotations[setupKeyIDAnnotation]
+	if secretKeyID == "" {
+		return false, nil
+	}
+
+	existingKey, err := r.Netbird.SetupKeys.Get(ctx, secretKeyID)
+	if isSetupKeyNotFound(err) {
+		return false, nil
+	}
+	if err != nil {
+		logger.Error(errNetBirdAPI, "error getting setup key", "err", err)
+		nbrp.Status.Conditions = nbv1.NBConditionFalse("APIError", fmt.Sprintf("error getting setup key: %v", err))
+		return false, err
+	}
+	if existingKey == nil {
+		return false, nil
+	}
+
+	if _, hasKey := existingSecret.Data["setupKey"]; existingKey.Revoked || !hasKey {
+		if err = r.deleteSetupKey(ctx, secretKeyID); err != nil {
+			logger.Error(errNetBirdAPI, "error deleting setup key", "err", err)
+			nbrp.Status.Conditions = nbv1.NBConditionFalse("APIError", fmt.Sprintf("error deleting setup key: %v", err))
+			return false, err
+		}
+		return false, nil
+	}
+
+	nbrp.Status.SetupKeyID = &secretKeyID
+	if err = r.Client.Status().Update(ctx, nbrp); err != nil {
+		nbrp.Status.SetupKeyID = nil
+		logger.Error(errKubernetesAPI, "error updating NBRoutingPeer Status", "err", err)
+		nbrp.Status.Conditions = nbv1.NBConditionFalse("internalError", fmt.Sprintf("error updating NBRoutingPeer Status: %v", err))
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (r *NBRoutingPeerReconciler) upsertSetupKeySecret(ctx context.Context, req ctrl.Request, nbrp *nbv1.NBRoutingPeer, setupKey api.SetupKeyClear) error {
+	skSecret := corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      nbrp.Name,
+			Namespace: nbrp.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         nbv1.GroupVersion.Identifier(),
+					Kind:               "NBRoutingPeer",
+					Name:               nbrp.Name,
+					UID:                nbrp.UID,
+					BlockOwnerDeletion: new(true),
+				},
+			},
+			Labels: r.DefaultLabels,
+			Annotations: map[string]string{
+				setupKeyIDAnnotation: setupKey.Id,
+			},
+		},
+		StringData: map[string]string{
+			"setupKey": setupKey.Key,
+		},
+	}
+	err := r.Client.Create(ctx, &skSecret)
+	if !errors.IsAlreadyExists(err) {
+		return err
+	}
+
+	var existing corev1.Secret
+	if err := r.Client.Get(ctx, req.NamespacedName, &existing); err != nil {
+		return err
+	}
+	if existing.Annotations == nil {
+		existing.Annotations = map[string]string{}
+	}
+	existing.Annotations[setupKeyIDAnnotation] = setupKey.Id
+	if existing.Data == nil {
+		existing.Data = map[string][]byte{}
+	}
+	existing.Data["setupKey"] = []byte(setupKey.Key)
+	return r.Client.Update(ctx, &existing)
+}
+
+func (r *NBRoutingPeerReconciler) deleteSetupKey(ctx context.Context, id string) error {
+	err := r.Netbird.SetupKeys.Delete(ctx, id)
+	if err != nil && !isSetupKeyNotFound(err) {
+		return err
+	}
+	return nil
+}
+
+func isSetupKeyNotFound(err error) bool {
+	return err != nil && (netbird.IsNotFound(err) || strings.Contains(err.Error(), "not found"))
 }
 
 // handleGroup creates/updates NBGroup for routing peer

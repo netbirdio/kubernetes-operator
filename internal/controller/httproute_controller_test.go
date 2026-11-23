@@ -177,5 +177,72 @@ var _ = Describe("HTTPRoute Controller", func() {
 
 			Expect(rec.routesForGateway(ctx, gw)).To(ConsistOf(reconcile.Request{NamespacedName: route}))
 		})
+
+		It("sets Accepted and ResolvedRefs conditions on status.parents and prunes stale parents", func() {
+			_, err := rec.Reconcile(ctx, reconcile.Request{NamespacedName: route})
+			Expect(err).NotTo(HaveOccurred())
+
+			hr := &gwv1.HTTPRoute{}
+			Expect(k8sClient.Get(ctx, route, hr)).To(Succeed())
+
+			Expect(hr.Status.Parents).To(HaveLen(1))
+			ps := hr.Status.Parents[0]
+			Expect(string(ps.ControllerName)).To(Equal(GatewayControllerName))
+			Expect(string(ps.ParentRef.Name)).To(Equal("gateway"))
+
+			accepted := meta.FindStatusCondition(ps.Conditions, string(gwv1.RouteConditionAccepted))
+			Expect(accepted).NotTo(BeNil())
+			Expect(accepted.Status).To(Equal(metav1.ConditionTrue))
+			Expect(accepted.ObservedGeneration).To(Equal(hr.Generation))
+
+			resolved := meta.FindStatusCondition(ps.Conditions, string(gwv1.RouteConditionResolvedRefs))
+			Expect(resolved).NotTo(BeNil())
+			Expect(resolved.Status).To(Equal(metav1.ConditionTrue))
+			Expect(resolved.ObservedGeneration).To(Equal(hr.Generation))
+
+			otherCtrl := gwv1.GatewayController("example.com/other-controller")
+			hr.Status.Parents = append(hr.Status.Parents, gwv1.RouteParentStatus{
+				ParentRef:      gwv1.ParentReference{Name: "other-gw"},
+				ControllerName: otherCtrl,
+				Conditions: []metav1.Condition{
+					{
+						Type:               string(gwv1.RouteConditionAccepted),
+						Status:             metav1.ConditionTrue,
+						Reason:             string(gwv1.RouteReasonAccepted),
+						LastTransitionTime: metav1.Now(),
+					},
+				},
+			})
+			Expect(k8sClient.Status().Update(ctx, hr)).To(Succeed())
+
+			Expect(k8sClient.Get(ctx, route, hr)).To(Succeed())
+			hr.Spec.ParentRefs = nil
+			Expect(k8sClient.Update(ctx, hr)).To(Succeed())
+
+			_, err = rec.Reconcile(ctx, reconcile.Request{NamespacedName: route})
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(k8sClient.Get(ctx, route, hr)).To(Succeed())
+			Expect(hr.Status.Parents).To(HaveLen(1))
+			Expect(hr.Status.Parents[0].ControllerName).To(Equal(otherCtrl))
+		})
+
+		It("sets ResolvedRefs False when a backend Service does not exist", func() {
+			Expect(k8sClient.Delete(ctx, &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: route.Namespace},
+			})).To(Succeed())
+
+			_, err := rec.Reconcile(ctx, reconcile.Request{NamespacedName: route})
+			Expect(err).To(HaveOccurred())
+
+			hr := &gwv1.HTTPRoute{}
+			Expect(k8sClient.Get(ctx, route, hr)).To(Succeed())
+			Expect(hr.Status.Parents).To(HaveLen(1))
+
+			resolved := meta.FindStatusCondition(hr.Status.Parents[0].Conditions, string(gwv1.RouteConditionResolvedRefs))
+			Expect(resolved).NotTo(BeNil())
+			Expect(resolved.Status).To(Equal(metav1.ConditionFalse))
+			Expect(resolved.Reason).To(Equal(string(gwv1.RouteReasonBackendNotFound)))
+		})
 	})
 })

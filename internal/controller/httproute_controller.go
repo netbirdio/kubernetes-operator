@@ -50,6 +50,74 @@ func backendRefPort(port *gwv1.PortNumber) int {
 	return int(*port)
 }
 
+func ptrEqual[T comparable](a, b *T) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
+}
+
+func parentRefMatches(a, b gwv1.ParentReference) bool {
+	groupA := gwv1.Group(gwv1.GroupName)
+	if a.Group != nil {
+		groupA = *a.Group
+	}
+	groupB := gwv1.Group(gwv1.GroupName)
+	if b.Group != nil {
+		groupB = *b.Group
+	}
+	kindA := gwv1.Kind("Gateway")
+	if a.Kind != nil {
+		kindA = *a.Kind
+	}
+	kindB := gwv1.Kind("Gateway")
+	if b.Kind != nil {
+		kindB = *b.Kind
+	}
+	return groupA == groupB &&
+		kindA == kindB &&
+		ptrEqual(a.Namespace, b.Namespace) &&
+		a.Name == b.Name &&
+		ptrEqual(a.SectionName, b.SectionName) &&
+		ptrEqual(a.Port, b.Port)
+}
+
+func setHTTPRouteParentStatus(hr *gwv1.HTTPRoute, parent gwv1.ParentReference, conds ...metav1.Condition) {
+	controllerName := gwv1.GatewayController(GatewayControllerName)
+	idx := -1
+	for i := range hr.Status.Parents {
+		if hr.Status.Parents[i].ControllerName == controllerName && parentRefMatches(hr.Status.Parents[i].ParentRef, parent) {
+			idx = i
+			break
+		}
+	}
+	if idx == -1 {
+		hr.Status.Parents = append(hr.Status.Parents, gwv1.RouteParentStatus{
+			ParentRef:      parent,
+			ControllerName: controllerName,
+		})
+		idx = len(hr.Status.Parents) - 1
+	}
+	for _, cond := range conds {
+		cond.ObservedGeneration = hr.Generation
+		meta.SetStatusCondition(&hr.Status.Parents[idx].Conditions, cond)
+	}
+}
+
+func pruneHTTPRouteParentStatuses(hr *gwv1.HTTPRoute, active []gwv1.ParentReference) bool {
+	controllerName := gwv1.GatewayController(GatewayControllerName)
+	before := len(hr.Status.Parents)
+	hr.Status.Parents = slices.DeleteFunc(hr.Status.Parents, func(ps gwv1.RouteParentStatus) bool {
+		if ps.ControllerName != controllerName {
+			return false
+		}
+		return !slices.ContainsFunc(active, func(p gwv1.ParentReference) bool {
+			return parentRefMatches(ps.ParentRef, p)
+		})
+	})
+	return len(hr.Status.Parents) != before
+}
+
 type HTTPRouteReconciler struct {
 	client.Client
 
@@ -71,6 +139,7 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return r.reconcileDelete(ctx, sp, hr)
 	}
 
+	var activeParents []gwv1.ParentReference
 	for _, parent := range hr.Spec.ParentRefs {
 		gw, err := gatewayutil.GetParentGateway(ctx, r.Client, parent, hr.Namespace, GatewayControllerName)
 		if err != nil {
@@ -79,8 +148,17 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		if gw == nil {
 			continue
 		}
+		activeParents = append(activeParents, parent)
+		setHTTPRouteParentStatus(hr, parent, metav1.Condition{
+			Type:   string(gwv1.RouteConditionAccepted),
+			Status: metav1.ConditionTrue,
+			Reason: string(gwv1.RouteReasonAccepted),
+		})
 		if !meta.IsStatusConditionTrue(gw.Status.Conditions, string(gwv1.GatewayConditionProgrammed)) {
 			logger.Info("gateway is not ready", "name", gw.ObjectMeta.Name)
+			if err := sp.Patch(ctx, hr); err != nil {
+				return ctrl.Result{}, err
+			}
 			continue
 		}
 		netRouter, err := gatewayutil.GetGatewayNetworkRouter(ctx, r.Client, gw)
@@ -103,6 +181,15 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				var svc corev1.Service
 				err := r.Client.Get(ctx, key, &svc)
 				if err != nil {
+					if kerrors.IsNotFound(err) {
+						setHTTPRouteParentStatus(hr, parent, metav1.Condition{
+							Type:    string(gwv1.RouteConditionResolvedRefs),
+							Status:  metav1.ConditionFalse,
+							Reason:  string(gwv1.RouteReasonBackendNotFound),
+							Message: err.Error(),
+						})
+						_ = sp.Patch(ctx, hr)
+					}
 					return ctrl.Result{}, err
 				}
 				svcIdx[svc.Name] = svc
@@ -111,6 +198,15 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 					backends = append(backends, backend)
 				}
 			}
+		}
+
+		setHTTPRouteParentStatus(hr, parent, metav1.Condition{
+			Type:   string(gwv1.RouteConditionResolvedRefs),
+			Status: metav1.ConditionTrue,
+			Reason: string(gwv1.RouteReasonResolvedRefs),
+		})
+		if err := sp.Patch(ctx, hr); err != nil {
+			return ctrl.Result{}, err
 		}
 
 		for _, svc := range svcIdx {
@@ -183,6 +279,12 @@ func (r *HTTPRouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			if err != nil {
 				return ctrl.Result{}, err
 			}
+		}
+	}
+
+	if pruneHTTPRouteParentStatuses(hr, activeParents) {
+		if err := sp.Patch(ctx, hr); err != nil {
+			return ctrl.Result{}, err
 		}
 	}
 

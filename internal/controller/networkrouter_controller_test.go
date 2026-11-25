@@ -5,7 +5,9 @@ package controller
 import (
 	"context"
 	"fmt"
+	"testing"
 
+	"github.com/go-openapi/testify/v2/assert"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
@@ -17,6 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	netbird "github.com/netbirdio/netbird/shared/management/client/rest"
 	"github.com/netbirdio/netbird/shared/management/http/api"
 
 	nbv1alpha1 "github.com/netbirdio/kubernetes-operator/api/v1alpha1"
@@ -30,6 +33,7 @@ var _ = Describe("NetworkRouter Controller", func() {
 		var netRouterRec *NetworkRouterReconciler
 		var setupKeyRec *SetupKeyReconciler
 		var groupRec *GroupReconciler
+		var nbRecorder *netbirdmock.Recorder
 
 		var nn client.ObjectKey
 
@@ -40,7 +44,8 @@ var _ = Describe("NetworkRouter Controller", func() {
 				Name:      "test-resource",
 				Namespace: "network-router-" + rand.String(5),
 			}
-			nbClient := netbirdmock.Client()
+			var nbClient *netbird.Client
+			nbClient, nbRecorder = netbirdmock.RecordingClient()
 			netRouterRec = &NetworkRouterReconciler{
 				Client:        k8sClient,
 				Netbird:       nbClient,
@@ -220,5 +225,154 @@ var _ = Describe("NetworkRouter Controller", func() {
 			setReadyReplicas(1)
 			Expect(ready()).To(Equal(metav1.ConditionFalse))
 		})
+
+		createReadyNetworkRouter := func() *nbv1alpha1.NetworkRouter {
+			_, err := netRouterRec.Netbird.DNSZones.CreateZone(ctx, api.ZoneRequest{
+				Name:   "cluster.local",
+				Domain: "cluster.local",
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			netRouter := &nbv1alpha1.NetworkRouter{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      nn.Name,
+					Namespace: nn.Namespace,
+				},
+				Spec: nbv1alpha1.NetworkRouterSpec{
+					DNSZoneRef: nbv1alpha1.DNSZoneReference{
+						Name: "cluster.local",
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, netRouter)).To(Succeed())
+			key := client.ObjectKey{Name: fmt.Sprintf("networkrouter-%s", netRouter.Name), Namespace: nn.Namespace}
+			for range 3 {
+				_, err := netRouterRec.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+				Expect(err).NotTo(HaveOccurred())
+				_, err = groupRec.Reconcile(ctx, reconcile.Request{NamespacedName: key})
+				Expect(err).NotTo(HaveOccurred())
+				_, err = setupKeyRec.Reconcile(ctx, reconcile.Request{NamespacedName: key})
+				Expect(err).NotTo(HaveOccurred())
+			}
+			Expect(k8sClient.Get(ctx, nn, netRouter)).To(Succeed())
+			Expect(netRouter.Status.NetworkID).NotTo(BeEmpty())
+			Expect(netRouter.Status.RoutingPeerID).NotTo(BeEmpty())
+			return netRouter
+		}
+
+		It("does not write the network or router when nothing changed", func() {
+			createReadyNetworkRouter()
+
+			// Every write shows up in the account's activity log, so the periodic resync
+			// must leave unchanged objects alone.
+			nbRecorder.Reset()
+			_, err := netRouterRec.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+			Expect(err).NotTo(HaveOccurred())
+			writes := map[string]int{}
+			for _, pattern := range []string{
+				"PUT /api/networks/{id}",
+				"PUT /api/networks/{network}/routers/{id}",
+				"POST /api/networks",
+				"POST /api/networks/{network}/routers",
+			} {
+				writes[pattern] = nbRecorder.Count(pattern)
+			}
+			Expect(writes).To(HaveEach(0), "unchanged network and router should not be written")
+		})
+
+		It("restores the network and router when they drift", func() {
+			netRouter := createReadyNetworkRouter()
+			networkID := netRouter.Status.NetworkID
+			routerID := netRouter.Status.RoutingPeerID
+
+			// Simulate edits made in the dashboard.
+			_, err := netRouterRec.Netbird.Networks.Update(ctx, networkID, api.NetworkRequest{Name: "renamed"})
+			Expect(err).NotTo(HaveOccurred())
+			_, err = netRouterRec.Netbird.Networks.Routers(networkID).Update(ctx, routerID, api.NetworkRouterRequest{
+				Enabled:    false,
+				Masquerade: true,
+				Metric:     1,
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = netRouterRec.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+			Expect(err).NotTo(HaveOccurred())
+
+			network, err := netRouterRec.Netbird.Networks.Get(ctx, networkID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(network.Name).To(Equal(netRouter.Name), "network name should be restored")
+
+			router, err := netRouterRec.Netbird.Networks.Routers(networkID).Get(ctx, routerID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(router.Enabled).To(BeTrue(), "router should be re-enabled")
+			Expect(router.Metric).To(Equal(9999), "router metric should be restored")
+			Expect(router.PeerGroups).NotTo(BeNil(), "router peer groups should be restored")
+			Expect(*router.PeerGroups).To(HaveLen(1), "router peer groups should be restored")
+		})
 	})
 })
+
+func TestNetworkMatches(t *testing.T) {
+	t.Parallel()
+
+	req := api.NetworkRequest{Name: "router"}
+	tests := []struct {
+		name    string
+		network api.Network
+		want    bool
+	}{
+		{name: "same settings", network: api.Network{Name: "router"}, want: true},
+		{name: "empty description", network: api.Network{Name: "router", Description: new("")}, want: true},
+		{name: "different name", network: api.Network{Name: "renamed"}, want: false},
+		{name: "different description", network: api.Network{Name: "router", Description: new("edited")}, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, networkMatches(&tt.network, req))
+		})
+	}
+}
+
+func TestNetworkRouterMatches(t *testing.T) {
+	t.Parallel()
+
+	req := api.NetworkRouterRequest{
+		Enabled:    true,
+		Masquerade: true,
+		Metric:     9999,
+		PeerGroups: new([]string{"group-a", "group-b"}),
+	}
+	// router returns the router the request would create, changed by modify.
+	router := func(modify func(*api.NetworkRouter)) *api.NetworkRouter {
+		r := &api.NetworkRouter{
+			Enabled:    req.Enabled,
+			Masquerade: req.Masquerade,
+			Metric:     req.Metric,
+			PeerGroups: new([]string{"group-a", "group-b"}),
+		}
+		modify(r)
+		return r
+	}
+	tests := []struct {
+		name   string
+		modify func(*api.NetworkRouter)
+		want   bool
+	}{
+		{name: "same settings", modify: func(r *api.NetworkRouter) {}, want: true},
+		{name: "empty peer", modify: func(r *api.NetworkRouter) { r.Peer = new("") }, want: true},
+		{name: "peer groups in another order", modify: func(r *api.NetworkRouter) { r.PeerGroups = new([]string{"group-b", "group-a"}) }, want: true},
+		{name: "disabled", modify: func(r *api.NetworkRouter) { r.Enabled = false }, want: false},
+		{name: "masquerade off", modify: func(r *api.NetworkRouter) { r.Masquerade = false }, want: false},
+		{name: "different metric", modify: func(r *api.NetworkRouter) { r.Metric = 1 }, want: false},
+		{name: "peer set", modify: func(r *api.NetworkRouter) { r.Peer = new("peer-1") }, want: false},
+		{name: "different peer groups", modify: func(r *api.NetworkRouter) { r.PeerGroups = new([]string{"group-a", "group-c"}) }, want: false},
+		{name: "missing peer groups", modify: func(r *api.NetworkRouter) { r.PeerGroups = nil }, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, networkRouterMatches(router(tt.modify), req))
+		})
+	}
+}

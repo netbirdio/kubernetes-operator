@@ -25,6 +25,10 @@ type ClusterProxySpec struct {
 	// Groups are references to groups that the peer will be a part of.
 	// +optional
 	Groups []GroupReference `json:"groups,omitempty"`
+
+	// WorkloadOverride contains configuration that will override the default workload.
+	// +optional
+	WorkloadOverride *WorkloadOverride `json:"workloadOverride,omitempty"`
 }
 
 // ClusterProxyStatus defines the observed state of ClusterProxy.

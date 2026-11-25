@@ -57,6 +57,7 @@ _Appears in:_
 | `apiServer` _string_ | APIServer is the URL of the Kubernetes API server to proxy requests to. | https://kubernetes.default.svc.cluster.local/ | Required: \{\} <br /> |
 | `serviceAccountName` _string_ | ServiceAccountName is a reference to the service account used for impersonation. |  | Required: \{\} <br /> |
 | `groups` _[GroupReference](#groupreference) array_ | Groups are references to groups that the peer will be a part of. |  | Optional: \{\} <br /> |
+| `workloadOverride` _[WorkloadOverride](#workloadoverride)_ | WorkloadOverride contains configuration that will override the default workload. |  | Optional: \{\} <br /> |
 
 
 #### ClusterProxyStatus
@@ -591,6 +592,7 @@ _Appears in:_
 
 
 _Appears in:_
+- [ClusterProxySpec](#clusterproxyspec)
 - [NetworkRouterSpec](#networkrouterspec)
 
 | Field | Description | Default | Validation |
